@@ -85,4 +85,14 @@ class PoseTests {
 		mvc.perform(get("/api/datasets/" + DS + "/ramps/RAMP-STERN")).andExpect(jsonPath("$.state").value("blocked"));
 		mvc.perform(get("/api/datasets/" + DS + "/ramps/NOPE")).andExpect(status().isNotFound());
 	}
+
+	@Test
+	void invalidDraftsAre400WithField() throws Exception {
+		mvc.perform(put("/api/datasets/" + DS + "/pose").contentType(MediaType.APPLICATION_JSON)
+			.content("{\"draft_fwd_m\":0,\"draft_aft_m\":8.6,\"heel_deg\":0,\"heading_deg\":87.5,\"tide_m\":0,\"quay_z_m\":3.5,\"ap_lat\":0,\"ap_lon\":0}"))
+			.andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("draft_fwd_m"));
+		mvc.perform(put("/api/datasets/" + DS + "/pose").contentType(MediaType.APPLICATION_JSON)
+			.content("{\"draft_fwd_m\":8.1,\"draft_aft_m\":-1,\"heel_deg\":0,\"heading_deg\":87.5,\"tide_m\":0,\"quay_z_m\":3.5,\"ap_lat\":0,\"ap_lon\":0}"))
+			.andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("draft_aft_m"));
+	}
 }

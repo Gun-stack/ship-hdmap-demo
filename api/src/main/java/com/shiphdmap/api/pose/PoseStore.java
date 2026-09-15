@@ -26,11 +26,13 @@ public class PoseStore {
 
 	public Pose put(String ds, Pose p) {
 		get(ds); // 404 if the dataset does not exist
-		if (p.draftFwdM() <= 0 || p.draftAftM() <= 0) throw new ApiErrors.BadRequest("drafts must be positive", "draft_aft_m");
+		if (p.draftFwdM() <= 0) throw new ApiErrors.BadRequest("draft_fwd_m must be positive", "draft_fwd_m");
+		if (p.draftAftM() <= 0) throw new ApiErrors.BadRequest("draft_aft_m must be positive", "draft_aft_m");
 		poses.put(ds, p);
 		return p;
 	}
 
+	/** Test only: resets in-memory poses between tests. */
 	public void clear() { poses.clear(); }
 
 	public double lppM(String ds) { return db.sql("SELECT lpp_m FROM dataset WHERE id = :id").param("id", ds).query(Double.class).optional().orElseThrow(() -> new ApiErrors.NotFound("dataset " + ds)); }
