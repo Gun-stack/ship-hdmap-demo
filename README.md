@@ -11,8 +11,8 @@ RORO(자동차운반선) 선박 내부 정밀지도 편집기와 자율차 로�
 
 - `unity/` Unity 6.3 LTS (WebGL). 편집 모드 + 주행 시뮬레이션 모드, 빌드 하나
 - `web/` React 19 + Vite + TS. 2D 편집 UI, react-unity-webgl 브리지 (예정)
-- `api/` Spring Boot 4 + JdbcClient + PostGIS. 저장·구획 자동생성·차량 지도 내보내기 (예정)
-- `db/` docker-compose PostGIS 17 (예정)
+- `api/` Spring Boot 4 + JdbcClient + PostGIS. 데이터셋·피처 CRUD, 시드 적재, vehicle-map(ETag), pose·램프, WGS84 GeoJSON. `./scripts/m2-smoke.sh` 로 종단 확인
+- `db/` docker compose PostGIS 17 (호스트 5433)
 - `docs/superpowers/specs/` 설계 스펙
 
 ## 핵심 설계
@@ -24,5 +24,7 @@ RORO(자동차운반선) 선박 내부 정밀지도 편집기와 자율차 로�
 
 ## 상태
 
-- 스펙 작성 완료. 구현은 M1(Unity 수직 슬라이스: 선박 생성기·랜드마크·위치 추정)부터 순서대로 진행
+- M1 Unity 수직 슬라이스 완료 (EditMode 테스트 39)
+- M2 데이터·API 완료 (Testcontainers 테스트, 스모크 스크립트, QGIS 절차 `docs/qgis-check.md`)
+- 다음: M3 웹 편집기
 - 상세: `docs/superpowers/specs/2026-09-15-ship-hdmap-demo-design.md`
