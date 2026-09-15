@@ -39,8 +39,8 @@ public class GeoJsonController {
 			String type = (String) geom.get("type");
 			double[][] c = Wkt.coords(geoJson(geom));
 			Object coords = switch (type) { case "Point" -> pt(c[0], g); case "LineString" -> line(c, g); default -> ring(c, g); };
-			var props = new LinkedHashMap<String, Object>(); props.put("id", f.get("id")); props.put("layer", f.get("layer")); props.put("kind", f.get("kind")); props.put("deck_id", f.get("deck_id"));
-			props.putAll((Map<String, Object>) f.get("props"));
+			var props = new LinkedHashMap<String, Object>((Map<String, Object>) f.get("props"));
+			props.put("id", f.get("id")); props.put("layer", f.get("layer")); props.put("kind", f.get("kind")); props.put("deck_id", f.get("deck_id"));
 			out.add(feature(type, coords, props));
 		}
 		var fc = new LinkedHashMap<String, Object>(); fc.put("type", "FeatureCollection"); fc.put("features", out);

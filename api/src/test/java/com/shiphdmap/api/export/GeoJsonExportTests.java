@@ -79,4 +79,15 @@ class GeoJsonExportTests {
 		assertThat(lm1.get("geometry").get("coordinates").get(1).asDouble()).isCloseTo(expect[0], within(1e-7));
 		mvc.perform(get("/api/datasets/nope/export.geojson")).andExpect(status().isNotFound());
 	}
+
+	@Test
+	void fixedKeysWinOverFeatureProps() throws Exception {
+		db.sql("INSERT INTO feature (dataset_id, id, deck_id, layer, kind, geom, props) VALUES ('roro-demo-01','LM-9999','D3','LM','apriltag',ST_GeomFromText('POINT Z(1 1 11.8)',0),'{\"id\":\"evil\",\"layer\":\"ZZ\",\"code\":9}'::jsonb)").update();
+		JsonNode fc = json.readTree(mvc.perform(get("/api/datasets/" + DS + "/export.geojson")).andReturn().getResponse().getContentAsString());
+		JsonNode evil = null;
+		for (JsonNode f : fc.get("features")) if (f.get("properties").has("code") && f.get("properties").get("code").asInt() == 9) evil = f;
+		assertThat(evil).isNotNull();
+		assertThat(evil.get("properties").get("id").asText()).isEqualTo("LM-9999");
+		assertThat(evil.get("properties").get("layer").asText()).isEqualTo("LM");
+	}
 }
