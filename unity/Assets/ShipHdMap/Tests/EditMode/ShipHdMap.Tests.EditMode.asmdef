@@ -1,0 +1,14 @@
+{
+  "name": "ShipHdMap.Tests.EditMode",
+  "rootNamespace": "ShipHdMap.Tests",
+  "references": [ "ShipHdMap.Runtime", "ShipHdMap.Editor", "UnityEngine.TestRunner", "UnityEditor.TestRunner", "Unity.Nuget.Newtonsoft-Json" ],
+  "includePlatforms": [ "Editor" ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": true,
+  "precompiledReferences": [ "nunit.framework.dll" ],
+  "autoReferenced": false,
+  "defineConstraints": [ "UNITY_INCLUDE_TESTS" ],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
