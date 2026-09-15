@@ -53,16 +53,12 @@ namespace ShipHdMap
                 double[,] A = new double[3, 3]; double[] b = new double[3]; double sumSq = 0; int n = 0;
                 foreach (var (o, lm) in used)
                 {
-                    double dx = lm.mx - p.x, dy = lm.my - p.y;
-                    double rh = Math.Sqrt(dx * dx + dy * dy); if (rh < 1e-9) rh = 1e-9;
-                    double er = o.r - rh;
-                    double et = ShipFrame.WrapRad(o.thetaRad - (Math.Atan2(dy, dx) - p.psiRad));
-                    double ea = ShipFrame.WrapRad(o.alphaRad - (lm.phiRad - p.psiRad));
-                    double[] jr = { -dx / rh, -dy / rh, 0 };
-                    double[] jt = { dy / (rh * rh), -dx / (rh * rh), -1 };
+                    var res = Residual(p, o, lm);
+                    double[] jr = { -res.dx / res.rh, -res.dy / res.rh, 0 };
+                    double[] jt = { res.dy / (res.rh * res.rh), -res.dx / (res.rh * res.rh), -1 };
                     double[] ja = { 0, 0, -1 };
-                    Accumulate(A, b, jr, wr, er); Accumulate(A, b, jt, wt, et); Accumulate(A, b, ja, wa, ea);
-                    sumSq += er * er + et * et + ea * ea; n += 3;
+                    Accumulate(A, b, jr, wr, res.er); Accumulate(A, b, jt, wt, res.et); Accumulate(A, b, ja, wa, res.ea);
+                    sumSq += res.er * res.er + res.et * res.et + res.ea * res.ea; n += 3;
                 }
                 rms = Math.Sqrt(sumSq / n);
                 double[] d = Solve3(A, b);
@@ -70,13 +66,31 @@ namespace ShipHdMap
                 if (Math.Sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]) < StopDelta) break;
             }
             // Final residual after the last update
-            { double sumSq = 0; int n = 0;
-              foreach (var (o, lm) in used)
-              { double dx = lm.mx - p.x, dy = lm.my - p.y, rh = Math.Sqrt(dx * dx + dy * dy);
-                double er = o.r - rh, et = ShipFrame.WrapRad(o.thetaRad - (Math.Atan2(dy, dx) - p.psiRad)), ea = ShipFrame.WrapRad(o.alphaRad - (lm.phiRad - p.psiRad));
-                sumSq += er * er + et * et + ea * ea; n += 3; }
-              rms = Math.Sqrt(sumSq / n); }
+            rms = ResidualRms(p, used);
             return new LocalizerResult { ok = true, pose = p, nObs = used.Count, residualRms = rms, iterations = Math.Min(iter, MaxIterations) };
+        }
+
+        /// Per-marker prediction error at pose p: dx/dy/rh (for the Jacobian) plus range/bearing/normal residuals.
+        static (double dx, double dy, double rh, double er, double et, double ea) Residual(Pose2D p, Observation o, LandmarkRef lm)
+        {
+            double dx = lm.mx - p.x, dy = lm.my - p.y;
+            double rh = Math.Sqrt(dx * dx + dy * dy); if (rh < 1e-9) rh = 1e-9;
+            double er = o.r - rh;
+            double et = ShipFrame.WrapRad(o.thetaRad - (Math.Atan2(dy, dx) - p.psiRad));
+            double ea = ShipFrame.WrapRad(o.alphaRad - (lm.phiRad - p.psiRad));
+            return (dx, dy, rh, er, et, ea);
+        }
+
+        /// RMS of range/bearing/normal residuals across all used observations at pose p.
+        static double ResidualRms(Pose2D p, List<(Observation o, LandmarkRef lm)> used)
+        {
+            double sumSq = 0; int n = 0;
+            foreach (var (o, lm) in used)
+            {
+                var res = Residual(p, o, lm);
+                sumSq += res.er * res.er + res.et * res.et + res.ea * res.ea; n += 3;
+            }
+            return Math.Sqrt(sumSq / n);
         }
 
         static void Accumulate(double[,] A, double[] b, double[] j, double w, double e)
@@ -95,7 +109,7 @@ namespace ShipHdMap
             return new[] { d0 / det, d1 / det, d2 / det };
         }
 
-        static double Det3(double a, double b, double c, double d, double e, double f, double g, double h, double i)
-            => a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
+        static double Det3(double m00, double m01, double m02, double m10, double m11, double m12, double m20, double m21, double m22)
+            => m00 * (m11 * m22 - m12 * m21) - m01 * (m10 * m22 - m12 * m20) + m02 * (m10 * m21 - m11 * m20);
     }
 }
