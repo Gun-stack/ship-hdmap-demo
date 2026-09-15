@@ -37,6 +37,8 @@ namespace ShipHdMap
                 {
                     var pipe = Prim(mep, $"Pipe_{y:+0;-0;0}", PrimitiveType.Cylinder, ShipFrame.ToUnity(p.lengthM / 2, y, d.z_surface + d.z_clear - 0.3), new Vector3(MepRadius * 2, L / 2, MepRadius * 2), Color(0.75f, 0.6f, 0.2f), layer);
                     pipe.transform.rotation = Quaternion.Euler(0, 0, 90); // cylinder axis along Unity X
+                    Object.DestroyImmediate(pipe.GetComponent<Collider>());
+                    pipe.AddComponent<BoxCollider>(); // structure colliders must be MeshCollider or BoxCollider, not the primitive's CapsuleCollider; auto-sizes to the mesh bounds and follows the rotation above since it's local-space
                 }
             }
             foreach (var r in seed.ramps)
@@ -55,6 +57,8 @@ namespace ShipHdMap
         {
             var ramp = ship.transform.Find("Ramp"); if (!ramp) return;
             ramp.rotation = Quaternion.Euler(0, 0, (float)-angleDeg);
+            // Flushes ALL pending transforms scene-wide (autoSyncTransforms is off in this project). Call this on
+            // pose changes only (e.g. an operator moving the ramp), not every frame.
             Physics.SyncTransforms();
         }
 

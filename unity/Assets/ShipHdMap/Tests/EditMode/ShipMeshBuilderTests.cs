@@ -24,7 +24,13 @@ namespace ShipHdMap.Tests
             // first pillar: ship (12, -6.5) -> Unity (12, *, +6.5)
             Assert.That(pillar.position.x, Is.EqualTo(12f).Within(1e-3));
             Assert.That(pillar.position.z, Is.EqualTo(6.5f).Within(1e-3));
-            Assert.That(ship.transform.Find("D3/MEP").childCount, Is.EqualTo(3));
+            var mep = ship.transform.Find("D3/MEP");
+            Assert.That(mep.childCount, Is.EqualTo(3));
+            foreach (Transform pipe in mep)
+            {
+                Assert.That(pipe.GetComponent<BoxCollider>(), Is.Not.Null, $"{pipe.name} should have a BoxCollider");
+                Assert.That(pipe.GetComponent<CapsuleCollider>(), Is.Null, $"{pipe.name} should not have a CapsuleCollider");
+            }
             Assert.That(ship.transform.Find("Ramp/Plate"), Is.Not.Null);
         }
 
