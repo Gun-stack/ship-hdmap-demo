@@ -16,5 +16,11 @@
   ],
   "wrap_deg": [
     { "in": 190, "out": -170 }, { "in": -181, "out": 179 }, { "in": 180, "out": 180 }, { "in": 540, "out": 180 }
+  ],
+  "wgs84": [
+    { "georef": { "ap_lat": 10.0, "ap_lon": 20.0, "heading_deg": 0 },  "ship": [111.32, 0],   "expect": { "lat": 10.001, "lon": 20.0 } },
+    { "georef": { "ap_lat": 10.0, "ap_lon": 20.0, "heading_deg": 90 }, "ship": [111.32, 0],   "expect": { "lat": 10.0, "lon": 20.001015426611886 } },
+    { "georef": { "ap_lat": 10.0, "ap_lon": 20.0, "heading_deg": 0 },  "ship": [0, 111.32],   "expect": { "lat": 10.0, "lon": 19.998984573388114 } },
+    { "georef": { "ap_lat": 0.0,  "ap_lon": 0.0,  "heading_deg": 180 }, "ship": [111.32, 111.32], "expect": { "lat": -0.001, "lon": 0.001 } }
   ]
 }
