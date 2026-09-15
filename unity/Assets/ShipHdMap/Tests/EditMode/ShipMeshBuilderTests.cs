@@ -41,8 +41,8 @@ namespace ShipHdMap.Tests
             ship = ShipMeshBuilder.Build(ShipSeedBuilder.Build(p), p);
             var ramp = ship.transform.Find("Ramp");
             ShipMeshBuilder.SetRampAngle(ship, 0);
-            float y0 = ramp.Find("Plate").GetComponent<Collider>().bounds.min.x; // far end of ramp is at x = -30
-            Assert.That(y0, Is.EqualTo(-30f).Within(0.05f));
+            float minX0 = ramp.Find("Plate").GetComponent<Collider>().bounds.min.x; // far end of ramp is at x = -30
+            Assert.That(minX0, Is.EqualTo(-30f).Within(0.05f));
             ShipMeshBuilder.SetRampAngle(ship, 4);
             var b = ramp.Find("Plate").GetComponent<Collider>().bounds;
             Assert.That(b.min.x, Is.GreaterThan(-30f));      // shortened footprint

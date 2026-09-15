@@ -18,7 +18,7 @@ namespace ShipHdMap.Tests
             Assert.That(map.schema, Is.EqualTo("ship-hdmap/vehicle-map/1.0"));
             Assert.That(map.decks.Count, Is.EqualTo(3));
             Assert.That(map.decks[0].outline.Length, Is.EqualTo(5));
-            Assert.That(map.landmarks.Count, Is.EqualTo(6));
+            Assert.That(map.landmarks.Count, Is.EqualTo(19));
             Assert.That(map.landmarks[0].marker.code, Is.EqualTo(1));
             Assert.That(map.landmarks[0].normal, Is.EqualTo(new double[] { 0, 1, 0 }));
             Assert.That(map.parking_slots[0].target_pose.heading_deg, Is.EqualTo(0));

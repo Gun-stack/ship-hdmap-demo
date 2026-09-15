@@ -30,15 +30,24 @@ namespace ShipHdMap.Editor
             var seed = ShipSeedBuilder.Build(new ShipParams());
             foreach (var r in seed.ramps) r.transition_landmarks = new List<string> { "LM-0001", "LM-0002" };
             var existing = File.Exists(BridgeStubWindow.FixturePath()) ? MapJson.Parse<VehicleMap>(File.ReadAllText(BridgeStubWindow.FixturePath())) : new VehicleMap();
-            var landmarks = new List<Landmark>
+
+            // One landmark pair per D3 pillar station (x = 12, 24, ..., 108), the port-side (-y) and
+            // starboard-side (+y) pillar at that station identified by matching their seed footprint centres
+            // (never hard-code pillar ids, since they shift if the generator's station layout changes).
+            var d3Pillars = seed.facilities.Where(f => f.deck_id == "D3" && f.kind == "pillar").ToList();
+            var portRow = d3Pillars.Where(f => PillarCenter(f).y < 0).OrderBy(f => PillarCenter(f).x).ToList();
+            var stbdRow = d3Pillars.Where(f => PillarCenter(f).y > 0).OrderBy(f => PillarCenter(f).x).ToList();
+
+            var landmarks = new List<Landmark>();
+            int stationCount = Math.Min(9, Math.Min(portRow.Count, stbdRow.Count));
+            for (int i = 0; i < stationCount; i++)
             {
-                Lm("LM-0001", 1, 12, -6.2, 11.8, 0, 1, 0, "C-PILLAR-D3-001"),
-                Lm("LM-0002", 2, 12, 6.2, 11.8, 0, -1, 0, "C-PILLAR-D3-010"),
-                Lm("LM-0003", 3, 40, 11.9, 11.8, 0, -1, 0, "HULL-PORT"),
-                Lm("LM-0004", 4, 36, -6.2, 11.8, 0, 1, 0, "C-PILLAR-D3-003"),
-                Lm("LM-0005", 5, 36, 6.2, 11.8, 0, -1, 0, "C-PILLAR-D3-012"),
-                Lm("LM-0006", 6, 60, -6.2, 11.8, 0, 1, 0, "C-PILLAR-D3-005"),
-            };
+                double x = 12 + 12 * i;
+                landmarks.Add(Lm($"LM-{2 * i + 1:0000}", (2 * i + 1) % 20, x, -6.2, 11.8, 0, 1, 0, portRow[i].id));
+                landmarks.Add(Lm($"LM-{2 * i + 2:0000}", (2 * i + 2) % 20, x, 6.2, 11.8, 0, -1, 0, stbdRow[i].id));
+            }
+            landmarks.Add(Lm("LM-0019", 19, 40, 11.9, 11.8, 0, -1, 0, "HULL-PORT"));
+
             var map = BuildMap(seed, existing, landmarks);
             File.WriteAllText(BridgeStubWindow.FixturePath(), MapJson.Serialize(map));
             Debug.Log($"Fixture written (from seed): {BridgeStubWindow.FixturePath()} (landmarks {map.landmarks.Count})");
@@ -87,6 +96,8 @@ namespace ShipHdMap.Editor
         }
 
         static double Sq(double v) => v * v;
+
+        static (double x, double y) PillarCenter(Facility f) => ((f.footprint[0][0] + f.footprint[2][0]) / 2, (f.footprint[0][1] + f.footprint[2][1]) / 2);
 
         static Landmark Lm(string id, int code, double x, double y, double z, double nx, double ny, double nz, string mountedOn) =>
             new Landmark { id = id, marker = new Marker { family = "apriltag-36h11", code = code },

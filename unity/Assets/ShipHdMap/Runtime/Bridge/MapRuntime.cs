@@ -35,8 +35,12 @@ namespace ShipHdMap
                 var (x, y, z) = ShipFrame.ToShip(lm.transform.position);
                 Send(BridgeMessages.OnFeatureCreated, MapJson.Serialize(new FeatureCreatedEvt { tempId = lm.id, layer = "LM", x = x, y = y, z = z, deck = lm.deckId })); };
             Placer.Deleted += id => { _markers.Remove(id); MapRefs.Remove(id); };
-            if (_seed != null) Send(BridgeMessages.OnSeedReady, MapJson.Serialize(_seed));
+            if (_seed != null && Emit != null) Send(BridgeMessages.OnSeedReady, MapJson.Serialize(_seed));
         }
+
+        /// Serializes and emits the seed on demand; nothing subscribes to Emit yet when Awake runs
+        /// (the bridge stub window subscribes after Play mode starts), so this lets a late subscriber ask for it.
+        public void RequestSeed() { if (_seed != null) Send(BridgeMessages.OnSeedReady, MapJson.Serialize(_seed)); }
 
         /// Creates child objects without touching the scene ship or camera; used by Awake and by EditMode tests.
         public void InitForTest()
@@ -85,8 +89,31 @@ namespace ShipHdMap
         public void StartScenario(string json)
         {
             var s = MapJson.Parse<StartScenarioMsg>(json); if (s.map != null) Load(MapJson.Serialize(s.map));
-            var lane = CurrentMap.lanes[0]; var deck = CurrentMap.decks.Find(d => d.id == lane.deck_id);
+            var (lane, deck) = ResolveScenarioLane();
+            if (lane == null || deck == null) { Debug.LogWarning("StartScenario: no usable lane/deck in CurrentMap."); return; }
             _prev = null; SetMode("drive"); Vehicle.StartLane(lane, deck.z_surface);
+        }
+
+        /// Picks the scenario's starting lane: the lane the first ramp connects to (the vehicle drives on
+        /// after disembarking), falling back to the first lane whose deck carries a landmark, then lanes[0].
+        public (Lane lane, Deck deck) ResolveScenarioLane()
+        {
+            if (CurrentMap == null || CurrentMap.lanes == null || CurrentMap.lanes.Count == 0) return (null, null);
+
+            Lane lane = null;
+            var rampLaneId = CurrentMap.ramps != null && CurrentMap.ramps.Count > 0 ? CurrentMap.ramps[0].connects_lane : null;
+            if (rampLaneId != null) lane = CurrentMap.lanes.Find(l => l.id == rampLaneId);
+
+            if (lane == null && CurrentMap.landmarks != null)
+            {
+                var decksWithLandmarks = new HashSet<string>();
+                foreach (var lm in CurrentMap.landmarks) decksWithLandmarks.Add(lm.deck_id);
+                lane = CurrentMap.lanes.Find(l => decksWithLandmarks.Contains(l.deck_id));
+            }
+
+            lane ??= CurrentMap.lanes[0];
+            var deck = CurrentMap.decks?.Find(d => d.id == lane.deck_id);
+            return (lane, deck);
         }
 
         // ---- per frame ----
@@ -95,7 +122,7 @@ namespace ShipHdMap
             if (_mode != "drive" || !Vehicle.running) return;
             var obs = Sensor.Sense(Vehicle.Truth, MapRefs, id => _markers[id].transform.position);
             var res = Localizer.Solve(obs, MapRefs, Sensor.noise.sigmaR, Sensor.noise.sigmaThetaRad, Sensor.noise.sigmaAlphaRad, _prev);
-            if (res.ok) _prev = res.pose;
+            if (res.ok && double.IsFinite(res.pose.x) && double.IsFinite(res.pose.y) && double.IsFinite(res.pose.psiRad)) _prev = res.pose;
             Hud.Set(res, Vehicle.Truth, "SHIP_AP");
             _emitTimer += Time.deltaTime;
             if (_emitTimer >= 0.2f)

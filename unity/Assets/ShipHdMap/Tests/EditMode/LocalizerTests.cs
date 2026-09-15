@@ -111,5 +111,44 @@ namespace ShipHdMap.Tests
             Assert.That(res.nObs, Is.EqualTo(1));
             Assert.That(res.pose.x, Is.EqualTo(truth.x).Within(1e-6));
         }
+
+        [Test]
+        public void SolveWithZeroSigmasIsFiniteAndExact()
+        {
+            var truth = new Pose2D { x = 12, y = -2, psiRad = -15 * D };
+            var obs = new List<Observation>();
+            foreach (var lm in Map().Values) obs.Add(Localizer.Observe(truth, lm));
+            var res = Localizer.Solve(obs, Map(), 0, 0, 0, null);
+            Assert.That(res.ok);
+            Assert.That(double.IsFinite(res.pose.x), Is.True);
+            Assert.That(double.IsFinite(res.pose.y), Is.True);
+            Assert.That(double.IsFinite(res.pose.psiRad), Is.True);
+            Assert.That(res.pose.x, Is.EqualTo(truth.x).Within(1e-6));
+            Assert.That(res.pose.y, Is.EqualTo(truth.y).Within(1e-6));
+            Assert.That(ShipFrame.WrapRad(res.pose.psiRad - truth.psiRad), Is.EqualTo(0).Within(1e-6));
+        }
+
+        [Test]
+        public void DegenerateJacobianKeepsPreviousPose()
+        {
+            // Two markers exactly at the previous-pose estimate: range residual's dx/dy collapse to zero, so the
+            // range Jacobian row is all-zero and the normal-equations matrix is singular (x/y columns unconstrained).
+            var map = new Dictionary<string, LandmarkRef>
+            {
+                ["A"] = new LandmarkRef { id = "A", mx = 5, my = 5, phiRad = 0 },
+                ["B"] = new LandmarkRef { id = "B", mx = 5, my = 5, phiRad = 0 },
+            };
+            var obs = new List<Observation>
+            {
+                new Observation { id = "A", r = 0, thetaRad = 0, alphaRad = 0 },
+                new Observation { id = "B", r = 0, thetaRad = 0, alphaRad = 0 },
+            };
+            var previous = new Pose2D { x = 5, y = 5, psiRad = 0.4 };
+            var res = Localizer.Solve(obs, map, 0.2, 1 * D, 2 * D, previous);
+            Assert.That(res.ok, Is.False);
+            Assert.That(res.pose.x, Is.EqualTo(previous.x));
+            Assert.That(res.pose.y, Is.EqualTo(previous.y));
+            Assert.That(res.pose.psiRad, Is.EqualTo(previous.psiRad));
+        }
     }
 }

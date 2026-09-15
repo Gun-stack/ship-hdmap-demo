@@ -53,10 +53,19 @@ namespace ShipHdMap.Tests
         {
             var go = new GameObject("Placer");
             var placer = go.AddComponent<LandmarkPlacer>();
+            var root = new GameObject("Landmarks");
+
             Assert.That(placer.NextId(), Is.EqualTo("LM-0001"));
             Assert.That(placer.NextId(), Is.EqualTo("LM-0002"));
+            var a = LandmarkMarker.Spawn(root.transform, "LM-0001", 1, Vector3.zero, Vector3.up, 0.3f, "D3", "C-PILLAR-001");
+            var b = LandmarkMarker.Spawn(root.transform, "LM-0002", 2, Vector3.zero, Vector3.up, 0.3f, "D3", "C-PILLAR-002");
+            placer.All.Add(a); placer.All.Add(b);
+
             // simulate a delete: All shrinks, but the id sequence must not depend on All.Count
+            placer.All.Remove(a);
             Assert.That(placer.NextId(), Is.EqualTo("LM-0003"));
+
+            Object.DestroyImmediate(root);
             Object.DestroyImmediate(go);
         }
     }

@@ -69,5 +69,14 @@ namespace ShipHdMap.Tests
             string json = MapJson.Serialize(ShipSeedBuilder.Build(new ShipParams()));
             Assert.That(json, Does.Contain("\"z_surface\"").And.Contain("\"lashing_points\"").And.Contain("\"footprint\""));
         }
+
+        [Test]
+        public void NonPositiveParamsThrow()
+        {
+            Assert.Throws<System.ArgumentException>(() => ShipSeedBuilder.Build(new ShipParams { lengthM = 0 }));
+            Assert.Throws<System.ArgumentException>(() => ShipSeedBuilder.Build(new ShipParams { beamM = -1 }));
+            Assert.Throws<System.ArgumentException>(() => ShipSeedBuilder.Build(new ShipParams { pillarPitchM = 0 }));
+            Assert.Throws<System.ArgumentException>(() => ShipSeedBuilder.Build(new ShipParams { lashingPitchM = -0.1 }));
+        }
     }
 }

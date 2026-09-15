@@ -7,6 +7,11 @@ namespace ShipHdMap
     {
         public static SeedData Build(ShipParams p)
         {
+            if (p.lengthM <= 0) throw new ArgumentException("lengthM must be positive", nameof(p.lengthM));
+            if (p.beamM <= 0) throw new ArgumentException("beamM must be positive", nameof(p.beamM));
+            if (p.pillarPitchM <= 0) throw new ArgumentException("pillarPitchM must be positive", nameof(p.pillarPitchM));
+            if (p.lashingPitchM <= 0) throw new ArgumentException("lashingPitchM must be positive", nameof(p.lashingPitchM));
+
             var seed = new SeedData { decks = new(), facilities = new(), lashing_points = new(), ramps = new(), lanes = new() };
             double hb = p.beamM / 2;
             for (int i = 0; i < p.deckCount; i++)

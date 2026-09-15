@@ -1,8 +1,8 @@
 {
   "schema": "ship-hdmap/vehicle-map/1.0",
   "map_id": "roro-demo-01",
-  "version": 3,
-  "generated_at": "2026-09-15T06:01:02Z",
+  "version": 4,
+  "generated_at": "2026-09-15T06:21:43Z",
   "frame": {
     "name": "SHIP_AP",
     "origin": "AP x Baseline x Centerline",
@@ -165,8 +165,28 @@
         "code": 3
       },
       "position": [
-        40.0,
-        11.9,
+        24.0,
+        -6.2,
+        11.8
+      ],
+      "normal": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "size_m": 0.3,
+      "deck_id": "D3",
+      "mounted_on": "C-PILLAR-D3-002"
+    },
+    {
+      "id": "LM-0004",
+      "marker": {
+        "family": "apriltag-36h11",
+        "code": 4
+      },
+      "position": [
+        24.0,
+        6.2,
         11.8
       ],
       "normal": [
@@ -176,13 +196,13 @@
       ],
       "size_m": 0.3,
       "deck_id": "D3",
-      "mounted_on": "HULL-PORT"
+      "mounted_on": "C-PILLAR-D3-011"
     },
     {
-      "id": "LM-0004",
+      "id": "LM-0005",
       "marker": {
         "family": "apriltag-36h11",
-        "code": 4
+        "code": 5
       },
       "position": [
         36.0,
@@ -199,10 +219,10 @@
       "mounted_on": "C-PILLAR-D3-003"
     },
     {
-      "id": "LM-0005",
+      "id": "LM-0006",
       "marker": {
         "family": "apriltag-36h11",
-        "code": 5
+        "code": 6
       },
       "position": [
         36.0,
@@ -219,10 +239,50 @@
       "mounted_on": "C-PILLAR-D3-012"
     },
     {
-      "id": "LM-0006",
+      "id": "LM-0007",
       "marker": {
         "family": "apriltag-36h11",
-        "code": 6
+        "code": 7
+      },
+      "position": [
+        48.0,
+        -6.2,
+        11.8
+      ],
+      "normal": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "size_m": 0.3,
+      "deck_id": "D3",
+      "mounted_on": "C-PILLAR-D3-004"
+    },
+    {
+      "id": "LM-0008",
+      "marker": {
+        "family": "apriltag-36h11",
+        "code": 8
+      },
+      "position": [
+        48.0,
+        6.2,
+        11.8
+      ],
+      "normal": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "size_m": 0.3,
+      "deck_id": "D3",
+      "mounted_on": "C-PILLAR-D3-013"
+    },
+    {
+      "id": "LM-0009",
+      "marker": {
+        "family": "apriltag-36h11",
+        "code": 9
       },
       "position": [
         60.0,
@@ -237,6 +297,206 @@
       "size_m": 0.3,
       "deck_id": "D3",
       "mounted_on": "C-PILLAR-D3-005"
+    },
+    {
+      "id": "LM-0010",
+      "marker": {
+        "family": "apriltag-36h11",
+        "code": 10
+      },
+      "position": [
+        60.0,
+        6.2,
+        11.8
+      ],
+      "normal": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "size_m": 0.3,
+      "deck_id": "D3",
+      "mounted_on": "C-PILLAR-D3-014"
+    },
+    {
+      "id": "LM-0011",
+      "marker": {
+        "family": "apriltag-36h11",
+        "code": 11
+      },
+      "position": [
+        72.0,
+        -6.2,
+        11.8
+      ],
+      "normal": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "size_m": 0.3,
+      "deck_id": "D3",
+      "mounted_on": "C-PILLAR-D3-006"
+    },
+    {
+      "id": "LM-0012",
+      "marker": {
+        "family": "apriltag-36h11",
+        "code": 12
+      },
+      "position": [
+        72.0,
+        6.2,
+        11.8
+      ],
+      "normal": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "size_m": 0.3,
+      "deck_id": "D3",
+      "mounted_on": "C-PILLAR-D3-015"
+    },
+    {
+      "id": "LM-0013",
+      "marker": {
+        "family": "apriltag-36h11",
+        "code": 13
+      },
+      "position": [
+        84.0,
+        -6.2,
+        11.8
+      ],
+      "normal": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "size_m": 0.3,
+      "deck_id": "D3",
+      "mounted_on": "C-PILLAR-D3-007"
+    },
+    {
+      "id": "LM-0014",
+      "marker": {
+        "family": "apriltag-36h11",
+        "code": 14
+      },
+      "position": [
+        84.0,
+        6.2,
+        11.8
+      ],
+      "normal": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "size_m": 0.3,
+      "deck_id": "D3",
+      "mounted_on": "C-PILLAR-D3-016"
+    },
+    {
+      "id": "LM-0015",
+      "marker": {
+        "family": "apriltag-36h11",
+        "code": 15
+      },
+      "position": [
+        96.0,
+        -6.2,
+        11.8
+      ],
+      "normal": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "size_m": 0.3,
+      "deck_id": "D3",
+      "mounted_on": "C-PILLAR-D3-008"
+    },
+    {
+      "id": "LM-0016",
+      "marker": {
+        "family": "apriltag-36h11",
+        "code": 16
+      },
+      "position": [
+        96.0,
+        6.2,
+        11.8
+      ],
+      "normal": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "size_m": 0.3,
+      "deck_id": "D3",
+      "mounted_on": "C-PILLAR-D3-017"
+    },
+    {
+      "id": "LM-0017",
+      "marker": {
+        "family": "apriltag-36h11",
+        "code": 17
+      },
+      "position": [
+        108.0,
+        -6.2,
+        11.8
+      ],
+      "normal": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "size_m": 0.3,
+      "deck_id": "D3",
+      "mounted_on": "C-PILLAR-D3-009"
+    },
+    {
+      "id": "LM-0018",
+      "marker": {
+        "family": "apriltag-36h11",
+        "code": 18
+      },
+      "position": [
+        108.0,
+        6.2,
+        11.8
+      ],
+      "normal": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "size_m": 0.3,
+      "deck_id": "D3",
+      "mounted_on": "C-PILLAR-D3-018"
+    },
+    {
+      "id": "LM-0019",
+      "marker": {
+        "family": "apriltag-36h11",
+        "code": 19
+      },
+      "position": [
+        40.0,
+        11.9,
+        11.8
+      ],
+      "normal": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "size_m": 0.3,
+      "deck_id": "D3",
+      "mounted_on": "HULL-PORT"
     }
   ],
   "lanes": [

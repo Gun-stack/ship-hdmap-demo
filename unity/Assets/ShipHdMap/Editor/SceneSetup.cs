@@ -17,7 +17,7 @@ namespace ShipHdMap.Editor
 
             var cam = Camera.main.gameObject;
             cam.transform.position = new Vector3(60, 25, -40);
-            cam.transform.rotation = Quaternion.Euler(30, -20, 0);
+            cam.transform.rotation = Quaternion.Euler(20, -20, 0);
             cam.GetComponent<Camera>().farClipPlane = 500;
             cam.tag = "MainCamera";
 

@@ -45,12 +45,12 @@ namespace ShipHdMap
             if (used.Count == 1 && !previous.HasValue)
                 return new LocalizerResult { ok = true, pose = p, nObs = 1, residualRms = 0, iterations = 0 };
 
-            double wr = 1 / (sigmaR * sigmaR), wt = 1 / (sigmaTheta * sigmaTheta), wa = 1 / (sigmaAlpha * sigmaAlpha);
-            int iter = 0; double rms = 0;
+            double wr = Weight(sigmaR), wt = Weight(sigmaTheta), wa = Weight(sigmaAlpha);
+            int iter = 0;
             for (iter = 1; iter <= MaxIterations; iter++)
             {
                 // Normal equations: (J^T W J) delta = J^T W e, 3x3
-                double[,] A = new double[3, 3]; double[] b = new double[3]; double sumSq = 0; int n = 0;
+                double[,] A = new double[3, 3]; double[] b = new double[3];
                 foreach (var (o, lm) in used)
                 {
                     var res = Residual(p, o, lm);
@@ -58,15 +58,14 @@ namespace ShipHdMap
                     double[] jt = { res.dy / (res.rh * res.rh), -res.dx / (res.rh * res.rh), -1 };
                     double[] ja = { 0, 0, -1 };
                     Accumulate(A, b, jr, wr, res.er); Accumulate(A, b, jt, wt, res.et); Accumulate(A, b, ja, wa, res.ea);
-                    sumSq += res.er * res.er + res.et * res.et + res.ea * res.ea; n += 3;
                 }
-                rms = Math.Sqrt(sumSq / n);
                 double[] d = Solve3(A, b);
+                if (d == null) return new LocalizerResult { ok = false, pose = previous ?? p, nObs = used.Count, residualRms = 0, iterations = iter };
                 p.x += d[0]; p.y += d[1]; p.psiRad = ShipFrame.WrapRad(p.psiRad + d[2]);
                 if (Math.Sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]) < StopDelta) break;
             }
             // Final residual after the last update
-            rms = ResidualRms(p, used);
+            double rms = ResidualRms(p, used);
             return new LocalizerResult { ok = true, pose = p, nObs = used.Count, residualRms = rms, iterations = Math.Min(iter, MaxIterations) };
         }
 
@@ -93,16 +92,20 @@ namespace ShipHdMap
             return Math.Sqrt(sumSq / n);
         }
 
+        /// Weight = 1/sigma^2, sigma clamped away from 0 so a zero sensor-noise setting can't divide by zero into NaN/Infinity.
+        static double Weight(double s) { s = Math.Max(s, 1e-6); return 1 / (s * s); }
+
         static void Accumulate(double[,] A, double[] b, double[] j, double w, double e)
         {
             for (int i = 0; i < 3; i++) { b[i] += w * j[i] * e; for (int k = 0; k < 3; k++) A[i, k] += w * j[i] * j[k]; }
         }
 
         /// Cramer's rule for the 3x3 normal equations. ponytail: direct inverse, fine for 3 unknowns; use Cholesky if this ever grows.
+        /// Returns null when the system is singular (caller keeps the previous pose instead of reporting a bogus zero delta).
         static double[] Solve3(double[,] A, double[] b)
         {
             double det = Det3(A[0, 0], A[0, 1], A[0, 2], A[1, 0], A[1, 1], A[1, 2], A[2, 0], A[2, 1], A[2, 2]);
-            if (Math.Abs(det) < 1e-12) return new double[3];
+            if (Math.Abs(det) < 1e-12) return null;
             double d0 = Det3(b[0], A[0, 1], A[0, 2], b[1], A[1, 1], A[1, 2], b[2], A[2, 1], A[2, 2]);
             double d1 = Det3(A[0, 0], b[0], A[0, 2], A[1, 0], b[1], A[1, 2], A[2, 0], b[2], A[2, 2]);
             double d2 = Det3(A[0, 0], A[0, 1], b[0], A[1, 0], A[1, 1], b[1], A[2, 0], A[2, 1], b[2]);

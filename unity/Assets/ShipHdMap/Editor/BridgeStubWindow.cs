@@ -16,7 +16,11 @@ namespace ShipHdMap.Editor
         {
             if (_rt != null) return _rt;
             _rt = FindFirstObjectByType<MapRuntime>();
-            if (_rt != null) _rt.Emit += (n, j) => { _log.Insert(0, $"{n}: {(j.Length > 160 ? j.Substring(0, 160) + "…" : j)}"); if (_log.Count > 20) _log.RemoveAt(20); Repaint(); };
+            if (_rt != null)
+            {
+                _rt.Emit += (n, j) => { _log.Insert(0, $"{n}: {(j.Length > 160 ? j.Substring(0, 160) + "…" : j)}"); if (_log.Count > 20) _log.RemoveAt(20); Repaint(); };
+                _rt.RequestSeed();
+            }
             return _rt;
         }
 
