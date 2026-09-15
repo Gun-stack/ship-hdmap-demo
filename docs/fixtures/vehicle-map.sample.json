@@ -1,39 +1,1519 @@
 {
   "schema": "ship-hdmap/vehicle-map/1.0",
   "map_id": "roro-demo-01",
-  "version": 1,
-  "generated_at": "2026-09-15T00:00:00Z",
-  "frame": { "name": "SHIP_AP", "origin": "AP x Baseline x Centerline",
-             "axes": { "x": "AP->bow (+)", "y": "port (+)", "z": "baseline->up (+)" }, "unit": "m" },
-  "decks": [ { "id": "D3", "name": "Deck 3", "z_surface": 10.6, "z_clear": 2.2, "movable": false,
-               "outline": [[0, -12, 10.6], [120, -12, 10.6], [120, 12, 10.6], [0, 12, 10.6], [0, -12, 10.6]] } ],
-  "landmarks": [
-    { "id": "LM-0001", "marker": { "family": "apriltag-36h11", "code": 1 }, "position": [4.0, -6.5, 11.8], "normal": [0, 1, 0], "size_m": 0.30, "deck_id": "D3", "mounted_on": "C-PILLAR-001" },
-    { "id": "LM-0002", "marker": { "family": "apriltag-36h11", "code": 2 }, "position": [4.0, 6.5, 11.8], "normal": [0, -1, 0], "size_m": 0.30, "deck_id": "D3", "mounted_on": "C-PILLAR-002" },
-    { "id": "LM-0003", "marker": { "family": "apriltag-36h11", "code": 3 }, "position": [40.0, 11.9, 11.8], "normal": [0, -1, 0], "size_m": 0.30, "deck_id": "D3", "mounted_on": "HULL-PORT" }
+  "version": 2,
+  "generated_at": "2026-09-15T05:52:19Z",
+  "frame": {
+    "name": "SHIP_AP",
+    "origin": "AP x Baseline x Centerline",
+    "axes": {
+      "x": "AP->bow (+)",
+      "y": "port (+)",
+      "z": "baseline->up (+)"
+    },
+    "unit": "m"
+  },
+  "decks": [
+    {
+      "id": "D1",
+      "name": "Deck 1",
+      "z_surface": 5.4,
+      "z_clear": 2.2,
+      "movable": false,
+      "outline": [
+        [
+          0.0,
+          -12.0,
+          5.4
+        ],
+        [
+          120.0,
+          -12.0,
+          5.4
+        ],
+        [
+          120.0,
+          12.0,
+          5.4
+        ],
+        [
+          0.0,
+          12.0,
+          5.4
+        ],
+        [
+          0.0,
+          -12.0,
+          5.4
+        ]
+      ]
+    },
+    {
+      "id": "D2",
+      "name": "Deck 2",
+      "z_surface": 8.0,
+      "z_clear": 2.2,
+      "movable": false,
+      "outline": [
+        [
+          0.0,
+          -12.0,
+          8.0
+        ],
+        [
+          120.0,
+          -12.0,
+          8.0
+        ],
+        [
+          120.0,
+          12.0,
+          8.0
+        ],
+        [
+          0.0,
+          12.0,
+          8.0
+        ],
+        [
+          0.0,
+          -12.0,
+          8.0
+        ]
+      ]
+    },
+    {
+      "id": "D3",
+      "name": "Deck 3",
+      "z_surface": 10.6,
+      "z_clear": 2.2,
+      "movable": false,
+      "outline": [
+        [
+          0.0,
+          -12.0,
+          10.6
+        ],
+        [
+          120.0,
+          -12.0,
+          10.6
+        ],
+        [
+          120.0,
+          12.0,
+          10.6
+        ],
+        [
+          0.0,
+          12.0,
+          10.6
+        ],
+        [
+          0.0,
+          -12.0,
+          10.6
+        ]
+      ]
+    }
   ],
-  "lanes": [ { "id": "A2-0001", "deck_id": "D3", "centerline": [[2, 0, 10.6], [60, 0, 10.6], [118, 0, 10.6]],
-               "width_m": 3.2, "direction": "forward", "speed_limit_kmh": 10, "next": [] } ],
+  "landmarks": [
+    {
+      "id": "LM-0001",
+      "marker": {
+        "family": "apriltag-36h11",
+        "code": 1
+      },
+      "position": [
+        12.0,
+        -6.2,
+        11.8
+      ],
+      "normal": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "size_m": 0.3,
+      "deck_id": "D3",
+      "mounted_on": "C-PILLAR-D3-001"
+    },
+    {
+      "id": "LM-0002",
+      "marker": {
+        "family": "apriltag-36h11",
+        "code": 2
+      },
+      "position": [
+        12.0,
+        6.2,
+        11.8
+      ],
+      "normal": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "size_m": 0.3,
+      "deck_id": "D3",
+      "mounted_on": "C-PILLAR-D3-010"
+    },
+    {
+      "id": "LM-0003",
+      "marker": {
+        "family": "apriltag-36h11",
+        "code": 3
+      },
+      "position": [
+        40.0,
+        11.9,
+        11.8
+      ],
+      "normal": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "size_m": 0.3,
+      "deck_id": "D3",
+      "mounted_on": "HULL-PORT"
+    },
+    {
+      "id": "LM-0004",
+      "marker": {
+        "family": "apriltag-36h11",
+        "code": 4
+      },
+      "position": [
+        36.0,
+        -6.2,
+        11.8
+      ],
+      "normal": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "size_m": 0.3,
+      "deck_id": "D3",
+      "mounted_on": "C-PILLAR-D3-003"
+    },
+    {
+      "id": "LM-0005",
+      "marker": {
+        "family": "apriltag-36h11",
+        "code": 5
+      },
+      "position": [
+        36.0,
+        6.2,
+        11.8
+      ],
+      "normal": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "size_m": 0.3,
+      "deck_id": "D3",
+      "mounted_on": "C-PILLAR-D3-012"
+    },
+    {
+      "id": "LM-0006",
+      "marker": {
+        "family": "apriltag-36h11",
+        "code": 6
+      },
+      "position": [
+        60.0,
+        -6.2,
+        11.8
+      ],
+      "normal": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "size_m": 0.3,
+      "deck_id": "D3",
+      "mounted_on": "C-PILLAR-D3-005"
+    }
+  ],
+  "lanes": [
+    {
+      "id": "A2-D1-0001",
+      "deck_id": "D1",
+      "centerline": [
+        [
+          2.0,
+          0.0,
+          5.4
+        ],
+        [
+          60.0,
+          0.0,
+          5.4
+        ],
+        [
+          118.0,
+          0.0,
+          5.4
+        ]
+      ],
+      "width_m": 3.2,
+      "direction": "forward",
+      "speed_limit_kmh": 10.0,
+      "next": []
+    },
+    {
+      "id": "A2-D2-0001",
+      "deck_id": "D2",
+      "centerline": [
+        [
+          2.0,
+          0.0,
+          8.0
+        ],
+        [
+          60.0,
+          0.0,
+          8.0
+        ],
+        [
+          118.0,
+          0.0,
+          8.0
+        ]
+      ],
+      "width_m": 3.2,
+      "direction": "forward",
+      "speed_limit_kmh": 10.0,
+      "next": []
+    },
+    {
+      "id": "A2-D3-0001",
+      "deck_id": "D3",
+      "centerline": [
+        [
+          2.0,
+          0.0,
+          10.6
+        ],
+        [
+          60.0,
+          0.0,
+          10.6
+        ],
+        [
+          118.0,
+          0.0,
+          10.6
+        ]
+      ],
+      "width_m": 3.2,
+      "direction": "forward",
+      "speed_limit_kmh": 10.0,
+      "next": []
+    }
+  ],
   "parking_slots": [
-    { "id": "PS-D3-001", "deck_id": "D3", "polygon": [[100, 2.0, 10.6], [104.8, 2.0, 10.6], [104.8, 3.85, 10.6], [100, 3.85, 10.6], [100, 2.0, 10.6]],
-      "target_pose": { "x": 102.4, "y": 2.925, "heading_deg": 0 }, "tolerance": { "lat_m": 0.15, "lon_m": 0.30, "heading_deg": 2 },
-      "vehicle_class": "passenger", "access_lane_id": "A2-0001", "lashing_points": ["LP-0001", "LP-0002", "LP-0003", "LP-0004"], "sequence_no": 1, "status": "empty" },
-    { "id": "PS-D3-002", "deck_id": "D3", "polygon": [[94.8, 2.0, 10.6], [99.6, 2.0, 10.6], [99.6, 3.85, 10.6], [94.8, 3.85, 10.6], [94.8, 2.0, 10.6]],
-      "target_pose": { "x": 97.2, "y": 2.925, "heading_deg": 0 }, "tolerance": { "lat_m": 0.15, "lon_m": 0.30, "heading_deg": 2 },
-      "vehicle_class": "passenger", "access_lane_id": "A2-0001", "lashing_points": ["LP-0005", "LP-0006", "LP-0007", "LP-0008"], "sequence_no": 2, "status": "empty" }
+    {
+      "id": "PS-D3-001",
+      "deck_id": "D3",
+      "polygon": [
+        [
+          100.0,
+          2.0,
+          10.6
+        ],
+        [
+          104.8,
+          2.0,
+          10.6
+        ],
+        [
+          104.8,
+          3.85,
+          10.6
+        ],
+        [
+          100.0,
+          3.85,
+          10.6
+        ],
+        [
+          100.0,
+          2.0,
+          10.6
+        ]
+      ],
+      "target_pose": {
+        "x": 102.4,
+        "y": 2.925,
+        "heading_deg": 0.0
+      },
+      "tolerance": {
+        "lat_m": 0.15,
+        "lon_m": 0.3,
+        "heading_deg": 2.0
+      },
+      "vehicle_class": "passenger",
+      "access_lane_id": "A2-0001",
+      "lashing_points": [
+        "LP-0001",
+        "LP-0002",
+        "LP-0003",
+        "LP-0004"
+      ],
+      "sequence_no": 1,
+      "status": "empty"
+    },
+    {
+      "id": "PS-D3-002",
+      "deck_id": "D3",
+      "polygon": [
+        [
+          94.8,
+          2.0,
+          10.6
+        ],
+        [
+          99.6,
+          2.0,
+          10.6
+        ],
+        [
+          99.6,
+          3.85,
+          10.6
+        ],
+        [
+          94.8,
+          3.85,
+          10.6
+        ],
+        [
+          94.8,
+          2.0,
+          10.6
+        ]
+      ],
+      "target_pose": {
+        "x": 97.2,
+        "y": 2.925,
+        "heading_deg": 0.0
+      },
+      "tolerance": {
+        "lat_m": 0.15,
+        "lon_m": 0.3,
+        "heading_deg": 2.0
+      },
+      "vehicle_class": "passenger",
+      "access_lane_id": "A2-0001",
+      "lashing_points": [
+        "LP-0005",
+        "LP-0006",
+        "LP-0007",
+        "LP-0008"
+      ],
+      "sequence_no": 2,
+      "status": "empty"
+    }
   ],
   "lashing_points": [
-    { "id": "LP-0001", "kind": "cloverleaf", "position": [100.5, 2.25, 10.6], "deck_id": "D3" },
-    { "id": "LP-0002", "kind": "cloverleaf", "position": [100.5, 3.75, 10.6], "deck_id": "D3" },
-    { "id": "LP-0003", "kind": "cloverleaf", "position": [104.25, 2.25, 10.6], "deck_id": "D3" },
-    { "id": "LP-0004", "kind": "cloverleaf", "position": [104.25, 3.75, 10.6], "deck_id": "D3" },
-    { "id": "LP-0005", "kind": "cloverleaf", "position": [95.25, 2.25, 10.6], "deck_id": "D3" },
-    { "id": "LP-0006", "kind": "cloverleaf", "position": [95.25, 3.75, 10.6], "deck_id": "D3" },
-    { "id": "LP-0007", "kind": "cloverleaf", "position": [99.0, 2.25, 10.6], "deck_id": "D3" },
-    { "id": "LP-0008", "kind": "cloverleaf", "position": [99.0, 3.75, 10.6], "deck_id": "D3" }
+    {
+      "id": "LP-D3-3725",
+      "kind": "cloverleaf",
+      "position": [
+        94.0,
+        2.5,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-3726",
+      "kind": "cloverleaf",
+      "position": [
+        94.0,
+        3.25,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-3727",
+      "kind": "cloverleaf",
+      "position": [
+        94.0,
+        4.0,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-3755",
+      "kind": "cloverleaf",
+      "position": [
+        94.75,
+        2.5,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-3756",
+      "kind": "cloverleaf",
+      "position": [
+        94.75,
+        3.25,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-3757",
+      "kind": "cloverleaf",
+      "position": [
+        94.75,
+        4.0,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-3785",
+      "kind": "cloverleaf",
+      "position": [
+        95.5,
+        2.5,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-3786",
+      "kind": "cloverleaf",
+      "position": [
+        95.5,
+        3.25,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-3787",
+      "kind": "cloverleaf",
+      "position": [
+        95.5,
+        4.0,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-3814",
+      "kind": "cloverleaf",
+      "position": [
+        96.25,
+        2.5,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-3815",
+      "kind": "cloverleaf",
+      "position": [
+        96.25,
+        3.25,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-3816",
+      "kind": "cloverleaf",
+      "position": [
+        96.25,
+        4.0,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-3843",
+      "kind": "cloverleaf",
+      "position": [
+        97.0,
+        2.5,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-3844",
+      "kind": "cloverleaf",
+      "position": [
+        97.0,
+        3.25,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-3845",
+      "kind": "cloverleaf",
+      "position": [
+        97.0,
+        4.0,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-3873",
+      "kind": "cloverleaf",
+      "position": [
+        97.75,
+        2.5,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-3874",
+      "kind": "cloverleaf",
+      "position": [
+        97.75,
+        3.25,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-3875",
+      "kind": "cloverleaf",
+      "position": [
+        97.75,
+        4.0,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-3903",
+      "kind": "cloverleaf",
+      "position": [
+        98.5,
+        2.5,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-3904",
+      "kind": "cloverleaf",
+      "position": [
+        98.5,
+        3.25,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-3905",
+      "kind": "cloverleaf",
+      "position": [
+        98.5,
+        4.0,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-3933",
+      "kind": "cloverleaf",
+      "position": [
+        99.25,
+        2.5,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-3934",
+      "kind": "cloverleaf",
+      "position": [
+        99.25,
+        3.25,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-3935",
+      "kind": "cloverleaf",
+      "position": [
+        99.25,
+        4.0,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-3963",
+      "kind": "cloverleaf",
+      "position": [
+        100.0,
+        2.5,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-3964",
+      "kind": "cloverleaf",
+      "position": [
+        100.0,
+        3.25,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-3965",
+      "kind": "cloverleaf",
+      "position": [
+        100.0,
+        4.0,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-3993",
+      "kind": "cloverleaf",
+      "position": [
+        100.75,
+        2.5,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-3994",
+      "kind": "cloverleaf",
+      "position": [
+        100.75,
+        3.25,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-3995",
+      "kind": "cloverleaf",
+      "position": [
+        100.75,
+        4.0,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-4023",
+      "kind": "cloverleaf",
+      "position": [
+        101.5,
+        2.5,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-4024",
+      "kind": "cloverleaf",
+      "position": [
+        101.5,
+        3.25,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-4025",
+      "kind": "cloverleaf",
+      "position": [
+        101.5,
+        4.0,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-4053",
+      "kind": "cloverleaf",
+      "position": [
+        102.25,
+        2.5,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-4054",
+      "kind": "cloverleaf",
+      "position": [
+        102.25,
+        3.25,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-4055",
+      "kind": "cloverleaf",
+      "position": [
+        102.25,
+        4.0,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-4083",
+      "kind": "cloverleaf",
+      "position": [
+        103.0,
+        2.5,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-4084",
+      "kind": "cloverleaf",
+      "position": [
+        103.0,
+        3.25,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-4085",
+      "kind": "cloverleaf",
+      "position": [
+        103.0,
+        4.0,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-4113",
+      "kind": "cloverleaf",
+      "position": [
+        103.75,
+        2.5,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-4114",
+      "kind": "cloverleaf",
+      "position": [
+        103.75,
+        3.25,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-4115",
+      "kind": "cloverleaf",
+      "position": [
+        103.75,
+        4.0,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-4143",
+      "kind": "cloverleaf",
+      "position": [
+        104.5,
+        2.5,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-4144",
+      "kind": "cloverleaf",
+      "position": [
+        104.5,
+        3.25,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-4145",
+      "kind": "cloverleaf",
+      "position": [
+        104.5,
+        4.0,
+        10.6
+      ],
+      "deck_id": "D3"
+    }
   ],
   "markings": [],
-  "facilities": [ { "id": "C-PILLAR-001", "kind": "pillar", "footprint": [[3.7, -6.8, 10.6], [4.3, -6.8, 10.6], [4.3, -6.2, 10.6], [3.7, -6.2, 10.6], [3.7, -6.8, 10.6]], "z_min": 10.6, "z_max": 12.8, "deck_id": "D3" } ],
-  "ramps": [ { "id": "RAMP-STERN", "type": "stern_quarter", "hinge": [[0, -6, 10.6], [0, 6, 10.6]], "length_m": 30, "width_m": 12,
-               "angle_range_deg": [-7, 4], "connects_lane": "A2-0001", "transition_landmarks": ["LM-0001", "LM-0002"] } ]
+  "facilities": [
+    {
+      "id": "C-PILLAR-D3-001",
+      "kind": "pillar",
+      "footprint": [
+        [
+          11.7,
+          -6.8,
+          10.6
+        ],
+        [
+          12.3,
+          -6.8,
+          10.6
+        ],
+        [
+          12.3,
+          -6.2,
+          10.6
+        ],
+        [
+          11.7,
+          -6.2,
+          10.6
+        ],
+        [
+          11.7,
+          -6.8,
+          10.6
+        ]
+      ],
+      "z_min": 10.6,
+      "z_max": 12.8,
+      "deck_id": "D3"
+    },
+    {
+      "id": "C-PILLAR-D3-002",
+      "kind": "pillar",
+      "footprint": [
+        [
+          23.7,
+          -6.8,
+          10.6
+        ],
+        [
+          24.3,
+          -6.8,
+          10.6
+        ],
+        [
+          24.3,
+          -6.2,
+          10.6
+        ],
+        [
+          23.7,
+          -6.2,
+          10.6
+        ],
+        [
+          23.7,
+          -6.8,
+          10.6
+        ]
+      ],
+      "z_min": 10.6,
+      "z_max": 12.8,
+      "deck_id": "D3"
+    },
+    {
+      "id": "C-PILLAR-D3-003",
+      "kind": "pillar",
+      "footprint": [
+        [
+          35.7,
+          -6.8,
+          10.6
+        ],
+        [
+          36.3,
+          -6.8,
+          10.6
+        ],
+        [
+          36.3,
+          -6.2,
+          10.6
+        ],
+        [
+          35.7,
+          -6.2,
+          10.6
+        ],
+        [
+          35.7,
+          -6.8,
+          10.6
+        ]
+      ],
+      "z_min": 10.6,
+      "z_max": 12.8,
+      "deck_id": "D3"
+    },
+    {
+      "id": "C-PILLAR-D3-004",
+      "kind": "pillar",
+      "footprint": [
+        [
+          47.7,
+          -6.8,
+          10.6
+        ],
+        [
+          48.3,
+          -6.8,
+          10.6
+        ],
+        [
+          48.3,
+          -6.2,
+          10.6
+        ],
+        [
+          47.7,
+          -6.2,
+          10.6
+        ],
+        [
+          47.7,
+          -6.8,
+          10.6
+        ]
+      ],
+      "z_min": 10.6,
+      "z_max": 12.8,
+      "deck_id": "D3"
+    },
+    {
+      "id": "C-PILLAR-D3-005",
+      "kind": "pillar",
+      "footprint": [
+        [
+          59.7,
+          -6.8,
+          10.6
+        ],
+        [
+          60.3,
+          -6.8,
+          10.6
+        ],
+        [
+          60.3,
+          -6.2,
+          10.6
+        ],
+        [
+          59.7,
+          -6.2,
+          10.6
+        ],
+        [
+          59.7,
+          -6.8,
+          10.6
+        ]
+      ],
+      "z_min": 10.6,
+      "z_max": 12.8,
+      "deck_id": "D3"
+    },
+    {
+      "id": "C-PILLAR-D3-006",
+      "kind": "pillar",
+      "footprint": [
+        [
+          71.7,
+          -6.8,
+          10.6
+        ],
+        [
+          72.3,
+          -6.8,
+          10.6
+        ],
+        [
+          72.3,
+          -6.2,
+          10.6
+        ],
+        [
+          71.7,
+          -6.2,
+          10.6
+        ],
+        [
+          71.7,
+          -6.8,
+          10.6
+        ]
+      ],
+      "z_min": 10.6,
+      "z_max": 12.8,
+      "deck_id": "D3"
+    },
+    {
+      "id": "C-PILLAR-D3-007",
+      "kind": "pillar",
+      "footprint": [
+        [
+          83.7,
+          -6.8,
+          10.6
+        ],
+        [
+          84.3,
+          -6.8,
+          10.6
+        ],
+        [
+          84.3,
+          -6.2,
+          10.6
+        ],
+        [
+          83.7,
+          -6.2,
+          10.6
+        ],
+        [
+          83.7,
+          -6.8,
+          10.6
+        ]
+      ],
+      "z_min": 10.6,
+      "z_max": 12.8,
+      "deck_id": "D3"
+    },
+    {
+      "id": "C-PILLAR-D3-008",
+      "kind": "pillar",
+      "footprint": [
+        [
+          95.7,
+          -6.8,
+          10.6
+        ],
+        [
+          96.3,
+          -6.8,
+          10.6
+        ],
+        [
+          96.3,
+          -6.2,
+          10.6
+        ],
+        [
+          95.7,
+          -6.2,
+          10.6
+        ],
+        [
+          95.7,
+          -6.8,
+          10.6
+        ]
+      ],
+      "z_min": 10.6,
+      "z_max": 12.8,
+      "deck_id": "D3"
+    },
+    {
+      "id": "C-PILLAR-D3-009",
+      "kind": "pillar",
+      "footprint": [
+        [
+          107.7,
+          -6.8,
+          10.6
+        ],
+        [
+          108.3,
+          -6.8,
+          10.6
+        ],
+        [
+          108.3,
+          -6.2,
+          10.6
+        ],
+        [
+          107.7,
+          -6.2,
+          10.6
+        ],
+        [
+          107.7,
+          -6.8,
+          10.6
+        ]
+      ],
+      "z_min": 10.6,
+      "z_max": 12.8,
+      "deck_id": "D3"
+    },
+    {
+      "id": "C-PILLAR-D3-010",
+      "kind": "pillar",
+      "footprint": [
+        [
+          11.7,
+          6.2,
+          10.6
+        ],
+        [
+          12.3,
+          6.2,
+          10.6
+        ],
+        [
+          12.3,
+          6.8,
+          10.6
+        ],
+        [
+          11.7,
+          6.8,
+          10.6
+        ],
+        [
+          11.7,
+          6.2,
+          10.6
+        ]
+      ],
+      "z_min": 10.6,
+      "z_max": 12.8,
+      "deck_id": "D3"
+    },
+    {
+      "id": "C-PILLAR-D3-011",
+      "kind": "pillar",
+      "footprint": [
+        [
+          23.7,
+          6.2,
+          10.6
+        ],
+        [
+          24.3,
+          6.2,
+          10.6
+        ],
+        [
+          24.3,
+          6.8,
+          10.6
+        ],
+        [
+          23.7,
+          6.8,
+          10.6
+        ],
+        [
+          23.7,
+          6.2,
+          10.6
+        ]
+      ],
+      "z_min": 10.6,
+      "z_max": 12.8,
+      "deck_id": "D3"
+    },
+    {
+      "id": "C-PILLAR-D3-012",
+      "kind": "pillar",
+      "footprint": [
+        [
+          35.7,
+          6.2,
+          10.6
+        ],
+        [
+          36.3,
+          6.2,
+          10.6
+        ],
+        [
+          36.3,
+          6.8,
+          10.6
+        ],
+        [
+          35.7,
+          6.8,
+          10.6
+        ],
+        [
+          35.7,
+          6.2,
+          10.6
+        ]
+      ],
+      "z_min": 10.6,
+      "z_max": 12.8,
+      "deck_id": "D3"
+    },
+    {
+      "id": "C-PILLAR-D3-013",
+      "kind": "pillar",
+      "footprint": [
+        [
+          47.7,
+          6.2,
+          10.6
+        ],
+        [
+          48.3,
+          6.2,
+          10.6
+        ],
+        [
+          48.3,
+          6.8,
+          10.6
+        ],
+        [
+          47.7,
+          6.8,
+          10.6
+        ],
+        [
+          47.7,
+          6.2,
+          10.6
+        ]
+      ],
+      "z_min": 10.6,
+      "z_max": 12.8,
+      "deck_id": "D3"
+    },
+    {
+      "id": "C-PILLAR-D3-014",
+      "kind": "pillar",
+      "footprint": [
+        [
+          59.7,
+          6.2,
+          10.6
+        ],
+        [
+          60.3,
+          6.2,
+          10.6
+        ],
+        [
+          60.3,
+          6.8,
+          10.6
+        ],
+        [
+          59.7,
+          6.8,
+          10.6
+        ],
+        [
+          59.7,
+          6.2,
+          10.6
+        ]
+      ],
+      "z_min": 10.6,
+      "z_max": 12.8,
+      "deck_id": "D3"
+    },
+    {
+      "id": "C-PILLAR-D3-015",
+      "kind": "pillar",
+      "footprint": [
+        [
+          71.7,
+          6.2,
+          10.6
+        ],
+        [
+          72.3,
+          6.2,
+          10.6
+        ],
+        [
+          72.3,
+          6.8,
+          10.6
+        ],
+        [
+          71.7,
+          6.8,
+          10.6
+        ],
+        [
+          71.7,
+          6.2,
+          10.6
+        ]
+      ],
+      "z_min": 10.6,
+      "z_max": 12.8,
+      "deck_id": "D3"
+    },
+    {
+      "id": "C-PILLAR-D3-016",
+      "kind": "pillar",
+      "footprint": [
+        [
+          83.7,
+          6.2,
+          10.6
+        ],
+        [
+          84.3,
+          6.2,
+          10.6
+        ],
+        [
+          84.3,
+          6.8,
+          10.6
+        ],
+        [
+          83.7,
+          6.8,
+          10.6
+        ],
+        [
+          83.7,
+          6.2,
+          10.6
+        ]
+      ],
+      "z_min": 10.6,
+      "z_max": 12.8,
+      "deck_id": "D3"
+    },
+    {
+      "id": "C-PILLAR-D3-017",
+      "kind": "pillar",
+      "footprint": [
+        [
+          95.7,
+          6.2,
+          10.6
+        ],
+        [
+          96.3,
+          6.2,
+          10.6
+        ],
+        [
+          96.3,
+          6.8,
+          10.6
+        ],
+        [
+          95.7,
+          6.8,
+          10.6
+        ],
+        [
+          95.7,
+          6.2,
+          10.6
+        ]
+      ],
+      "z_min": 10.6,
+      "z_max": 12.8,
+      "deck_id": "D3"
+    },
+    {
+      "id": "C-PILLAR-D3-018",
+      "kind": "pillar",
+      "footprint": [
+        [
+          107.7,
+          6.2,
+          10.6
+        ],
+        [
+          108.3,
+          6.2,
+          10.6
+        ],
+        [
+          108.3,
+          6.8,
+          10.6
+        ],
+        [
+          107.7,
+          6.8,
+          10.6
+        ],
+        [
+          107.7,
+          6.2,
+          10.6
+        ]
+      ],
+      "z_min": 10.6,
+      "z_max": 12.8,
+      "deck_id": "D3"
+    }
+  ],
+  "ramps": [
+    {
+      "id": "RAMP-STERN",
+      "type": "stern_quarter",
+      "hinge": [
+        [
+          0.0,
+          -6.0,
+          10.6
+        ],
+        [
+          0.0,
+          6.0,
+          10.6
+        ]
+      ],
+      "length_m": 30.0,
+      "width_m": 12.0,
+      "angle_range_deg": [
+        -7.0,
+        4.0
+      ],
+      "connects_lane": "A2-D3-0001",
+      "transition_landmarks": [
+        "LM-0001",
+        "LM-0002"
+      ]
+    }
+  ]
 }

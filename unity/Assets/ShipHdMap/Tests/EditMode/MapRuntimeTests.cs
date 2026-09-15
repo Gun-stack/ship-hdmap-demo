@@ -17,7 +17,7 @@ namespace ShipHdMap.Tests
             go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>();
             rt.InitForTest();
             rt.Load(Fixture());
-            Assert.That(rt.LandmarksRoot.childCount, Is.EqualTo(3));
+            Assert.That(rt.LandmarksRoot.childCount, Is.EqualTo(6));
             Assert.That(rt.MapRefs.ContainsKey("LM-0003"));
             Assert.That(rt.MapRefs["LM-0001"].phiRad, Is.EqualTo(System.Math.PI / 2).Within(1e-6)); // normal +y
             Assert.That(rt.CurrentMap.parking_slots.Count, Is.EqualTo(2));
@@ -28,7 +28,7 @@ namespace ShipHdMap.Tests
         {
             go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>(); rt.InitForTest();
             rt.Load(Fixture()); rt.Load(Fixture());
-            Assert.That(rt.LandmarksRoot.childCount, Is.EqualTo(3));
+            Assert.That(rt.LandmarksRoot.childCount, Is.EqualTo(6));
         }
 
         [Test]
