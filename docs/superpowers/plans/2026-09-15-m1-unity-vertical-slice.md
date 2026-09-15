@@ -2079,7 +2079,7 @@ git commit -m "unity: bridge messages, MapRuntime, editor bridge stub, fixture e
 ```bash
 cd unity && "$U" -batchmode -nographics -projectPath "$PWD" -runTests -testPlatform EditMode -testResults "$PWD/Logs/editmode-results.xml" -logFile "$PWD/Logs/editmode.log"; echo EXIT=$?
 grep -o 'total="[0-9]*" passed="[0-9]*" failed="[0-9]*"' Logs/editmode-results.xml | head -1
-cd .. && grep -rn -I -f ~/ship-hdmap-private/blocklist.txt unity/Assets docs README.md || echo "sensitive scan: none"
+cd .. && grep -rn -I -f "${SENSITIVE_TERMS_FILE:?set to a private wordlist outside the repo}" unity/Assets docs README.md || echo "sensitive scan: none"
 ```
 
 Expected: `failed="0"`, `sensitive scan: none`.
