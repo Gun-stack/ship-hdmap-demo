@@ -1,0 +1,20 @@
+{
+  "description": "Ship Frame (x fwd, y port, z up, heading CCW from +x) <-> Unity (x, y up, z starboard). Unity yaw equals heading.",
+  "points": [
+    { "ship": [0, 0, 0],        "unity": [0, 0, 0] },
+    { "ship": [10, 0, 0],       "unity": [10, 0, 0] },
+    { "ship": [0, 5, 0],        "unity": [0, 0, -5] },
+    { "ship": [0, 0, 3],        "unity": [0, 3, 0] },
+    { "ship": [82.4, 3.1, 10.6],"unity": [82.4, 10.6, -3.1] },
+    { "ship": [-2.5, -6, 11.8], "unity": [-2.5, 11.8, 6] }
+  ],
+  "headings": [
+    { "heading_deg": 0,   "unity_yaw_deg": 0,   "unity_dir": [1, 0, 0] },
+    { "heading_deg": 90,  "unity_yaw_deg": 90,  "unity_dir": [0, 0, -1] },
+    { "heading_deg": -90, "unity_yaw_deg": -90, "unity_dir": [0, 0, 1] },
+    { "heading_deg": 180, "unity_yaw_deg": 180, "unity_dir": [-1, 0, 0] }
+  ],
+  "wrap_deg": [
+    { "in": 190, "out": -170 }, { "in": -181, "out": 179 }, { "in": 180, "out": 180 }, { "in": 540, "out": 180 }
+  ]
+}
