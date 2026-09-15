@@ -9,8 +9,9 @@ const URLS = { loaderUrl: "/unity/Build/unity.loader.js", dataUrl: "/unity/Build
 
 export function useShipUnity() {
   const { unityProvider, isLoaded, sendMessage, addEventListener, removeEventListener } = useUnityContext(URLS);
-  const { datasetId, features, deckFilter, selectedId, mode, addDraft, select, setLocalization } = useEditorStore();
+  const { datasetId, dataset, deckFilter, selectedId, mode, addDraft, select, setLocalization } = useEditorStore();
   const loadedOnce = useRef(false);
+  const loading = useRef(false);
 
   const send = useCallback((name: BridgeName, payload?: string | object) => {
     if (!isLoaded) return;
@@ -28,10 +29,14 @@ export function useShipUnity() {
 
   // initial Load: the vehicle-map body is exactly the Load payload (spec §10)
   useEffect(() => {
-    if (!isLoaded || loadedOnce.current || Object.keys(features).length === 0) return;
-    loadedOnce.current = true;
-    fetch(api.vehicleMapUrl(datasetId)).then((r) => r.text()).then((json) => { send("Load", json); send("SetMode", mode); send("SetDeck", deckFilter); });
-  }, [isLoaded, features, datasetId, mode, deckFilter, send]);
+    if (!isLoaded || loadedOnce.current || loading.current || dataset === null) return;
+    loading.current = true;
+    fetch(api.vehicleMapUrl(datasetId)).then((r) => r.text()).then((json) => {
+      loadedOnce.current = true;
+      send("Load", json); send("SetMode", mode); send("SetDeck", deckFilter);
+    }).catch((e) => useEditorStore.setState({ error: "vehicle-map load failed: " + (e as Error).message }))
+      .finally(() => { loading.current = false; });
+  }, [isLoaded, dataset, datasetId, mode, deckFilter, send]);
 
   useEffect(() => { if (loadedOnce.current) send("SetDeck", deckFilter); }, [deckFilter, send]);
   useEffect(() => { if (loadedOnce.current) send("SetMode", mode); }, [mode, send]);

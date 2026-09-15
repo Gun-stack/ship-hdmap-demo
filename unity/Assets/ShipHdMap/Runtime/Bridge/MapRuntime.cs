@@ -27,6 +27,9 @@ namespace ShipHdMap
         void Awake()
         {
             InitForTest();
+#if UNITY_WEBGL && !UNITY_EDITOR
+            WebGLInput.captureAllKeyboardInput = false; // let the React side panels receive keystrokes
+#endif
             if (!Application.isPlaying) return;
             Ship = GameObject.Find("Ship");
             if (Ship == null) { _seed = ShipSeedBuilder.Build(shipParams); Ship = ShipMeshBuilder.Build(_seed, shipParams); }

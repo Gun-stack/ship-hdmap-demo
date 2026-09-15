@@ -24,7 +24,8 @@ public class PoseStore {
 		return new Pose(8.1, 8.6, 0.0, ((Number) d.get("heading_deg")).doubleValue(), 0.0, 3.5, ((Number) d.get("ap_lat")).doubleValue(), ((Number) d.get("ap_lon")).doubleValue(), null);
 	}
 
-	/** Merges over the current pose: a field omitted from the request (null) keeps its current value. */
+	/** Merges over the current pose: a field omitted from the request (null) keeps its current value.
+	 * Exception: measured_at is always replaced by the request value, and cleared (set to null) when omitted. */
 	public Pose put(String ds, Pose p) {
 		Pose cur = get(ds); // also 404s if the dataset does not exist
 		Pose merged = new Pose(
