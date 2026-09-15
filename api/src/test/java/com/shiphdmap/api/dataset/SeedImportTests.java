@@ -1,6 +1,8 @@
 package com.shiphdmap.api.dataset;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import tools.jackson.databind.ObjectMapper;
 import com.shiphdmap.api.TestcontainersConfiguration;
@@ -13,12 +15,17 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.test.web.servlet.MockMvc;
 
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
+@AutoConfigureMockMvc
 class SeedImportTests {
+	@Autowired MockMvc mvc;
 	@Autowired JdbcClient db;
 	@Autowired ObjectMapper json;
 	@Autowired DatasetController datasets;
@@ -72,6 +79,20 @@ class SeedImportTests {
 		Map<String, Object> row = db.sql("SELECT dataset_id, deck_id FROM feature WHERE dataset_id = 'roro-demo-01' AND id = 'A2-D1-0001'").query().listOfRows().get(0);
 		assertThat(row.get("dataset_id")).isEqualTo("roro-demo-01");
 		assertThat(row.get("deck_id")).isNull();
+	}
+
+	@Test
+	void constraintViolationBodyHidesDriverText() throws Exception {
+		// a slot whose access_lane_id points to a lane that does not exist violates the FK
+		String body = """
+			{"parking_slots":[{"id":"PS-X","deck_id":"D3","polygon":[[1,1,10.6],[2,1,10.6],[2,2,10.6],[1,1,10.6]],
+			 "target_pose":{"x":1.5,"y":1.5,"heading_deg":0},"tolerance":{"lat_m":0.1,"lon_m":0.1,"heading_deg":1},
+			 "vehicle_class":"passenger","access_lane_id":"A2-NOPE","lashing_points":[],"sequence_no":9,"status":"empty"}]}""";
+		importer.importSeed("roro-demo-01", fixtureAsSeed(json));
+		mvc.perform(post("/api/datasets/roro-demo-01/seed").contentType(MediaType.APPLICATION_JSON).content(body))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.startsWith("constraint violation")))
+			.andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("ERROR"))));
 	}
 
 	@Test

@@ -36,7 +36,7 @@ public class PoseStore {
 			p.quayZM() != null ? p.quayZM() : cur.quayZM(),
 			p.apLat() != null ? p.apLat() : cur.apLat(),
 			p.apLon() != null ? p.apLon() : cur.apLon(),
-			p.measuredAt() != null ? p.measuredAt() : cur.measuredAt());
+			p.measuredAt());   // replaced, not merged: a new measurement owns its timestamp
 		if (merged.draftFwdM() <= 0) throw new ApiErrors.BadRequest("draft_fwd_m must be positive", "draft_fwd_m");
 		if (merged.draftAftM() <= 0) throw new ApiErrors.BadRequest("draft_aft_m must be positive", "draft_aft_m");
 		poses.put(ds, merged);

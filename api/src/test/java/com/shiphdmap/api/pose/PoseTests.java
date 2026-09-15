@@ -97,6 +97,16 @@ class PoseTests {
 	}
 
 	@Test
+	void measuredAtIsReplacedNotMerged() throws Exception {
+		mvc.perform(put("/api/datasets/" + DS + "/pose").contentType(MediaType.APPLICATION_JSON)
+			.content("{\"tide_m\":0.3,\"measured_at\":\"2026-09-15T09:00:00Z\"}")).andExpect(status().isOk())
+			.andExpect(jsonPath("$.measured_at").value("2026-09-15T09:00:00Z"));
+		// a new measurement without a timestamp clears the old one (absent == null)
+		mvc.perform(put("/api/datasets/" + DS + "/pose").contentType(MediaType.APPLICATION_JSON).content("{\"tide_m\":0.4}"))
+			.andExpect(status().isOk()).andExpect(jsonPath("$.measured_at").doesNotExist()).andExpect(jsonPath("$.tide_m").value(0.4));
+	}
+
+	@Test
 	void invalidDraftsAre400WithField() throws Exception {
 		mvc.perform(put("/api/datasets/" + DS + "/pose").contentType(MediaType.APPLICATION_JSON)
 			.content("{\"draft_fwd_m\":0,\"draft_aft_m\":8.6,\"heel_deg\":0,\"heading_deg\":87.5,\"tide_m\":0,\"quay_z_m\":3.5,\"ap_lat\":0,\"ap_lon\":0}"))

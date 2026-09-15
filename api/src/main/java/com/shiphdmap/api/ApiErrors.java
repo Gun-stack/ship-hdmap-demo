@@ -28,10 +28,14 @@ public class ApiErrors {
 	@ExceptionHandler(Conflict.class) @ResponseStatus(HttpStatus.CONFLICT)
 	Map<String, Object> conflict(Conflict e) { return body(409, "Conflict", e.getMessage(), null); }
 
+	static final java.util.regex.Pattern CONSTRAINT = java.util.regex.Pattern.compile("constraint \"([^\"]+)\"");
+
 	@ExceptionHandler(DataIntegrityViolationException.class) @ResponseStatus(HttpStatus.BAD_REQUEST)
 	Map<String, Object> constraint(DataIntegrityViolationException e) {
 		String m = e.getMostSpecificCause().getMessage();
-		return body(400, "Bad Request", m == null ? "constraint violation" : m.lines().findFirst().orElse(m), null);
+		var mt = m == null ? null : CONSTRAINT.matcher(m);
+		String name = mt != null && mt.find() ? mt.group(1) : null;
+		return body(400, "Bad Request", name == null ? "constraint violation" : "constraint violation: " + name, null);
 	}
 
 	static Map<String, Object> body(int status, String error, String message, String field) {
