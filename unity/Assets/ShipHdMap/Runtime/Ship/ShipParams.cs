@@ -14,6 +14,6 @@ namespace ShipHdMap
         public double rampLengthM = 30, rampWidthM = 12, rampAngleMin = -7, rampAngleMax = 4;
         public int rampDeckIndex = 2;
         public double laneWidthM = 3.2, laneSpeedKmh = 10;
-        public double DeckZ(int i) => Math.Round(firstDeckZ + i * deckPitchM, 1);
+        public double DeckZ(int i) => Math.Round(firstDeckZ + i * deckPitchM, 6);
     }
 }
