@@ -4,6 +4,9 @@ import { useShipUnity } from "./bridge/useShipUnity";
 import { useEditorStore } from "./store/editor";
 import { TopBar } from "./components/TopBar";
 import { StatusBar } from "./components/StatusBar";
+import { DeckTabs } from "./components/DeckTabs";
+import { LayerTree } from "./components/LayerTree";
+import { MiniMap } from "./components/MiniMap";
 import "./App.css";
 
 export default function App() {
@@ -14,7 +17,11 @@ export default function App() {
   return (
     <div className="app">
       <TopBar />
-      <aside className="left">left panel (Task 6)</aside>
+      <aside className="left">
+        <DeckTabs />
+        <LayerTree />
+        <MiniMap />
+      </aside>
       <main className="center">
         {!isLoaded && <div className="loading">Unity 로딩 중…</div>}
         <Unity unityProvider={unityProvider} style={{ width: "100%", height: "100%" }} />
