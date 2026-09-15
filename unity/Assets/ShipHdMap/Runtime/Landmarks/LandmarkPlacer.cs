@@ -9,6 +9,8 @@ namespace ShipHdMap
     {
         public Camera cam; public Transform landmarksRoot; public float sizeM = 0.3f;
         public int nextCode = 1; public bool enabledForInput = true;
+        public int nextId = 1;
+        public string NextId() => $"LM-{nextId++:0000}";
         public List<LandmarkMarker> All = new();
         public List<Deck> decks = new();   // for deckId lookup by height
         public event Action<LandmarkMarker> Created; public event Action<string> Deleted;
@@ -22,7 +24,7 @@ namespace ShipHdMap
 
         public LandmarkMarker PlaceAt(RaycastHit hit)
         {
-            string id = $"LM-{All.Count + 1:0000}";
+            string id = NextId();
             int code = nextCode++ % AprilTag36h11.Count;
             var lm = LandmarkMarker.Spawn(landmarksRoot, id, code, hit.point, hit.normal, sizeM, DeckIdForHeight(hit.point.y), hit.collider.name);
             All.Add(lm); Created?.Invoke(lm); return lm;

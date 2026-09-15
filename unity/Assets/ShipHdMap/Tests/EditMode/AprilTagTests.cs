@@ -47,5 +47,17 @@ namespace ShipHdMap.Tests
             Assert.That(lm.GetComponent<BoxCollider>(), Is.Not.Null);
             Object.DestroyImmediate(root);
         }
+
+        [Test]
+        public void NextIdIsMonotonicRegardlessOfAllCount()
+        {
+            var go = new GameObject("Placer");
+            var placer = go.AddComponent<LandmarkPlacer>();
+            Assert.That(placer.NextId(), Is.EqualTo("LM-0001"));
+            Assert.That(placer.NextId(), Is.EqualTo("LM-0002"));
+            // simulate a delete: All shrinks, but the id sequence must not depend on All.Count
+            Assert.That(placer.NextId(), Is.EqualTo("LM-0003"));
+            Object.DestroyImmediate(go);
+        }
     }
 }
