@@ -1,0 +1,61 @@
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+
+namespace ShipHdMap
+{
+    [Serializable]
+    public class SensorNoise { public double sigmaR = 0.2; public double sigmaThetaRad = 1 * Math.PI / 180; public double sigmaAlphaRad = 2 * Math.PI / 180; public int seed = 1; }
+
+    /// Detection model (spec §9.4). This imitates the OUTPUT of a tag detector; nothing here decodes images.
+    public class LandmarkSensor : MonoBehaviour
+    {
+        public float fovDeg = 90, maxDist = 25, maxViewAngleDeg = 70;
+        public SensorNoise noise = new();
+        public LayerMask occluders;
+        public float eyeHeight = 1.2f;
+        System.Random _rng;
+
+        void Awake() { _rng = new System.Random(noise.seed); }
+        public void Reseed(int seed) { noise.seed = seed; _rng = new System.Random(seed); }
+
+        public static bool IsVisibleGeometric(Pose2D v, LandmarkRef lm, double fovRad, double maxDist, double maxViewAngleRad)
+        {
+            double dx = lm.mx - v.x, dy = lm.my - v.y, r = Math.Sqrt(dx * dx + dy * dy);
+            if (r > maxDist || r < 1e-6) return false;
+            double theta = ShipFrame.WrapRad(Math.Atan2(dy, dx) - v.psiRad);
+            if (Math.Abs(theta) > fovRad / 2) return false;
+            // angle between marker normal and the direction marker -> vehicle
+            double toV = Math.Atan2(-dy, -dx);
+            return Math.Abs(ShipFrame.WrapRad(toV - lm.phiRad)) <= maxViewAngleRad;
+        }
+
+        public static Observation AddNoise(Observation o, SensorNoise n, System.Random rng)
+        {
+            return new Observation { id = o.id, r = o.r + Gauss(rng, n.sigmaR), thetaRad = ShipFrame.WrapRad(o.thetaRad + Gauss(rng, n.sigmaThetaRad)), alphaRad = ShipFrame.WrapRad(o.alphaRad + Gauss(rng, n.sigmaAlphaRad)) };
+        }
+
+        static double Gauss(System.Random rng, double sigma)
+        {
+            if (sigma <= 0) return 0;
+            double u1 = 1.0 - rng.NextDouble(), u2 = rng.NextDouble();
+            return sigma * Math.Sqrt(-2.0 * Math.Log(u1)) * Math.Cos(2.0 * Math.PI * u2);
+        }
+
+        /// truth: vehicle pose; map: landmark refs; unityPosOf: scene position of a marker (for occlusion linecast).
+        public List<Observation> Sense(Pose2D truth, IDictionary<string, LandmarkRef> map, Func<string, Vector3> unityPosOf)
+        {
+            var result = new List<Observation>();
+            double fov = fovDeg * Math.PI / 180, mva = maxViewAngleDeg * Math.PI / 180;
+            Vector3 eye = transform.position + Vector3.up * eyeHeight;
+            foreach (var lm in map.Values)
+            {
+                if (!IsVisibleGeometric(truth, lm, fov, maxDist, mva)) continue;
+                Vector3 target = unityPosOf(lm.id);
+                if (Physics.Linecast(eye, target - (target - eye).normalized * 0.05f, occluders)) continue;
+                result.Add(AddNoise(Localizer.Observe(truth, lm), noise, _rng ??= new System.Random(noise.seed)));
+            }
+            return result;
+        }
+    }
+}
