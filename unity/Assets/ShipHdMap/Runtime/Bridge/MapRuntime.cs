@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using UnityEngine;
 
 namespace ShipHdMap
@@ -134,7 +135,26 @@ namespace ShipHdMap
         }
 
         static LandmarkRef RefOf(Landmark lm) => new LandmarkRef { id = lm.id, mx = lm.position[0], my = lm.position[1], phiRad = Math.Atan2(lm.normal[1], lm.normal[0]) };
-        void Send(string name, string json) => Emit?.Invoke(name, json);
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+        [DllImport("__Internal")] static extern void EmitToWeb(string name, string json);
+#endif
+
+        void Send(string name, string json)
+        {
+            Emit?.Invoke(name, json);
+#if UNITY_WEBGL && !UNITY_EDITOR
+            EmitToWeb(name, json);
+#endif
+        }
+
+        /// Web deleted the feature in the DB first; remove the scene marker without emitting.
+        public void Delete(string id)
+        {
+            if (!_markers.TryGetValue(id, out var m)) return;
+            _markers.Remove(id); MapRefs.Remove(id); Placer.All.Remove(m);
+            if (m) { if (Application.isPlaying) Destroy(m.gameObject); else DestroyImmediate(m.gameObject); }
+        }
 
         public SeedData Seed => _seed;
         public IEnumerable<LandmarkMarker> Markers => _markers.Values;

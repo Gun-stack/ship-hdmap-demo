@@ -39,5 +39,18 @@ namespace ShipHdMap.Tests
             Assert.That(rt.Sensor.noise.sigmaR, Is.EqualTo(0.5));
             Assert.That(rt.Sensor.noise.sigmaThetaRad, Is.EqualTo(2 * System.Math.PI / 180).Within(1e-9));
         }
+
+        [Test]
+        public void DeleteRemovesMarkerAndMapRef()
+        {
+            go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>(); rt.InitForTest();
+            rt.Load(Fixture());
+            int before = rt.LandmarksRoot.childCount;
+            rt.Delete("LM-0003");
+            Assert.That(rt.MapRefs.ContainsKey("LM-0003"), Is.False);
+            Assert.That(rt.LandmarksRoot.childCount, Is.EqualTo(before - 1));
+            rt.Delete("LM-NOPE"); // no throw
+            Assert.That(rt.LandmarksRoot.childCount, Is.EqualTo(before - 1));
+        }
     }
 }
