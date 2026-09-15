@@ -12,6 +12,7 @@ namespace ShipHdMap.Editor
             string outDir = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "web", "public", "unity"));
             PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Disabled; // dev server serves files as-is
             PlayerSettings.WebGL.decompressionFallback = false;
+            IncludeShader("Standard"); IncludeShader("Unlit/Texture"); // no scene material references these; WebGL strips them otherwise
             var opts = new BuildPlayerOptions
             {
                 scenes = new[] { "Assets/Scenes/Demo.unity" },
@@ -22,6 +23,22 @@ namespace ShipHdMap.Editor
             var report = BuildPipeline.BuildPlayer(opts);
             Debug.Log($"[WebGLBuild] {report.summary.result} -> {outDir} ({report.summary.totalSize / (1024 * 1024)} MB, {report.summary.totalTime})");
             if (report.summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded && Application.isBatchMode) EditorApplication.Exit(1);
+        }
+
+        /// Adds shader to GraphicsSettings.m_AlwaysIncludedShaders (if not already present) so the WebGL
+        /// build keeps it even though no scene material references it directly (e.g. Shader.Find at runtime).
+        static void IncludeShader(string name)
+        {
+            var shader = Shader.Find(name);
+            if (shader == null) { Debug.LogWarning($"[WebGLBuild] Shader.Find(\"{name}\") returned null; cannot include it."); return; }
+            var so = new SerializedObject(Unsupported.GetSerializedAssetInterfaceSingleton("GraphicsSettings"));
+            var list = so.FindProperty("m_AlwaysIncludedShaders");
+            for (int i = 0; i < list.arraySize; i++) if (list.GetArrayElementAtIndex(i).objectReferenceValue == shader) { Debug.Log($"[WebGLBuild] shader already included: {shader.name}"); return; }
+            list.InsertArrayElementAtIndex(list.arraySize);
+            list.GetArrayElementAtIndex(list.arraySize - 1).objectReferenceValue = shader;
+            so.ApplyModifiedProperties();
+            AssetDatabase.SaveAssets();
+            Debug.Log($"[WebGLBuild] added always-included shader: {shader.name}");
         }
     }
 }
