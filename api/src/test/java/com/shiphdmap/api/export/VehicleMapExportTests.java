@@ -72,6 +72,21 @@ class VehicleMapExportTests {
 	}
 
 	@Test
+	void markingExportsWithoutDuplicatingSlots() {
+		db.sql("""
+			INSERT INTO feature (dataset_id, id, deck_id, layer, kind, geom, props)
+			VALUES ('roro-demo-01', 'B2-0101', 'D3', 'B2', 'arrow', ST_GeomFromText('POLYGON Z((50 -1 10.6,52 -1 10.6,52 1 10.6,50 -1 10.6))', 0), '{}'::jsonb)""").update();
+		VehicleMap m = assembler.assemble(DS);
+		assertThat(m.markings()).hasSize(1);
+		VehicleMap.Marking marking = m.markings().get(0);
+		assertThat(marking.id()).isEqualTo("B2-0101");
+		assertThat(marking.kind()).isEqualTo("arrow");
+		assertThat(marking.deckId()).isEqualTo("D3");
+		assertThat(marking.polygon()).hasNumberOfRows(4);
+		assertThat(m.parkingSlots()).hasSize(2);
+	}
+
+	@Test
 	void etagAndNotModified() throws Exception {
 		String etag = mvc.perform(get("/api/datasets/" + DS + "/vehicle-map")).andExpect(status().isOk())
 			.andExpect(header().string("ETag", "\"2\"")).andExpect(jsonPath("$.map_id").value(DS)).andExpect(jsonPath("$.landmarks.length()").value(19))

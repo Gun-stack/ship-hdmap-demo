@@ -1,7 +1,7 @@
 package com.shiphdmap.api.export;
 
-import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
+import com.shiphdmap.api.JsonMaps;
 import com.shiphdmap.api.dataset.Datasets;
 import com.shiphdmap.api.geo.Wkt;
 import com.shiphdmap.api.model.VehicleMap;
@@ -22,9 +22,14 @@ public class VehicleMapAssembler {
 	private final ObjectMapper json;
 	public VehicleMapAssembler(JdbcClient db, ObjectMapper json) { this.db = db; this.json = json; }
 
-	public VehicleMap assemble(String ds) {
+	/** Cheap ETag check: reads only dataset.version, no feature/deck/slot assembly. */
+	public int version(String ds) {
 		Datasets.require(db, ds);
-		int version = db.sql("SELECT version FROM dataset WHERE id = :ds").param("ds", ds).query(Integer.class).single();
+		return db.sql("SELECT version FROM dataset WHERE id = :ds").param("ds", ds).query(Integer.class).single();
+	}
+
+	public VehicleMap assemble(String ds) {
+		int version = version(ds);
 		List<Deck> decks = db.sql("SELECT id, name, z_surface, z_clear, movable, ST_AsGeoJSON(outline)::text g FROM deck WHERE dataset_id = :ds ORDER BY z_surface").param("ds", ds)
 			.query().listOfRows().stream().map(r -> new Deck((String) r.get("id"), (String) r.get("name"), d(r.get("z_surface")), d(r.get("z_clear")), (Boolean) r.get("movable"), Wkt.coords((String) r.get("g")))).toList();
 
@@ -58,7 +63,7 @@ public class VehicleMapAssembler {
 			decks, landmarks, lanes, slots, lashing, markings, facilities, ramps);
 	}
 
-	Map<String, Object> props(String s) { try { return json.readValue(s == null ? "{}" : s, new TypeReference<Map<String, Object>>() {}); } catch (Exception e) { throw new IllegalStateException(e); } }
+	Map<String, Object> props(String s) { return JsonMaps.toMap(json, s); }
 	static double d(Object o) { return o == null ? 0 : ((Number) o).doubleValue(); }
 	static String str(Object o, String def) { return o == null ? def : o.toString(); }
 	@SuppressWarnings("unchecked") static double[] arr(Object o) { if (o == null) return null; List<Number> l = (List<Number>) o; double[] a = new double[l.size()]; for (int i = 0; i < a.length; i++) a[i] = l.get(i).doubleValue(); return a; }
