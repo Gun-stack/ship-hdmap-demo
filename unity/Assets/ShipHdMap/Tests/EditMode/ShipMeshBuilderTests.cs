@@ -55,10 +55,16 @@ namespace ShipHdMap.Tests
             var p = new ShipParams();
             ship = ShipMeshBuilder.Build(ShipSeedBuilder.Build(p), p);
             ShipMeshBuilder.SetDeckVisibility(ship, "D3");
-            float a1 = ship.transform.Find("D1/Floor").GetComponent<Renderer>().sharedMaterial.color.a;
+            var d1FloorRenderer = ship.transform.Find("D1/Floor").GetComponent<Renderer>();
+            float a1 = d1FloorRenderer.sharedMaterial.color.a;
             float a3 = ship.transform.Find("D3/Floor").GetComponent<Renderer>().sharedMaterial.color.a;
             Assert.That(a1, Is.LessThan(0.5f));
             Assert.That(a3, Is.EqualTo(1f).Within(1e-3));
+
+            // Repeated deck switches must reuse each renderer's instanced material, not clone a fresh one every call.
+            var firstMaterial = d1FloorRenderer.sharedMaterial;
+            ShipMeshBuilder.SetDeckVisibility(ship, "D3");
+            Assert.That(ReferenceEquals(d1FloorRenderer.sharedMaterial, firstMaterial), Is.True);
         }
     }
 }

@@ -97,9 +97,10 @@ namespace ShipHdMap
             // Give this renderer its own material instance, decoupled from the shared cached material above --
             // otherwise fading one primitive would fade every other primitive of the same colour. Cloning by hand
             // (rather than reading renderer.material) avoids Unity's edit-mode "instantiating material" warning/error.
-            // ponytail: reclones every call instead of tracking per-renderer instance state; fine since SetDeckVisibility
-            // only runs on user deck-switch clicks, not per frame -- track instance identity if that ever changes.
-            var m = new Material(r.sharedMaterial); r.sharedMaterial = m;
+            // Clone once per renderer (marked by a "~inst" name suffix) and reuse it on later calls, so repeated
+            // deck-switch clicks don't leak a fresh Material per renderer every time.
+            var m = r.sharedMaterial;
+            if (!m.name.EndsWith("~inst")) { m = new Material(m) { name = m.name + "~inst" }; r.sharedMaterial = m; }
             var c = m.color; c.a = a; m.color = c;
             if (a < 1f) { m.SetFloat("_Mode", 2); m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha); m.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha); m.SetInt("_ZWrite", 0); m.EnableKeyword("_ALPHABLEND_ON"); m.renderQueue = 3000; }
             else { m.SetFloat("_Mode", 0); m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One); m.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero); m.SetInt("_ZWrite", 1); m.DisableKeyword("_ALPHABLEND_ON"); m.renderQueue = -1; }

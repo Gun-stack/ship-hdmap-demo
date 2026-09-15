@@ -60,7 +60,7 @@ namespace ShipHdMap
                     Accumulate(A, b, jr, wr, res.er); Accumulate(A, b, jt, wt, res.et); Accumulate(A, b, ja, wa, res.ea);
                 }
                 double[] d = Solve3(A, b);
-                if (d == null) return new LocalizerResult { ok = false, pose = previous ?? p, nObs = used.Count, residualRms = 0, iterations = iter };
+                if (d == null) return new LocalizerResult { ok = false, pose = previous ?? p, nObs = used.Count, residualRms = ResidualRms(previous ?? p, used), iterations = iter };
                 p.x += d[0]; p.y += d[1]; p.psiRad = ShipFrame.WrapRad(p.psiRad + d[2]);
                 if (Math.Sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]) < StopDelta) break;
             }
