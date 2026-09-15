@@ -1,6 +1,7 @@
 package com.shiphdmap.api.geo;
 
-/** Ship Frame: x forward from AP, y port (+), z up, metres. Heading psi CCW from +x (degrees). */
+/** Ship Frame: x forward from AP, y port (+), z up, metres. Heading psi CCW from +x (degrees).
+ * Georef.headingDeg is a different quantity: the bow bearing over ground, clockwise from true north (degrees), used only by toWgs84. */
 public final class ShipFrame {
 	private ShipFrame() {}
 

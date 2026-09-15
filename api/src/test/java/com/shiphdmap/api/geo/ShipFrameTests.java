@@ -3,8 +3,8 @@ package com.shiphdmap.api.geo;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
 class ShipFrameTests {
 	static JsonNode vectors() throws Exception {
 		// api/ is one level below the repository root
-		return new ObjectMapper().readTree(Files.readString(Path.of("..", "docs", "test-vectors", "ship-frame.json")));
+		return new JsonMapper().readTree(Files.readString(Path.of("..", "docs", "test-vectors", "ship-frame.json")));
 	}
 
 	@Test
