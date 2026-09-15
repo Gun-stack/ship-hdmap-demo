@@ -7,6 +7,7 @@ import { StatusBar } from "./components/StatusBar";
 import { DeckTabs } from "./components/DeckTabs";
 import { LayerTree } from "./components/LayerTree";
 import { MiniMap } from "./components/MiniMap";
+import { PropertyForm } from "./components/PropertyForm";
 import "./App.css";
 
 export default function App() {
@@ -26,10 +27,10 @@ export default function App() {
         {!isLoaded && <div className="loading">Unity 로딩 중…</div>}
         <Unity unityProvider={unityProvider} style={{ width: "100%", height: "100%" }} />
       </main>
-      <aside className="right">right panel (Task 7–8)</aside>
+      <aside className="right">
+        <PropertyForm send={send} />
+      </aside>
       <StatusBar unityLoaded={isLoaded} />
-      {/* send is threaded to panels in later tasks */}
-      <span hidden>{typeof send}</span>
     </div>
   );
 }

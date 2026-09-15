@@ -13,6 +13,7 @@ export type EditorState = {
   setDeckFilter: (d: string) => void;
   setMode: (m: Mode) => void;
   addDraft: (e: FeatureCreatedEvt) => void;
+  discardDraft: (tempId: string) => void;
   applyDraft: (tempId: string, patch: { kind: string; props?: Record<string, unknown>; deck_id?: string }) => Promise<{ tempId: string; id: string }>;
   updateFeature: (id: string, patch: Partial<FeatureIn>) => Promise<void>;
   removeFeature: (id: string) => Promise<void>;
@@ -42,6 +43,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     drafts: { ...s.drafts, [e.tempId]: { tempId: e.tempId, layer: e.layer, deck_id: e.deck, geometry: { type: "Point", coordinates: [e.x, e.y, e.z] }, props: {} } },
     selectedId: e.tempId,
   })),
+  discardDraft: (tempId) => set((s) => { const drafts = { ...s.drafts }; delete drafts[tempId]; return { drafts, selectedId: s.selectedId === tempId ? null : s.selectedId }; }),
   async applyDraft(tempId, patch) {
     const d = get().drafts[tempId]; if (!d) throw new Error("no draft " + tempId);
     const created = await api.createFeature(get().datasetId, { layer: d.layer, deck_id: patch.deck_id ?? d.deck_id, kind: patch.kind, geometry: d.geometry, props: patch.props ?? d.props });

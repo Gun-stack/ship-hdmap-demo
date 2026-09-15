@@ -63,6 +63,14 @@ describe("editor store", () => {
     expect(useEditorStore.getState().selectedId).toBeNull();
   });
 
+  it("discardDraft removes the draft and clears selection", async () => {
+    await useEditorStore.getState().load("ds1");
+    useEditorStore.getState().addDraft({ tempId: "LM-0002", layer: "LM", x: 84, y: -6.2, z: 11.8, deck: "D3" });
+    useEditorStore.getState().discardDraft("LM-0002");
+    expect(useEditorStore.getState().unsavedCount()).toBe(0);
+    expect(useEditorStore.getState().selectedId).toBeNull();
+  });
+
   it("savePose merges the response", async () => {
     await useEditorStore.getState().load("ds1");
     await useEditorStore.getState().savePose({ tide_m: 1.2 });
