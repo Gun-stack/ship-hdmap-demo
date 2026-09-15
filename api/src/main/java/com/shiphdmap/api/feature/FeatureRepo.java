@@ -67,10 +67,12 @@ public class FeatureRepo {
 	String write(Map<String, Object> m) { return json.writeValueAsString(m == null ? Map.of() : m); }
 	Map<String, Object> read(String s) { try { return json.readValue(s, new TypeReference<Map<String, Object>>() {}); } catch (Exception e) { throw new IllegalStateException(e); } }
 
+	private static final tools.jackson.databind.json.JsonMapper MAPPER = new tools.jackson.databind.json.JsonMapper();
+
 	/** GeoJSON fragment {type, coordinates} -> WKT Z. */
 	public static String toWkt(Map<String, Object> geometry) {
 		try {
-			String g = new tools.jackson.databind.json.JsonMapper().writeValueAsString(geometry);
+			String g = MAPPER.writeValueAsString(geometry);
 			return switch (Wkt.type(g)) {
 				case "Point" -> Wkt.point(Wkt.coords(g)[0]);
 				case "LineString" -> Wkt.lineString(Wkt.coords(g));

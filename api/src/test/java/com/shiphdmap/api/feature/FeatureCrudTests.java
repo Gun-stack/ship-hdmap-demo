@@ -90,6 +90,17 @@ class FeatureCrudTests {
 	}
 
 	@Test
+	void partialPutKeepsOmittedFields() throws Exception {
+		mvc.perform(put("/api/datasets/" + DS + "/features/LM-0002").contentType(MediaType.APPLICATION_JSON)
+			.content("{\"geometry\":{\"type\":\"Point\",\"coordinates\":[12.5,6.2,11.8]}}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.deck_id").value("D3"))
+			.andExpect(jsonPath("$.kind").value("apriltag"))
+			.andExpect(jsonPath("$.props.code").value(2))
+			.andExpect(jsonPath("$.geometry.coordinates[0]").value(12.5));
+	}
+
+	@Test
 	void slotStatus() throws Exception {
 		mvc.perform(put("/api/datasets/" + DS + "/slots/PS-D3-001/status").contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"filled\"}"))
 			.andExpect(status().isOk()).andExpect(jsonPath("$.status").value("filled"));

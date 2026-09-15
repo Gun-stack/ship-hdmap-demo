@@ -38,7 +38,7 @@ public class FeatureController {
 	@Transactional
 	public Map<String, Object> create(@PathVariable String ds, @RequestBody FeatureIn in) {
 		Datasets.require(db, ds);
-		validate(ds, in);
+		validate(ds, in, true);
 		if (in.kind() == null || in.kind().isBlank()) throw new ApiErrors.BadRequest("kind is required", "kind");
 		String id = in.id() == null || in.id().isBlank() ? repo.nextId(ds, in.layer()) : in.id();
 		if (repo.get(ds, id).isPresent()) throw new ApiErrors.Conflict("feature " + id + " exists");
@@ -53,9 +53,14 @@ public class FeatureController {
 		Datasets.require(db, ds);
 		Map<String, Object> cur = repo.get(ds, fid).orElseThrow(() -> new ApiErrors.NotFound("feature " + fid));
 		if (in.layer() != null && !in.layer().equals(cur.get("layer"))) throw new ApiErrors.BadRequest("layer cannot change", "layer");
-		validate(ds, new FeatureIn(fid, in.deckId(), (String) cur.get("layer"), in.kind(), in.geometry(), in.props()));
+		validate(ds, new FeatureIn(fid, in.deckId(), (String) cur.get("layer"), in.kind(), in.geometry(), in.props()), false);
+		String deckId = in.deckId() == null ? (String) cur.get("deck_id") : in.deckId();
 		String kind = in.kind() == null ? (String) cur.get("kind") : in.kind();
-		repo.update(ds, fid, in.deckId(), kind, FeatureRepo.toWkt(in.geometry()), in.props());
+		@SuppressWarnings("unchecked")
+		Map<String, Object> props = in.props() == null ? (Map<String, Object>) cur.get("props") : in.props();
+		@SuppressWarnings("unchecked")
+		String wkt = in.geometry() == null ? FeatureRepo.toWkt((Map<String, Object>) cur.get("geometry")) : FeatureRepo.toWkt(in.geometry());
+		repo.update(ds, fid, deckId, kind, wkt, props);
 		Datasets.bumpVersion(db, ds);
 		return repo.get(ds, fid).orElseThrow();
 	}
@@ -82,11 +87,17 @@ public class FeatureController {
 		return Map.of("id", sid, "status", in.status());
 	}
 
-	void validate(String ds, FeatureIn in) {
+	void validate(String ds, FeatureIn in, boolean requireGeometry) {
 		if (in.layer() == null || !LAYERS.contains(in.layer())) throw new ApiErrors.BadRequest("layer must be one of " + LAYERS, "layer");
-		if (in.geometry() == null || in.geometry().get("type") == null || in.geometry().get("coordinates") == null) throw new ApiErrors.BadRequest("geometry {type, coordinates} is required", "geometry");
+		if (in.geometry() == null) {
+			if (requireGeometry) throw new ApiErrors.BadRequest("geometry {type, coordinates} is required", "geometry");
+		} else if (in.geometry().get("type") == null || in.geometry().get("coordinates") == null) {
+			throw new ApiErrors.BadRequest("geometry {type, coordinates} is required", "geometry");
+		}
 		if (in.deckId() != null && db.sql("SELECT count(*) FROM deck WHERE dataset_id = :ds AND id = :d").param("ds", ds).param("d", in.deckId()).query(Integer.class).single() == 0)
 			throw new ApiErrors.BadRequest("unknown deck " + in.deckId(), "deck_id");
-		try { FeatureRepo.toWkt(in.geometry()); } catch (IllegalArgumentException e) { throw new ApiErrors.BadRequest(e.getMessage(), "geometry"); }
+		if (in.geometry() != null) {
+			try { FeatureRepo.toWkt(in.geometry()); } catch (IllegalArgumentException e) { throw new ApiErrors.BadRequest(e.getMessage(), "geometry"); }
+		}
 	}
 }
