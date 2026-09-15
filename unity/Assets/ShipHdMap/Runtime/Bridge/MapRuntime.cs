@@ -26,6 +26,7 @@ namespace ShipHdMap
         void Awake()
         {
             InitForTest();
+            if (!Application.isPlaying) return;
             Ship = GameObject.Find("Ship");
             if (Ship == null) { _seed = ShipSeedBuilder.Build(shipParams); Ship = ShipMeshBuilder.Build(_seed, shipParams); }
             Placer.decks = _seed?.decks ?? new List<Deck>();

@@ -7,7 +7,7 @@ namespace ShipHdMap.Tests
     public class MapRuntimeTests
     {
         GameObject go;
-        [TearDown] public void Cleanup() { if (go) Object.DestroyImmediate(go); }
+        [TearDown] public void Cleanup() { if (go) Object.DestroyImmediate(go); var ship = GameObject.Find("Ship"); if (ship) Object.DestroyImmediate(ship); }
 
         static string Fixture() => File.ReadAllText(Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "docs", "fixtures", "vehicle-map.sample.json")));
 
@@ -16,7 +16,6 @@ namespace ShipHdMap.Tests
         {
             go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>();
             rt.InitForTest();
-            string emitted = null; rt.Emit += (n, j) => { if (n == BridgeMessages.OnSeedReady) emitted = j; };
             rt.Load(Fixture());
             Assert.That(rt.LandmarksRoot.childCount, Is.EqualTo(3));
             Assert.That(rt.MapRefs.ContainsKey("LM-0003"));
