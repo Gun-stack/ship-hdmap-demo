@@ -12,6 +12,9 @@ namespace ShipHdMap.Editor
             string outDir = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "web", "public", "unity"));
             PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Disabled; // dev server serves files as-is
             PlayerSettings.WebGL.decompressionFallback = false;
+            PlayerSettings.stripEngineCode = false; // scene creates colliders (MeshCollider/CapsuleCollider) only at runtime, so engine stripping would drop them
+            PlayerSettings.runInBackground = true; // embedded in the editor page; must keep simulating while the user works in side panels
+            Debug.Log($"[WebGLBuild] stripEngineCode={PlayerSettings.stripEngineCode} runInBackground={PlayerSettings.runInBackground}");
             IncludeShader("Standard"); IncludeShader("Unlit/Texture"); // no scene material references these; WebGL strips them otherwise
             var opts = new BuildPlayerOptions
             {
