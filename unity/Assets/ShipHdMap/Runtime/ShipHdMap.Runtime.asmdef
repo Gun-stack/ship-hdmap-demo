@@ -1,7 +1,7 @@
 {
   "name": "ShipHdMap.Runtime",
   "rootNamespace": "ShipHdMap",
-  "references": [ "Unity.Nuget.Newtonsoft-Json" ],
+  "references": [],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,

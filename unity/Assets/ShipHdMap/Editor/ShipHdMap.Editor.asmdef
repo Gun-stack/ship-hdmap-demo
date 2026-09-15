@@ -1,7 +1,7 @@
 {
   "name": "ShipHdMap.Editor",
   "rootNamespace": "ShipHdMap.Editor",
-  "references": [ "ShipHdMap.Runtime", "Unity.Nuget.Newtonsoft-Json" ],
+  "references": [ "ShipHdMap.Runtime" ],
   "includePlatforms": [ "Editor" ],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
