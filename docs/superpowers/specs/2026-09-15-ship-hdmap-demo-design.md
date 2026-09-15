@@ -369,7 +369,7 @@ p ← p + δ
 | --- | --- | --- |
 | M1 Unity 수직 슬라이스 | 선박 생성기(갑판·램프·기둥·MEP·래싱 격자 + 시드 JSON), ShipFrame.cs, 랜드마크 배치, 감지 모델 + 폐형해·Gauss-Newton, 차량이 갑판 한 층을 주행하며 위치 추정. 브리지 스텁 창. 차량 지도 JSON 픽스처 `docs/fixtures/vehicle-map.sample.json` | 에디터 플레이 모드에서 마커 배치 → 주행 → HUD 오차 표시. EditMode 테스트 통과 |
 | M2 데이터·API | db 스키마, seed 적재, 피처 CRUD, ShipFrame.java, vehicle-map(ETag), export.geojson | curl 로 시드 → 랜드마크 저장 → vehicle-map 조회 → QGIS 에서 WGS84 확인 |
-| M3 웹 편집기 | web 셸, react-unity-webgl 브리지, 갑판 트리·미니맵·속성 폼, WebGL 빌드 1회 | 브라우저에서 랜드마크 배치·수정·삭제 후 DB 반영 |
+| M3 웹 편집기 | web 셸, react-unity-webgl 브리지, 갑판 트리·미니맵·속성 폼, WebGL 빌드 1회. Unity 씬 UX: 궤도 카메라·차량 추적, 마커 선택 하이라이트·드래그 이동(`onFeatureMoved`), 차로·구획 라인, 갑판 라벨, HUD 를 UI Toolkit 으로 | 브라우저에서 랜드마크 배치·수정·삭제 후 DB 반영 |
 | M4 적재 계획 | 구획 자동생성 API, KPI 패널, 3D 구획 렌더 | Deck 3 에서 구획 생성, 대수·활용률 표시 |
 | M5 주행 시나리오·pose | 부두·GPS·램프·프레임 전환, 주차 판정, pose 슬라이더와 선체 기울임, 시나리오 로그, WebGL 빌드 | 선적 시나리오 완주, pose 변경에도 선내 좌표 불변 확인 |
 | M6 문서·시연 | README(문어체 불릿), 시연 스크립트, 스크린샷 | 처음 보는 사람이 README 만으로 실행 |

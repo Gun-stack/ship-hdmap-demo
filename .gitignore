@@ -27,3 +27,6 @@ out/
 
 # unity build output served by web/
 web/public/unity/
+
+# personal study notes (never committed)
+docs/learning/
