@@ -49,6 +49,7 @@ ship-hdmap-demo/
 - Unity 빌드 하나가 `편집`·`주행` 두 모드를 가진다. React 상단 탭이 `SetMode` 로 전환한다
 - 상태 관리는 Zustand 스토어 하나. Redux 는 쓰지 않는다
 - 개발은 Unity 에디터 플레이 모드 + 브리지 스텁(에디터 전용 React 대체 창)으로 하고, WebGL 빌드는 마일스톤 끝에만 한다
+- web 은 pnpm. Vite 개발 서버가 `/api` 를 API(8081)로 프록시한다. WebGL 빌드는 압축 Disabled 로 만들어 개발 서버가 그대로 서빙한다
 
 ### 2.1 컴포넌트 책임
 
@@ -331,6 +332,7 @@ p ← p + δ
 | R→U | `SetDeck` | deck_id 또는 `"all"` |
 | R→U | `Select` | feature id |
 | R→U | `Confirm` | tempId, id |
+| R→U | `Delete` | feature id (웹 트리·폼에서 삭제) |
 | R→U | `SetPose` | pose JSON |
 | R→U | `SetNoise` | sigma_r, sigma_theta, sigma_alpha, sigma_gps |
 | R→U | `StartScenario` | map, pose, `"load"` / `"unload"` |
@@ -370,7 +372,8 @@ p ← p + δ
 | --- | --- | --- |
 | M1 Unity 수직 슬라이스 | 선박 생성기(갑판·램프·기둥·MEP·래싱 격자 + 시드 JSON), ShipFrame.cs, 랜드마크 배치, 감지 모델 + 폐형해·Gauss-Newton, 차량이 갑판 한 층을 주행하며 위치 추정. 브리지 스텁 창. 차량 지도 JSON 픽스처 `docs/fixtures/vehicle-map.sample.json` | 에디터 플레이 모드에서 마커 배치 → 주행 → HUD 오차 표시. EditMode 테스트 통과 |
 | M2 데이터·API | db 스키마, seed 적재, 피처 CRUD, ShipFrame.java, vehicle-map(ETag), export.geojson | curl 로 시드 → 랜드마크 저장 → vehicle-map 조회 → QGIS 에서 WGS84 확인 |
-| M3 웹 편집기 | web 셸, react-unity-webgl 브리지, 갑판 트리·미니맵·속성 폼, WebGL 빌드 1회. Unity 씬 UX: 궤도 카메라·차량 추적, 마커 선택 하이라이트·드래그 이동(`onFeatureMoved`), 차로·구획 라인, 갑판 라벨, HUD 를 UI Toolkit 으로 | 브라우저에서 랜드마크 배치·수정·삭제 후 DB 반영 |
+| M3a 웹 편집기 | pnpm+Vite+React 19+Zustand 셸, react-unity-webgl 브리지(`.jslib` 로 Emit 연결), Unity WebGL 빌드(압축 Disabled, `web/public/unity/`), 갑판 탭·레이어 트리·SVG 미니맵·속성 폼·pose 슬라이더·상태바, 최소 주행 탭(시작·정지·노이즈·위치 추정 패널), `Delete(id)` 메시지, `docs/api-contract.md`(absent=null, heading_deg), M2 파킹 2건 정리 | `pnpm dev` 브라우저에서 랜드마크 배치·수정·삭제 후 DB 반영, vehicle-map version 증가, 주행 탭에서 추정 패널 갱신 |
+| M3b Unity 씬 UX | 궤도 카메라·차량 추적, 마커 선택 하이라이트·드래그 이동(`onFeatureMoved`), 차로·구획 라인, 갑판 라벨, HUD 를 UI Toolkit 으로, WebGL 재빌드 | 브라우저에서 마커를 드래그하면 DB 좌표가 바뀜, 선택이 3D·트리·미니맵에서 일치 |
 | M4 적재 계획 | 구획 자동생성 API, KPI 패널, 3D 구획 렌더 | Deck 3 에서 구획 생성, 대수·활용률 표시 |
 | M5 주행 시나리오·pose | 부두·GPS·램프·프레임 전환, 주차 판정, pose 슬라이더와 선체 기울임, 시나리오 로그, WebGL 빌드 | 선적 시나리오 완주, pose 변경에도 선내 좌표 불변 확인 |
 | M6 문서·시연 | README(문어체 불릿), 시연 스크립트, 스크린샷 | 처음 보는 사람이 README 만으로 실행 |
