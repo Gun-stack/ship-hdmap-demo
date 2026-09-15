@@ -36,7 +36,7 @@ CREATE TABLE feature (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (dataset_id, id),
-  FOREIGN KEY (dataset_id, deck_id) REFERENCES deck (dataset_id, id) ON DELETE SET NULL
+  FOREIGN KEY (dataset_id, deck_id) REFERENCES deck (dataset_id, id) ON DELETE SET NULL (deck_id)
 );
 CREATE INDEX feature_dataset_layer ON feature (dataset_id, layer);
 CREATE INDEX feature_geom_gist ON feature USING GIST (geom);
@@ -56,5 +56,6 @@ CREATE TABLE parking_slot (
   access_lane_id     text,
   lashing_ids        text[] NOT NULL DEFAULT '{}',
   PRIMARY KEY (dataset_id, feature_id),
-  FOREIGN KEY (dataset_id, feature_id) REFERENCES feature (dataset_id, id) ON DELETE CASCADE
+  FOREIGN KEY (dataset_id, feature_id) REFERENCES feature (dataset_id, id) ON DELETE CASCADE,
+  FOREIGN KEY (dataset_id, access_lane_id) REFERENCES feature (dataset_id, id) ON DELETE SET NULL (access_lane_id)
 );

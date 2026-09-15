@@ -70,7 +70,11 @@ public class FeatureController {
 	@Transactional
 	public void delete(@PathVariable String ds, @PathVariable String fid) {
 		Datasets.require(db, ds);
-		if (repo.delete(ds, fid) == 0) throw new ApiErrors.NotFound("feature " + fid);
+		Map<String, Object> cur = repo.get(ds, fid).orElseThrow(() -> new ApiErrors.NotFound("feature " + fid));
+		if ("LP".equals(cur.get("layer"))
+				&& db.sql("SELECT count(*) FROM parking_slot WHERE dataset_id = :ds AND :id = ANY(lashing_ids)").param("ds", ds).param("id", fid).query(Integer.class).single() > 0)
+			throw new ApiErrors.Conflict("lashing point " + fid + " is referenced by a parking slot");
+		repo.delete(ds, fid);
 		Datasets.bumpVersion(db, ds);
 	}
 

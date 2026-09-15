@@ -26,7 +26,7 @@ class SeedImportTests {
 
 	static SeedData fixtureAsSeed(ObjectMapper json) throws Exception {
 		VehicleMap m = json.readValue(Files.readString(Path.of("..", "docs", "fixtures", "vehicle-map.sample.json")), VehicleMap.class);
-		return new SeedData(m.decks(), m.facilities(), m.lashingPoints(), m.ramps(), m.lanes(), m.parkingSlots(), m.landmarks());
+		return new SeedData(m.decks(), m.facilities(), m.lashingPoints(), m.ramps(), m.lanes(), m.parkingSlots(), m.landmarks(), m.markings());
 	}
 
 	@BeforeEach
@@ -62,6 +62,23 @@ class SeedImportTests {
 
 	@Test
 	void unknownDatasetIs404() {
-		org.junit.jupiter.api.Assertions.assertThrows(com.shiphdmap.api.ApiErrors.NotFound.class, () -> importer.importSeed("nope", new SeedData(null, null, null, null, null, null, null)));
+		org.junit.jupiter.api.Assertions.assertThrows(com.shiphdmap.api.ApiErrors.NotFound.class, () -> importer.importSeed("nope", new SeedData(null, null, null, null, null, null, null, null)));
+	}
+
+	@Test
+	void deletingDeckNullsFeatureDeckIdButKeepsDatasetId() throws Exception {
+		importer.importSeed("roro-demo-01", fixtureAsSeed(json));
+		db.sql("DELETE FROM deck WHERE dataset_id = 'roro-demo-01' AND id = 'D1'").update();
+		Map<String, Object> row = db.sql("SELECT dataset_id, deck_id FROM feature WHERE dataset_id = 'roro-demo-01' AND id = 'A2-D1-0001'").query().listOfRows().get(0);
+		assertThat(row.get("dataset_id")).isEqualTo("roro-demo-01");
+		assertThat(row.get("deck_id")).isNull();
+	}
+
+	@Test
+	void landmarkWithoutMarkerIs400() {
+		var lm = new VehicleMap.Landmark("LM-0001", null, new double[] { 0, 0, 0 }, null, 0.3, "D3", null);
+		var ex = org.junit.jupiter.api.Assertions.assertThrows(com.shiphdmap.api.ApiErrors.BadRequest.class,
+			() -> importer.importSeed("roro-demo-01", new SeedData(null, null, null, null, null, null, java.util.List.of(lm), null)));
+		assertThat(ex.field).isEqualTo("marker");
 	}
 }

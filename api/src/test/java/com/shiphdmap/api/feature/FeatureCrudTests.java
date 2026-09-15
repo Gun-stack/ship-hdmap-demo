@@ -12,6 +12,8 @@ import com.shiphdmap.api.model.SeedData;
 import com.shiphdmap.api.model.VehicleMap;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,14 +41,15 @@ class FeatureCrudTests {
 		db.sql("DELETE FROM dataset").update();
 		datasets.create(new DatasetController.NewDataset(DS, "RORO demo", "Demo Ship", 12.3456, 45.6789, 87.5, 120.0));
 		VehicleMap m = json.readValue(Files.readString(Path.of("..", "docs", "fixtures", "vehicle-map.sample.json")), VehicleMap.class);
-		importer.importSeed(DS, new SeedData(m.decks(), m.facilities(), m.lashingPoints(), m.ramps(), m.lanes(), m.parkingSlots(), m.landmarks()));
+		importer.importSeed(DS, new SeedData(m.decks(), m.facilities(), m.lashingPoints(), m.ramps(), m.lanes(), m.parkingSlots(), m.landmarks(), m.markings()));
 	}
 
 	@Test
 	void listFiltersByDeckAndLayer() throws Exception {
 		mvc.perform(get("/api/datasets/" + DS + "/features").param("deck", "D3").param("layer", "LM"))
 			.andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(19)).andExpect(jsonPath("$[0].geometry.type").value("Point"))
-			.andExpect(jsonPath("$[0].props.code").isNumber());
+			.andExpect(jsonPath("$[0].props.code").isNumber())
+			.andExpect(jsonPath("$[0].created_at", Matchers.matchesPattern("^\\d{4}-\\d{2}-\\d{2}T.*Z$")));
 		mvc.perform(get("/api/datasets/" + DS + "/features").param("layer", "A2")).andExpect(jsonPath("$.length()").value(3));
 	}
 
@@ -78,16 +81,34 @@ class FeatureCrudTests {
 
 	@Test
 	void updateMovesGeometryAndDeleteRemoves() throws Exception {
+		int beforePut = version();
 		String body = """
 			{"deck_id":"D3","layer":"LM","kind":"apriltag","geometry":{"type":"Point","coordinates":[13.0,-6.2,11.8]},"props":{"code":1}}""";
 		mvc.perform(put("/api/datasets/" + DS + "/features/LM-0001").contentType(MediaType.APPLICATION_JSON).content(body))
 			.andExpect(status().isOk()).andExpect(jsonPath("$.geometry.coordinates[0]").value(13.0)).andExpect(jsonPath("$.props.code").value(1));
+		assertThat(version()).isEqualTo(beforePut + 1);
 		mvc.perform(put("/api/datasets/" + DS + "/features/LM-0001").contentType(MediaType.APPLICATION_JSON)
 			.content("{\"layer\":\"LP\",\"kind\":\"x\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[0,0,0]}}"))
 			.andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("layer"));
+		int beforeDelete = version();
 		mvc.perform(delete("/api/datasets/" + DS + "/features/LM-0001")).andExpect(status().isNoContent());
+		assertThat(version()).isEqualTo(beforeDelete + 1);
 		mvc.perform(delete("/api/datasets/" + DS + "/features/LM-0001")).andExpect(status().isNotFound());
 	}
+
+	@Test
+	void deletingLaneNullsSlotAccessLaneReference() throws Exception {
+		mvc.perform(delete("/api/datasets/" + DS + "/features/A2-D3-0001")).andExpect(status().isNoContent());
+		Map<String, Object> row = db.sql("SELECT access_lane_id FROM parking_slot WHERE dataset_id = :ds AND feature_id = 'PS-D3-001'").param("ds", DS).query().listOfRows().get(0);
+		assertThat(row.get("access_lane_id")).isNull();
+	}
+
+	@Test
+	void deletingLashingPointReferencedByASlotIsConflict() throws Exception {
+		mvc.perform(delete("/api/datasets/" + DS + "/features/LP-D3-3962")).andExpect(status().isConflict());
+	}
+
+	int version() { return db.sql("SELECT version FROM dataset WHERE id = :id").param("id", DS).query(Integer.class).single(); }
 
 	@Test
 	void partialPutKeepsOmittedFields() throws Exception {
@@ -102,8 +123,10 @@ class FeatureCrudTests {
 
 	@Test
 	void slotStatus() throws Exception {
+		int before = version();
 		mvc.perform(put("/api/datasets/" + DS + "/slots/PS-D3-001/status").contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"filled\"}"))
 			.andExpect(status().isOk()).andExpect(jsonPath("$.status").value("filled"));
+		assertThat(version()).isEqualTo(before + 1);
 		mvc.perform(put("/api/datasets/" + DS + "/slots/PS-D3-001/status").contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"bogus\"}"))
 			.andExpect(status().isBadRequest());
 		mvc.perform(put("/api/datasets/" + DS + "/slots/NOPE/status").contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"empty\"}"))

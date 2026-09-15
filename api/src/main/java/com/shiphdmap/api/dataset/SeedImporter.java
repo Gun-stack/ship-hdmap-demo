@@ -26,6 +26,7 @@ public class SeedImporter {
 		int decks = 0, features = 0, slots = 0;
 		Map<Double, String> deckByZ = new HashMap<>();
 		for (Deck d : nz(seed.decks())) {
+			if (d.outline() == null) throw new ApiErrors.BadRequest("deck " + d.id() + " outline is required", "outline");
 			db.sql("""
 				INSERT INTO deck (dataset_id, id, name, z_surface, z_clear, movable, outline)
 				VALUES (:ds, :id, :name, :zs, :zc, :mov, ST_GeomFromText(:wkt, 0))
@@ -42,19 +43,27 @@ public class SeedImporter {
 			var props = new LinkedHashMap<String, Object>();
 			props.put("type", r.type()); props.put("length_m", r.lengthM()); props.put("width_m", r.widthM()); props.put("angle_range_deg", r.angleRangeDeg());
 			props.put("connects_lane", r.connectsLane()); props.put("transition_landmarks", r.transitionLandmarks());
-			features += upsertFeature(datasetId, r.id(), deckByZ.get(r.hinge()[0][2]), "C", "ramp", Wkt.lineString(r.hinge()), props);
+			features += upsertFeature(datasetId, r.id(), nearestDeck(deckByZ, r.hinge()[0][2]), "C", "ramp", Wkt.lineString(r.hinge()), props);
 		}
 		for (Lane l : nz(seed.lanes())) {
+			if (l.centerline() == null) throw new ApiErrors.BadRequest("lane " + l.id() + " centerline is required", "centerline");
 			var props = new LinkedHashMap<String, Object>();
 			props.put("width_m", l.widthM()); props.put("direction", l.direction()); props.put("speed_limit_kmh", l.speedLimitKmh()); props.put("next", l.next());
 			features += upsertFeature(datasetId, l.id(), l.deckId(), "A2", "centerline", Wkt.lineString(l.centerline()), props);
 		}
 		for (Landmark lm : nz(seed.landmarks())) {
+			if (lm.marker() == null) throw new ApiErrors.BadRequest("landmark " + lm.id() + " marker is required", "marker");
+			if (lm.position() == null) throw new ApiErrors.BadRequest("landmark " + lm.id() + " position is required", "position");
 			var props = new LinkedHashMap<String, Object>();
 			props.put("family", lm.marker().family()); props.put("code", lm.marker().code()); props.put("normal", lm.normal()); props.put("size_m", lm.sizeM()); props.put("mounted_on", lm.mountedOn());
 			features += upsertFeature(datasetId, lm.id(), lm.deckId(), "LM", "apriltag", Wkt.point(lm.position()), props);
 		}
+		for (Marking m : nz(seed.markings()))
+			features += upsertFeature(datasetId, m.id(), m.deckId(), "B2", m.kind(), Wkt.polygon(m.polygon()), Map.of());
 		for (ParkingSlot ps : nz(seed.parkingSlots())) {
+			if (ps.targetPose() == null) throw new ApiErrors.BadRequest("slot " + ps.id() + " target_pose is required", "target_pose");
+			if (ps.tolerance() == null) throw new ApiErrors.BadRequest("slot " + ps.id() + " tolerance is required", "tolerance");
+			if (ps.polygon() == null) throw new ApiErrors.BadRequest("slot " + ps.id() + " polygon is required", "polygon");
 			features += upsertFeature(datasetId, ps.id(), ps.deckId(), "B2", "parking_slot", Wkt.polygon(ps.polygon()), Map.of());
 			db.sql("""
 				INSERT INTO parking_slot (dataset_id, feature_id, target_x, target_y, target_heading_deg, tol_lat_m, tol_lon_m, tol_heading_deg, vehicle_class, sequence_no, status, access_lane_id, lashing_ids)
@@ -82,4 +91,11 @@ public class SeedImporter {
 	}
 
 	static <T> List<T> nz(List<T> l) { return l == null ? List.of() : l; }
+
+	/** Ramp hinge z rarely lands exactly on a deck's z_surface (float generator output); match within 0.05 m. */
+	static String nearestDeck(Map<Double, String> deckByZ, double z) {
+		String best = null; double bestDiff = 0.05;
+		for (var e : deckByZ.entrySet()) { double diff = Math.abs(e.getKey() - z); if (diff <= bestDiff) { bestDiff = diff; best = e.getValue(); } }
+		return best;
+	}
 }

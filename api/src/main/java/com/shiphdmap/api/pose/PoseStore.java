@@ -21,15 +21,26 @@ public class PoseStore {
 		Pose p = poses.get(ds);
 		if (p != null) return p;
 		Map<String, Object> d = db.sql("SELECT ap_lat, ap_lon, heading_deg FROM dataset WHERE id = :id").param("id", ds).query().listOfRows().stream().findFirst().orElseThrow(() -> new ApiErrors.NotFound("dataset " + ds));
-		return new Pose(8.1, 8.6, 0, ((Number) d.get("heading_deg")).doubleValue(), 0, 3.5, ((Number) d.get("ap_lat")).doubleValue(), ((Number) d.get("ap_lon")).doubleValue(), null);
+		return new Pose(8.1, 8.6, 0.0, ((Number) d.get("heading_deg")).doubleValue(), 0.0, 3.5, ((Number) d.get("ap_lat")).doubleValue(), ((Number) d.get("ap_lon")).doubleValue(), null);
 	}
 
+	/** Merges over the current pose: a field omitted from the request (null) keeps its current value. */
 	public Pose put(String ds, Pose p) {
-		get(ds); // 404 if the dataset does not exist
-		if (p.draftFwdM() <= 0) throw new ApiErrors.BadRequest("draft_fwd_m must be positive", "draft_fwd_m");
-		if (p.draftAftM() <= 0) throw new ApiErrors.BadRequest("draft_aft_m must be positive", "draft_aft_m");
-		poses.put(ds, p);
-		return p;
+		Pose cur = get(ds); // also 404s if the dataset does not exist
+		Pose merged = new Pose(
+			p.draftFwdM() != null ? p.draftFwdM() : cur.draftFwdM(),
+			p.draftAftM() != null ? p.draftAftM() : cur.draftAftM(),
+			p.heelDeg() != null ? p.heelDeg() : cur.heelDeg(),
+			p.headingDeg() != null ? p.headingDeg() : cur.headingDeg(),
+			p.tideM() != null ? p.tideM() : cur.tideM(),
+			p.quayZM() != null ? p.quayZM() : cur.quayZM(),
+			p.apLat() != null ? p.apLat() : cur.apLat(),
+			p.apLon() != null ? p.apLon() : cur.apLon(),
+			p.measuredAt() != null ? p.measuredAt() : cur.measuredAt());
+		if (merged.draftFwdM() <= 0) throw new ApiErrors.BadRequest("draft_fwd_m must be positive", "draft_fwd_m");
+		if (merged.draftAftM() <= 0) throw new ApiErrors.BadRequest("draft_aft_m must be positive", "draft_aft_m");
+		poses.put(ds, merged);
+		return merged;
 	}
 
 	/** Test only: resets in-memory poses between tests. */

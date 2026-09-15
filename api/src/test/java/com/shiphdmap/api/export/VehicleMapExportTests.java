@@ -12,6 +12,7 @@ import com.shiphdmap.api.model.SeedData;
 import com.shiphdmap.api.model.VehicleMap;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,7 +40,7 @@ class VehicleMapExportTests {
 		db.sql("DELETE FROM dataset").update();
 		datasets.create(new DatasetController.NewDataset(DS, "RORO demo", "Demo Ship", 12.3456, 45.6789, 87.5, 120.0));
 		fixture = json.readValue(Files.readString(Path.of("..", "docs", "fixtures", "vehicle-map.sample.json")), VehicleMap.class);
-		importer.importSeed(DS, new SeedData(fixture.decks(), fixture.facilities(), fixture.lashingPoints(), fixture.ramps(), fixture.lanes(), fixture.parkingSlots(), fixture.landmarks()));
+		importer.importSeed(DS, new SeedData(fixture.decks(), fixture.facilities(), fixture.lashingPoints(), fixture.ramps(), fixture.lanes(), fixture.parkingSlots(), fixture.landmarks(), fixture.markings()));
 	}
 
 	@Test
@@ -73,9 +74,8 @@ class VehicleMapExportTests {
 
 	@Test
 	void markingExportsWithoutDuplicatingSlots() {
-		db.sql("""
-			INSERT INTO feature (dataset_id, id, deck_id, layer, kind, geom, props)
-			VALUES ('roro-demo-01', 'B2-0101', 'D3', 'B2', 'arrow', ST_GeomFromText('POLYGON Z((50 -1 10.6,52 -1 10.6,52 1 10.6,50 -1 10.6))', 0), '{}'::jsonb)""").update();
+		double[][] polygon = { { 50, -1, 10.6 }, { 52, -1, 10.6 }, { 52, 1, 10.6 }, { 50, -1, 10.6 } };
+		importer.importSeed(DS, new SeedData(null, null, null, null, null, null, null, List.of(new VehicleMap.Marking("B2-0101", "arrow", polygon, "D3"))));
 		VehicleMap m = assembler.assemble(DS);
 		assertThat(m.markings()).hasSize(1);
 		VehicleMap.Marking marking = m.markings().get(0);
@@ -84,6 +84,15 @@ class VehicleMapExportTests {
 		assertThat(marking.deckId()).isEqualTo("D3");
 		assertThat(marking.polygon()).hasNumberOfRows(4);
 		assertThat(m.parkingSlots()).hasSize(2);
+	}
+
+	@Test
+	void laneNextRoundTrips() {
+		VehicleMap.Lane original = fixture.lanes().stream().filter(l -> l.id().equals("A2-D3-0001")).findFirst().orElseThrow();
+		VehicleMap.Lane withNext = new VehicleMap.Lane(original.id(), original.deckId(), original.centerline(), original.widthM(), original.direction(), original.speedLimitKmh(), List.of("A2-D2-0001"));
+		importer.importSeed(DS, new SeedData(null, null, null, null, List.of(withNext), null, null, null));
+		VehicleMap.Lane lane = assembler.assemble(DS).lanes().stream().filter(l -> l.id().equals("A2-D3-0001")).findFirst().orElseThrow();
+		assertThat(lane.next()).containsExactly("A2-D2-0001");
 	}
 
 	@Test

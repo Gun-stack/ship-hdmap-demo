@@ -108,6 +108,7 @@ ship-hdmap-demo/
 - 지도가 아니라 상태. DB 에 두지 않고 API 메모리에 둔다. 슬라이더 값이 곧 상태
 - 입력 필드: `draft_fwd_m`, `draft_aft_m`, `heel_deg`, `heading_deg`, `tide_m`, `quay_z_m`, `ap_lat`, `ap_lon`, `measured_at`
 - 파생: `trim_deg = atan((draft_aft − draft_fwd) / L_pp)`. 입력에서 받지 않는다
+- `heading_deg`(pose·dataset)는 선수방위 — 진북 기준 시계방향(도)이다. 3.1 의 헤딩 ψ(+x 기준 반시계)와 다른 양이며, WGS84 파생과 M5 의 선체 회전에만 쓴다
 - 6자유도 강체변환 하나로 Ship Frame ↔ Quay Frame 을 오간다
 - 선내 주행 중 차량은 pose 를 몰라도 된다. 램프를 건널 때만 필요
 

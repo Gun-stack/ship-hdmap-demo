@@ -60,9 +60,11 @@ public class FeatureRepo {
 		var out = new LinkedHashMap<String, Object>();
 		out.put("id", row.get("id")); out.put("deck_id", row.get("deck_id")); out.put("layer", row.get("layer")); out.put("kind", row.get("kind"));
 		out.put("geometry", read((String) row.get("geometry"))); out.put("props", read((String) row.get("props")));
-		out.put("created_at", String.valueOf(row.get("created_at"))); out.put("updated_at", String.valueOf(row.get("updated_at")));
+		out.put("created_at", iso(row.get("created_at"))); out.put("updated_at", iso(row.get("updated_at")));
 		return out;
 	}
+
+	static String iso(Object ts) { return ts == null ? null : ((java.sql.Timestamp) ts).toInstant().toString(); }
 
 	String write(Map<String, Object> m) { return json.writeValueAsString(m == null ? Map.of() : m); }
 	Map<String, Object> read(String s) { return JsonMaps.toMap(json, s); }

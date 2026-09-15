@@ -9,5 +9,4 @@ spring:
     property-naming-strategy: SNAKE_CASE
     default-property-inclusion: non_null
     deserialization.fail-on-unknown-properties: false   # POST /seed accepts a full fixture (schema, map_id ... are ignored)
-  web.error.include-message: always
 server.port: ${API_PORT:8081}
