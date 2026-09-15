@@ -1,8 +1,8 @@
 {
   "schema": "ship-hdmap/vehicle-map/1.0",
   "map_id": "roro-demo-01",
-  "version": 2,
-  "generated_at": "2026-09-15T05:52:19Z",
+  "version": 3,
+  "generated_at": "2026-09-15T06:01:02Z",
   "frame": {
     "name": "SHIP_AP",
     "origin": "AP x Baseline x Centerline",
@@ -358,12 +358,12 @@
         "heading_deg": 2.0
       },
       "vehicle_class": "passenger",
-      "access_lane_id": "A2-0001",
+      "access_lane_id": "A2-D3-0001",
       "lashing_points": [
-        "LP-0001",
-        "LP-0002",
-        "LP-0003",
-        "LP-0004"
+        "LP-D3-3962",
+        "LP-D3-4142",
+        "LP-D3-4145",
+        "LP-D3-3965"
       ],
       "sequence_no": 1,
       "status": "empty"
@@ -409,12 +409,12 @@
         "heading_deg": 2.0
       },
       "vehicle_class": "passenger",
-      "access_lane_id": "A2-0001",
+      "access_lane_id": "A2-D3-0001",
       "lashing_points": [
-        "LP-0005",
-        "LP-0006",
-        "LP-0007",
-        "LP-0008"
+        "LP-D3-3754",
+        "LP-D3-3932",
+        "LP-D3-3935",
+        "LP-D3-3757"
       ],
       "sequence_no": 2,
       "status": "empty"
@@ -447,6 +447,16 @@
       "position": [
         94.0,
         4.0,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-3754",
+      "kind": "cloverleaf",
+      "position": [
+        94.75,
+        1.75,
         10.6
       ],
       "deck_id": "D3"
@@ -632,6 +642,16 @@
       "deck_id": "D3"
     },
     {
+      "id": "LP-D3-3932",
+      "kind": "cloverleaf",
+      "position": [
+        99.25,
+        1.75,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
       "id": "LP-D3-3933",
       "kind": "cloverleaf",
       "position": [
@@ -657,6 +677,16 @@
       "position": [
         99.25,
         4.0,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-3962",
+      "kind": "cloverleaf",
+      "position": [
+        100.0,
+        1.75,
         10.6
       ],
       "deck_id": "D3"
@@ -837,6 +867,16 @@
       "position": [
         103.75,
         4.0,
+        10.6
+      ],
+      "deck_id": "D3"
+    },
+    {
+      "id": "LP-D3-4142",
+      "kind": "cloverleaf",
+      "position": [
+        104.5,
+        1.75,
         10.6
       ],
       "deck_id": "D3"
