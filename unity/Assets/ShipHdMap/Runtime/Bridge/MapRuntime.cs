@@ -26,6 +26,12 @@ namespace ShipHdMap
         GameObject _overlay; string _deck = "all"; SetPoseMsg _pose;
         readonly Dictionary<string, LandmarkMarker> _markers = new();
 
+        public enum Phase { Idle, OnLane, Parking, Departing }
+        public Phase ScenarioPhase { get; private set; } = Phase.Idle;
+        public string TargetSlotId => _target?.id;
+        string _scenarioMode = "load"; ParkingSlot _target; Lane _targetLane; Deck _targetDeck; double _exitS;
+        const double R2D = 180 / Math.PI;
+
         void Awake()
         {
             InitForTest();
@@ -68,6 +74,7 @@ namespace ShipHdMap
         // ---- incoming (React -> Unity) ----
         public void Load(string json)
         {
+            ScenarioPhase = Phase.Idle; Vehicle.running = false;
             CurrentMap = MapJson.Parse<VehicleMap>(json);
             foreach (var m in _markers.Values) if (m) DestroyImmediate(m.gameObject);
             _selected = null; _markers.Clear(); MapRefs.Clear(); Placer.All.Clear();
@@ -84,6 +91,12 @@ namespace ShipHdMap
             // free fill meshes before the overlay itself: SlotFill.OnDestroy does not run in EditMode (no [ExecuteAlways])
             if (_overlay) { foreach (var fill in _overlay.GetComponentsInChildren<SlotFill>(true)) { var m = fill.GetComponent<MeshFilter>()?.sharedMesh; if (m) DestroyImmediate(m); } DestroyImmediate(_overlay); }
             _overlay = MapOverlay.Build(CurrentMap, transform); MapOverlay.SetDeck(_overlay, _deck);
+            foreach (var slot in CurrentMap.parking_slots ?? new List<ParkingSlot>())
+            {
+                if (!ScenarioPlanner.IsFilled(slot.status) || slot.target_pose == null) continue;
+                var deck = CurrentMap.decks?.Find(d => d.id == slot.deck_id); if (deck == null) continue;
+                MapOverlay.SpawnParked(_overlay, slot, new Pose2D { x = slot.target_pose.x, y = slot.target_pose.y, psiRad = slot.target_pose.heading_deg / R2D }, deck.z_surface);
+            }
             foreach (var m in _markers.Values) if (m) m.gameObject.SetActive(_deck == "all" || m.deckId == _deck);
 
             var labels = new List<(string, Vector3)>();
@@ -96,8 +109,14 @@ namespace ShipHdMap
         public void SetMode(string mode)
         {
             _mode = mode; Placer.enabledForInput = mode == "edit";
-            if (mode == "edit") { Vehicle.running = false; if (Orbit) Orbit.follow = null; }
+            if (mode == "edit")
+            {
+                ScenarioPhase = Phase.Idle; _target = null; Vehicle.running = false; Vehicle.gameObject.SetActive(false);
+                Time.timeScale = 1f; if (Orbit) Orbit.follow = null;
+            }
         }
+
+        public void SetTimeScale(string json) => Time.timeScale = Mathf.Clamp((float)MapJson.Parse<SetTimeScaleMsg>(json).scale, 0.1f, 50f);
         public void SetDeck(string deck)
         {
             _deck = deck; if (Ship) ShipMeshBuilder.SetDeckVisibility(Ship, deck); if (_overlay) MapOverlay.SetDeck(_overlay, deck);
@@ -163,49 +182,100 @@ namespace ShipHdMap
 
         public void StartScenario(string json)
         {
-            var s = MapJson.Parse<StartScenarioMsg>(json); if (s.map != null) Load(MapJson.Serialize(s.map));
-            var (lane, deck) = ResolveScenarioLane();
-            if (lane == null || deck == null) { Debug.LogWarning("StartScenario: no usable lane/deck in CurrentMap."); return; }
-            _prev = null; SetMode("drive"); Vehicle.StartLane(lane, deck.z_surface);
+            var s = MapJson.Parse<StartScenarioMsg>(json);
+            _scenarioMode = s?.mode == "unload" ? "unload" : "load";
+            _prev = null; SetMode("drive"); Vehicle.gameObject.SetActive(true);
             if (Orbit) { Orbit.follow = Vehicle.transform; Orbit.distance = 25f; Orbit.pitchDeg = 35f; }
+            Send(BridgeMessages.OnScenario, MapJson.Serialize(new ScenarioEvt { evt = "start", mode = _scenarioMode }));
+            NextVehicle();
         }
 
-        /// Picks the scenario's starting lane: the lane the first ramp connects to (the vehicle drives on
-        /// after disembarking), falling back to the first lane whose deck carries a landmark, then lanes[0].
-        public (Lane lane, Deck deck) ResolveScenarioLane()
+        /// Picks the next slot (spec §3.2/§3.3) and puts a vehicle on the lane start (load) or in the slot (unload). Finishes when none is left.
+        void NextVehicle()
         {
-            if (CurrentMap == null || CurrentMap.lanes == null || CurrentMap.lanes.Count == 0) return (null, null);
-
-            Lane lane = null;
-            var rampLaneId = CurrentMap.ramps != null && CurrentMap.ramps.Count > 0 ? CurrentMap.ramps[0].connects_lane : null;
-            if (rampLaneId != null) lane = CurrentMap.lanes.Find(l => l.id == rampLaneId);
-
-            if (lane == null && CurrentMap.landmarks != null)
+            _prev = null;   // a fresh vehicle must not seed Gauss-Newton with the previous car's pose
+            _target = CurrentMap == null ? null : ScenarioPlanner.NextSlot(CurrentMap.parking_slots, _scenarioMode);
+            _targetLane = _target == null ? null : CurrentMap.lanes?.Find(l => l.id == _target.access_lane_id);
+            _targetDeck = _target == null ? null : CurrentMap.decks?.Find(d => d.id == _target.deck_id);
+            if (_target == null) { Finish(_scenarioMode == "unload" ? "no_filled_slot" : "no_empty_slot"); return; }
+            if (_targetLane == null || _targetDeck == null) { Finish("lane_or_deck_missing:" + _target.id); return; }
+            Send(BridgeMessages.OnScenario, MapJson.Serialize(new ScenarioEvt { evt = "target", slot_id = _target.id }));
+            double z = _targetDeck.z_surface;
+            if (_scenarioMode == "unload")
             {
-                var decksWithLandmarks = new HashSet<string>();
-                foreach (var lm in CurrentMap.landmarks) decksWithLandmarks.Add(lm.deck_id);
-                lane = CurrentMap.lanes.Find(l => decksWithLandmarks.Contains(l.deck_id));
+                MapOverlay.RemoveParked(_overlay, _target.id);
+                Vehicle.StartPath(ScenarioPlanner.DeparturePath(_target.target_pose, _targetLane, z), z, ScenarioPlanner.ParkSpeedMps);
+                ScenarioPhase = Phase.Departing;
             }
+            else
+            {
+                _exitS = ScenarioPlanner.ExitS(_targetLane, _target.target_pose);
+                Vehicle.StartLane(_targetLane, z);
+                ScenarioPhase = Phase.OnLane;
+            }
+        }
 
-            lane ??= CurrentMap.lanes[0];
-            var deck = CurrentMap.decks?.Find(d => d.id == lane.deck_id);
-            return (lane, deck);
+        void Finish(string reason)
+        {
+            ScenarioPhase = Phase.Idle; _target = null; Vehicle.running = false;
+            Send(BridgeMessages.OnScenario, MapJson.Serialize(new ScenarioEvt { evt = "finished", mode = _scenarioMode, detail = reason }));
         }
 
         // ---- per frame ----
-        void Update()
+        void Update() => Step(Time.deltaTime);
+
+        /// One simulation tick: move the vehicle, localize, emit, then run the scenario transitions. Tests call this directly.
+        public void Step(float dt)
         {
             if (_mode != "drive" || !Vehicle.running) return;
+            Vehicle.Advance(dt);
             var obs = Sensor.Sense(Vehicle.Truth, MapRefs, id => _markers[id].transform.position);
             var res = Localizer.Solve(obs, MapRefs, Sensor.noise.sigmaR, Sensor.noise.sigmaThetaRad, Sensor.noise.sigmaAlphaRad, _prev);
             if (res.ok && double.IsFinite(res.pose.x) && double.IsFinite(res.pose.y) && double.IsFinite(res.pose.psiRad)) _prev = res.pose;
             Hud.Set(res, Vehicle.Truth, "SHIP_AP");
-            _emitTimer += Time.deltaTime;
+            _emitTimer += dt;
             if (_emitTimer >= 0.2f)
             {
                 _emitTimer = 0;
-                Send(BridgeMessages.OnLocalization, MapJson.Serialize(new LocalizationEvt { est_x = res.pose.x, est_y = res.pose.y, est_psi = res.pose.psiRad * 180 / Math.PI,
-                    true_x = Vehicle.Truth.x, true_y = Vehicle.Truth.y, true_psi = Vehicle.Truth.psiRad * 180 / Math.PI, residual_rms = res.residualRms, n_obs = res.nObs, frame = "SHIP_AP" }));
+                Send(BridgeMessages.OnLocalization, MapJson.Serialize(new LocalizationEvt { est_x = res.pose.x, est_y = res.pose.y, est_psi = res.pose.psiRad * R2D,
+                    true_x = Vehicle.Truth.x, true_y = Vehicle.Truth.y, true_psi = Vehicle.Truth.psiRad * R2D, residual_rms = res.residualRms, n_obs = res.nObs, frame = "SHIP_AP" }));
+            }
+            StepScenario();
+        }
+
+        void StepScenario()
+        {
+            switch (ScenarioPhase)
+            {
+                case Phase.OnLane when Vehicle.s >= _exitS || Vehicle.AtEnd:
+                {
+                    // Plan in the belief frame at the moment of leaving the lane, then execute open-loop in the true frame:
+                    // the estimation error at this instant becomes the parking error.
+                    // ponytail: open-loop from one estimate; closed-loop pure pursuit on every frame's estimate is the upgrade path.
+                    var est = _prev ?? Vehicle.Truth;
+                    double z = _targetDeck.z_surface;
+                    var path = ScenarioPlanner.Shift(ScenarioPlanner.ApproachPath(est, _target.target_pose, z), Vehicle.Truth.x - est.x, Vehicle.Truth.y - est.y);
+                    Send(BridgeMessages.OnScenario, MapJson.Serialize(new ScenarioEvt { evt = "leave_lane", slot_id = _target.id, detail = $"est x {est.x:F2} y {est.y:F2} psi {est.psiRad * R2D:F1}" }));
+                    Vehicle.StartPath(path, z, ScenarioPlanner.ParkSpeedMps);
+                    ScenarioPhase = Phase.Parking;
+                    break;
+                }
+                case Phase.Parking when Vehicle.AtEnd:
+                {
+                    var (status, lat, lon, hdg) = ScenarioPlanner.Judge(Vehicle.Truth, _target.target_pose, _target.tolerance);
+                    _target.status = status; MapOverlay.SetStatus(_overlay, _target.id, status);
+                    MapOverlay.SpawnParked(_overlay, _target, Vehicle.Truth, _targetDeck.z_surface);
+                    Send(BridgeMessages.OnSlotFilled, MapJson.Serialize(new SlotFilledEvt { slot_id = _target.id, status = status, err_lat = lat, err_lon = lon, err_heading = hdg }));
+                    NextVehicle();
+                    break;
+                }
+                case Phase.Departing when Vehicle.AtEnd:
+                {
+                    _target.status = "empty"; MapOverlay.SetStatus(_overlay, _target.id, "empty");
+                    Send(BridgeMessages.OnSlotFilled, MapJson.Serialize(new SlotFilledEvt { slot_id = _target.id, status = "empty" }));
+                    NextVehicle();
+                    break;
+                }
             }
         }
 

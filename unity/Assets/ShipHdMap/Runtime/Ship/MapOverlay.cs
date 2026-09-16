@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace ShipHdMap
 {
-    /// Lane centerlines (lines), parking-slot outlines (lines) and parking-slot fills (quads, coloured by status), grouped per deck so SetDeck can hide other decks.
+    /// Lane centerlines (lines), parking-slot outlines (lines), parking-slot fills (quads, coloured by status), and parked-car boxes (`PARKED-{slot}`), grouped per deck so SetDeck can hide other decks.
     public static class MapOverlay
     {
         const float Lift = 0.05f, FillLift = 0.03f, LaneWidth = 0.15f, SlotWidth = 0.1f;
@@ -76,6 +76,45 @@ namespace ShipHdMap
             if (selected) c.a = 0.75f;
             m = new Material(Shader.Find("Sprites/Default")) { color = c, name = "slotfill-" + key }; // always-included, unlit, alpha-blended
             FillMats[key] = m; return m;
+        }
+
+        static Material _parkedMat;
+
+        /// Re-colours a slot fill after a parking judgement / unload. Selection highlight is re-applied by the next Highlight call.
+        public static void SetStatus(GameObject overlay, string id, string status)
+        {
+            var slot = FindInDecks(overlay, id); var fill = slot ? slot.GetComponentInChildren<SlotFill>(true) : null;
+            if (fill == null) return;
+            fill.status = status ?? "empty";
+            fill.GetComponent<MeshRenderer>().sharedMaterial = FillMat(fill.status, false);
+        }
+
+        /// Static car box at the parked pose, under the slot's deck group so SetDeck hides it with the deck. Replaces any previous box.
+        public static GameObject SpawnParked(GameObject overlay, ParkingSlot slot, Pose2D pose, double z)
+        {
+            RemoveParked(overlay, slot.id);
+            var deck = overlay.transform.Find(slot.deck_id ?? "none"); if (deck == null) return null;
+            var g = GameObject.CreatePrimitive(PrimitiveType.Cube); g.name = "PARKED-" + slot.id; g.transform.SetParent(deck, false);
+            Object.DestroyImmediate(g.GetComponent<Collider>());   // never blocks placement raycasts or the sensor linecast
+            g.transform.localPosition = ShipFrame.ToUnity(pose.x, pose.y, z + 0.75);
+            g.transform.localRotation = Quaternion.Euler(0, ShipFrame.UnityYawDeg(pose.psiRad * 180 / System.Math.PI), 0);
+            g.transform.localScale = new Vector3(4.8f, 1.5f, 1.85f);
+            if (!_parkedMat) _parkedMat = new Material(Shader.Find("Standard")) { color = new Color(0.82f, 0.84f, 0.9f), name = "parked-car" };
+            g.GetComponent<Renderer>().sharedMaterial = _parkedMat;
+            return g;
+        }
+
+        public static void RemoveParked(GameObject overlay, string slotId)
+        {
+            var t = FindInDecks(overlay, "PARKED-" + slotId); if (!t) return;
+            if (Application.isPlaying) Object.Destroy(t.gameObject); else Object.DestroyImmediate(t.gameObject);
+        }
+
+        static Transform FindInDecks(GameObject overlay, string name)
+        {
+            if (!overlay) return null;
+            foreach (Transform deck in overlay.transform) { var t = deck.Find(name); if (t) return t; }
+            return null;
         }
     }
 

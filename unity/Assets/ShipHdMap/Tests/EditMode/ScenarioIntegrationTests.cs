@@ -30,15 +30,9 @@ namespace ShipHdMap.Tests
             go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>();
             rt.InitForTest();
             rt.Load(Fixture());
-
-            var (lane, deck) = rt.ResolveScenarioLane();
-            Assert.That(lane, Is.Not.Null);
-            Assert.That(deck, Is.Not.Null);
-            Assert.That(lane.deck_id, Is.EqualTo("D3"));
-            Assert.That(rt.CurrentMap.landmarks.Count(lm => lm.deck_id == deck.id), Is.GreaterThanOrEqualTo(1));
-
-            rt.Vehicle.StartLane(lane, deck.z_surface);
-            rt.Sensor.transform.position = rt.Vehicle.transform.position;
+            rt.StartScenario("{\"mode\":\"load\"}");
+            Assert.That(rt.ScenarioPhase, Is.EqualTo(MapRuntime.Phase.OnLane));
+            Assert.That(rt.Vehicle.Truth.x, Is.EqualTo(2).Within(1e-6));   // lane A2-D3-0001 starts at (2, 0)
 
             var obs = rt.Sensor.Sense(rt.Vehicle.Truth, rt.MapRefs, id => rt.Markers.First(m => m.id == id).transform.position);
             Assert.That(obs.Count, Is.GreaterThanOrEqualTo(1));

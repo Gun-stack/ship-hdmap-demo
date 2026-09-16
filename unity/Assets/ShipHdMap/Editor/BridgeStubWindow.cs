@@ -34,7 +34,10 @@ namespace ShipHdMap.Editor
                 if (GUILayout.Button("Mode edit")) rt.SetMode("edit");
                 if (GUILayout.Button("Mode drive")) rt.SetMode("drive");
                 if (GUILayout.Button("Start load scenario")) rt.StartScenario("{\"mode\":\"load\"}");
+                if (GUILayout.Button("Start unload scenario")) rt.StartScenario("{\"mode\":\"unload\"}");
             }
+            using (new EditorGUILayout.HorizontalScope())
+                foreach (var k in new[] { 1, 5, 20 }) if (GUILayout.Button($"x{k}")) rt.SetTimeScale($"{{\"scale\":{k}}}");
             using (new EditorGUILayout.HorizontalScope())
                 foreach (var d in new[] { "D1", "D2", "D3", "all" }) if (GUILayout.Button(d)) rt.SetDeck(d);
             EditorGUI.BeginChangeCheck();
