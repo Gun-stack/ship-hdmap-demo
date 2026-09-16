@@ -21,6 +21,14 @@ namespace ShipHdMap
 
         public void Focus(Vector3 p, float dist) { follow = null; target = p; distance = Mathf.Clamp(dist, minDistance, maxDistance); Apply(); }
 
+        /// Adopts the camera's current transform so the first frame does not jump: yaw/pitch from its rotation, target `distance` ahead along its forward.
+        public void AdoptCurrentPose()
+        {
+            var e = transform.rotation.eulerAngles;
+            yawDeg = e.y; pitchDeg = e.x > 180f ? e.x - 360f : e.x;
+            target = transform.position + transform.forward * distance;
+        }
+
         void LateUpdate()
         {
             if (inputEnabled)

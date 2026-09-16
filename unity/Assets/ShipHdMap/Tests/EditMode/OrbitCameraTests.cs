@@ -16,5 +16,18 @@ namespace ShipHdMap.Tests
             var (side, _) = OrbitCamera.Pose(Vector3.zero, 90, 0, 5);
             Assert.That(side.x, Is.EqualTo(-5).Within(1e-4));                              // yaw 90 = camera on -x looking +x
         }
+
+        [Test]
+        public void AdoptCurrentPoseReproducesTheCameraTransform()
+        {
+            var go = new GameObject("cam"); var cam = go.AddComponent<Camera>();
+            cam.transform.SetPositionAndRotation(new Vector3(60, 25, -40), Quaternion.Euler(20, -20, 0));
+            var orbit = go.AddComponent<OrbitCamera>(); orbit.distance = 70f;
+            orbit.AdoptCurrentPose();
+            var (p, r) = OrbitCamera.Pose(orbit.target, orbit.yawDeg, orbit.pitchDeg, orbit.distance);
+            Assert.That(Vector3.Distance(p, cam.transform.position), Is.LessThan(1e-3f));
+            Assert.That(Quaternion.Angle(r, cam.transform.rotation), Is.LessThan(1e-3f));
+            Object.DestroyImmediate(go);
+        }
     }
 }

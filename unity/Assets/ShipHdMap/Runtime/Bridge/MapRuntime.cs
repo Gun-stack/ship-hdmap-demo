@@ -36,7 +36,7 @@ namespace ShipHdMap
             if (Ship == null) { _seed = ShipSeedBuilder.Build(shipParams); Ship = ShipMeshBuilder.Build(_seed, shipParams); }
             Placer.decks = _seed?.decks ?? new List<Deck>();
             if (cam == null) cam = Camera.main; Placer.cam = cam;
-            Orbit = cam.GetComponent<OrbitCamera>(); if (!Orbit) Orbit = cam.gameObject.AddComponent<OrbitCamera>();
+            Orbit = cam.GetComponent<OrbitCamera>(); if (!Orbit) { Orbit = cam.gameObject.AddComponent<OrbitCamera>(); Orbit.AdoptCurrentPose(); }
             Placer.Created += lm => { _markers[lm.id] = lm; MapRefs[lm.id] = RefOf(lm.ToModel());
                 var (x, y, z) = ShipFrame.ToShip(lm.transform.position);
                 Send(BridgeMessages.OnFeatureCreated, MapJson.Serialize(new FeatureCreatedEvt { tempId = lm.id, layer = "LM", x = x, y = y, z = z, deck = lm.deckId, mounted_on = lm.mountedOn })); };
