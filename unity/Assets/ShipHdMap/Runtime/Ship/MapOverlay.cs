@@ -100,7 +100,8 @@ namespace ShipHdMap
             g.transform.localRotation = Quaternion.Euler(0, ShipFrame.UnityYawDeg(pose.psiRad * 180 / System.Math.PI), 0);
             g.transform.localScale = new Vector3(4.8f, 1.5f, 1.85f);
             if (!_parkedMat) _parkedMat = new Material(Shader.Find("Standard")) { color = new Color(0.82f, 0.84f, 0.9f), name = "parked-car" };
-            g.GetComponent<Renderer>().sharedMaterial = _parkedMat;
+            var own = g.GetComponent<Renderer>(); own.sharedMaterial = _parkedMat;
+            foreach (var r in deck.GetComponentsInChildren<Renderer>(true)) if (r != own) { own.enabled = r.enabled; break; }   // inherit the deck filter (SetDeck toggles Renderer.enabled per deck group)
             return g;
         }
 

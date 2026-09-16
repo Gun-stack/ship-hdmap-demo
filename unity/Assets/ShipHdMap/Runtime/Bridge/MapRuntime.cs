@@ -74,7 +74,7 @@ namespace ShipHdMap
         // ---- incoming (React -> Unity) ----
         public void Load(string json)
         {
-            ScenarioPhase = Phase.Idle; Vehicle.running = false;
+            ScenarioPhase = Phase.Idle; Vehicle.running = false; _target = null;
             CurrentMap = MapJson.Parse<VehicleMap>(json);
             foreach (var m in _markers.Values) if (m) DestroyImmediate(m.gameObject);
             _selected = null; _markers.Clear(); MapRefs.Clear(); Placer.All.Clear();
@@ -191,14 +191,19 @@ namespace ShipHdMap
         }
 
         /// Picks the next slot (spec §3.2/§3.3) and puts a vehicle on the lane start (load) or in the slot (unload). Finishes when none is left.
+        /// Only slots whose access_lane_id/deck_id both resolve are candidates, so one bad reference skips that slot instead of ending the run.
         void NextVehicle()
         {
             _prev = null;   // a fresh vehicle must not seed Gauss-Newton with the previous car's pose
-            _target = CurrentMap == null ? null : ScenarioPlanner.NextSlot(CurrentMap.parking_slots, _scenarioMode);
-            _targetLane = _target == null ? null : CurrentMap.lanes?.Find(l => l.id == _target.access_lane_id);
-            _targetDeck = _target == null ? null : CurrentMap.decks?.Find(d => d.id == _target.deck_id);
+            var candidates = new List<ParkingSlot>();
+            if (CurrentMap != null)
+                foreach (var s in CurrentMap.parking_slots ?? new List<ParkingSlot>())
+                    if (CurrentMap.lanes?.Find(l => l.id == s.access_lane_id) != null && CurrentMap.decks?.Find(d => d.id == s.deck_id) != null)
+                        candidates.Add(s);
+            _target = ScenarioPlanner.NextSlot(candidates, _scenarioMode);
+            _targetLane = _target == null ? null : CurrentMap.lanes.Find(l => l.id == _target.access_lane_id);
+            _targetDeck = _target == null ? null : CurrentMap.decks.Find(d => d.id == _target.deck_id);
             if (_target == null) { Finish(_scenarioMode == "unload" ? "no_filled_slot" : "no_empty_slot"); return; }
-            if (_targetLane == null || _targetDeck == null) { Finish("lane_or_deck_missing:" + _target.id); return; }
             Send(BridgeMessages.OnScenario, MapJson.Serialize(new ScenarioEvt { evt = "target", slot_id = _target.id }));
             double z = _targetDeck.z_surface;
             if (_scenarioMode == "unload")

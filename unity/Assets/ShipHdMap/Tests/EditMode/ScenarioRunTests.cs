@@ -113,5 +113,27 @@ namespace ShipHdMap.Tests
             rt.SetDeck("all");
             Assert.That(rt.transform.Find("Overlay/D3/PARKED-PS-D3-001").GetComponent<Renderer>().enabled, Is.True);
         }
+
+        [Test]
+        public void RestoredParkedBoxesInheritTheActiveDeckFilter()
+        {
+            var rt = NewRuntime(Fixture());
+            rt.SetDeck("D1");
+            rt.Load(FilledFixture());
+            Assert.That(rt.transform.Find("Overlay/D3/PARKED-PS-D3-001").GetComponent<Renderer>().enabled, Is.False);
+            rt.SetDeck("all");
+            Assert.That(rt.transform.Find("Overlay/D3/PARKED-PS-D3-001").GetComponent<Renderer>().enabled, Is.True);
+        }
+
+        [Test]
+        public void UnresolvableLaneSkipsTheSlotInsteadOfEndingTheRun()
+        {
+            var f = Fixture(); int i = f.IndexOf("\"access_lane_id\": \"A2-D3-0001\"");
+            f = f.Substring(0, i) + "\"access_lane_id\": \"A2-NOPE\"" + f.Substring(i + "\"access_lane_id\": \"A2-D3-0001\"".Length);
+            var rt = NewRuntime(f);   // PS-D3-001's lane no longer resolves
+            rt.StartScenario("{\"mode\":\"load\"}");
+            Assert.That(rt.TargetSlotId, Is.EqualTo("PS-D3-002"));
+            Assert.That(rt.ScenarioPhase, Is.EqualTo(MapRuntime.Phase.OnLane));
+        }
     }
 }
