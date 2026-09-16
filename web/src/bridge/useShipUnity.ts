@@ -12,6 +12,7 @@ export function useShipUnity() {
   const { datasetId, dataset, deckFilter, selectedId, mode, addDraft, select, setLocalization, moveFeature } = useEditorStore();
   const loadedOnce = useRef(false);
   const loading = useRef(false);
+  const fromScene = useRef(false);
 
   const send = useCallback((name: BridgeName, payload?: string | object) => {
     if (!isLoaded) return;
@@ -21,12 +22,17 @@ export function useShipUnity() {
   // Unity -> store
   useEffect(() => {
     const onCreated = (json: string) => addDraft(JSON.parse(json));
-    const onSelected = (json: string) => select(JSON.parse(json).id ?? null);
+    const onSelected = (json: string) => { fromScene.current = true; select(JSON.parse(json).id ?? null); };
     const onLoc = (json: string) => setLocalization(JSON.parse(json));
-    const onMoved = (json: string) => { void moveFeature(JSON.parse(json)).catch((e) => useEditorStore.setState({ error: "move failed: " + (e as Error).message })); };
+    const onMoved = (json: string) => {
+      void moveFeature(JSON.parse(json)).catch(async (e) => {
+        useEditorStore.setState({ error: "move failed: " + (e as Error).message });
+        try { const r = await fetch(api.vehicleMapUrl(datasetId)); if (r.ok) send("Load", await r.text()); } catch { /* the banner already says it failed */ }
+      });
+    };
     addEventListener("onFeatureCreated", onCreated); addEventListener("onSelected", onSelected); addEventListener("onLocalization", onLoc); addEventListener("onFeatureMoved", onMoved);
     return () => { removeEventListener("onFeatureCreated", onCreated); removeEventListener("onSelected", onSelected); removeEventListener("onLocalization", onLoc); removeEventListener("onFeatureMoved", onMoved); };
-  }, [addEventListener, removeEventListener, addDraft, select, setLocalization, moveFeature]);
+  }, [addEventListener, removeEventListener, addDraft, select, setLocalization, moveFeature, datasetId, send]);
 
   // initial Load: the vehicle-map body is exactly the Load payload (spec §10)
   useEffect(() => {
@@ -41,7 +47,11 @@ export function useShipUnity() {
 
   useEffect(() => { if (loadedOnce.current) send("SetDeck", deckFilter); }, [deckFilter, send]);
   useEffect(() => { if (loadedOnce.current) send("SetMode", mode); }, [mode, send]);
-  useEffect(() => { if (loadedOnce.current && selectedId) send("Select", selectedId); }, [selectedId, send]);
+  useEffect(() => {
+    if (!loadedOnce.current || !selectedId) return;
+    if (fromScene.current) { fromScene.current = false; return; }
+    send("Select", selectedId);
+  }, [selectedId, send]);
 
   return { unityProvider, isLoaded, send };
 }
