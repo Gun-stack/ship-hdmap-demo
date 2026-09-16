@@ -15,6 +15,7 @@
 - `POST /datasets/{id}/features` `{id?, deck_id?, layer, kind, geometry, props?}` → 201 피처(id 생략 시 `{layer}-{n:0000}`)
 - `PUT /datasets/{id}/features/{fid}` 부분 갱신(보낸 필드만; `layer` 변경 불가) → 200 피처
 - `DELETE /datasets/{id}/features/{fid}` → 204 · 404 · 409(구획이 참조하는 래싱)
+- `POST /datasets/{id}/decks/{deck}/slots/generate` `{vehicle_class?, gap_lat_m?, gap_lon_m?, lashing_pitch_m?}`(기본 passenger, 0.30, 0.40, 0.75) → `{deck, count, utilization, lashing_coverage, version, slots[]}`. 그 갑판의 기존 구획을 전부 교체한다 · 404 갑판 없음 · 400 알 수 없는 차량 등급
 - `PUT /datasets/{id}/slots/{sid}/status` `{status: empty|filled|needs_adjust}` → `{id, status}`
 - `GET /datasets/{id}/vehicle-map` → 스펙 §6 JSON, `ETag`
 - `GET /datasets/{id}/export.geojson` → WGS84 FeatureCollection (`application/geo+json`)

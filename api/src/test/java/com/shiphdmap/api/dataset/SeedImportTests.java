@@ -24,14 +24,14 @@ import org.springframework.test.web.servlet.MockMvc;
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
 @AutoConfigureMockMvc
-class SeedImportTests {
+public class SeedImportTests {
 	@Autowired MockMvc mvc;
 	@Autowired JdbcClient db;
 	@Autowired ObjectMapper json;
 	@Autowired DatasetController datasets;
 	@Autowired SeedImporter importer;
 
-	static SeedData fixtureAsSeed(ObjectMapper json) throws Exception {
+	public static SeedData fixtureAsSeed(ObjectMapper json) throws Exception {
 		VehicleMap m = json.readValue(Files.readString(Path.of("..", "docs", "fixtures", "vehicle-map.sample.json")), VehicleMap.class);
 		return new SeedData(m.decks(), m.facilities(), m.lashingPoints(), m.ramps(), m.lanes(), m.parkingSlots(), m.landmarks(), m.markings());
 	}
