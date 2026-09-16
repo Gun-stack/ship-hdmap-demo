@@ -85,6 +85,7 @@ ship-hdmap-demo/
 ### 3.3 Unity 매핑
 
 - Ship(x, y, z) → Unity(x, z, −y). Unity X=선수 방향, Y=상방, Z=우현
+- Unity 씬에서는 Map 루트의 로컬 좌표가 Ship Frame, 월드가 Quay Frame 이다. pose 는 Map 루트의 회전(M5a)과 위치(M5b)로만 반영하고 자식의 로컬 좌표는 건드리지 않는다
 - 변환 함수는 C# `ShipFrame.cs`, TS `shipFrame.ts`, Java `ShipFrame.java` 에 각각 두고, 같은 테스트 벡터 파일 `docs/test-vectors/ship-frame.json` 로 세 벌을 검증
 
 ### 3.4 Z 정의
@@ -108,18 +109,18 @@ ship-hdmap-demo/
 
 - 지도가 아니라 상태. DB 에 두지 않고 API 메모리에 둔다. 슬라이더 값이 곧 상태
 - 입력 필드: `draft_fwd_m`, `draft_aft_m`, `heel_deg`, `heading_deg`, `tide_m`, `quay_z_m`, `ap_lat`, `ap_lon`, `measured_at`
-- 파생: `trim_deg = atan((draft_aft − draft_fwd) / L_pp)`. 입력에서 받지 않는다
+- 파생: `trim_deg = atan((draft_aft − draft_fwd) / L_pp)`. 입력에서 받지 않는다. 양수면 선수가 올라간다. `heel_deg` 양수는 우현이 내려간다
 - `heading_deg`(pose·dataset)는 선수방위 — 진북 기준 시계방향(도)이다. 3.1 의 헤딩 ψ(+x 기준 반시계)와 다른 양이며, WGS84 파생과 M5 의 선체 회전에만 쓴다
 - 6자유도 강체변환 하나로 Ship Frame ↔ Quay Frame 을 오간다
 - 선내 주행 중 차량은 pose 를 몰라도 된다. 램프를 건널 때만 필요
 
 ### 4.2 램프
 
-- feature(layer C, kind `ramp`)로 저장. props: `hinge`(LineStringZ 두 점), `length_m`, `width_m`, `angle_min_deg`, `angle_max_deg`, `connects_lane_id`, `transition_lm_ids[]`
+- feature(layer C, kind `ramp`)로 저장. props: `hinge`(LineStringZ 두 점), `length_m`, `width_m`, `angle_min_deg`, `angle_max_deg`, `connects_lane_id`, `transition_landmarks[]`
 - 힌지·길이·폭·허용 각도는 Ship Frame 에 고정된 지도 정보
 - `angle_deg` 는 파생: `asin(((quay_z + tide) − (hinge_z − draft_aft)) / length_m)`. 범위 밖이면 `state: "blocked"`, 안이면 `deployed`, 수납 시 `stowed`
 - 램프 위 차로는 저장하지 않고 힌지·각도로 실시간 생성
-- `transition_lm_ids`: 램프 입구 랜드마크 쌍. 프레임 전환 트리거
+- `transition_landmarks`: 램프 입구 랜드마크 쌍. 프레임 전환 트리거 (M5b 에서 시드가 채운다)
 
 ### 4.3 선하역 시나리오
 
@@ -266,15 +267,15 @@ GET    /api/datasets/{id}/ramps/{rid}                   angle_deg·state 포함
 
 ### 9.2 구획 자동생성
 
-- 입력: `deck.outline`, 장애물(기둥·램프 풋프린트), 래싱 점, 차량 등급, 간격
+- 입력: `deck.outline`, 장애물(기둥. 램프는 힌지가 윤곽선이라 몸체가 갑판 밖이므로 제외하고, 진입로는 차로 회랑이 지킨다), 래싱 점, 차량 등급, 간격
 - 갑판을 래싱 격자 간격으로 순회하며 차량 크기+간격 사각형이 윤곽 안에 들어가고 장애물과 겹치지 않으면 구획 생성, 가장 가까운 래싱 4점을 `lashing_ids` 로, 가장 가까운 A2 차로를 `access_lane_id` 로
 - 선수→선미, 깊은 곳 먼저 순으로 `sequence_no`
 - 격자 채우기이며 최적화 없음. 코드에 `ponytail:` 표시(업그레이드 경로: 2D bin packing)
 
 ### 9.3 주행 시나리오
 
-1. "선적" 클릭 → React 가 vehicle-map·pose 조회 → Unity `StartScenario({mode:"load"})`(pose 는 M5)
-2. Unity: 램프 각도 계산 → 부두 시작점에 차량 스폰(Quay Frame, GPS) → 입구 랜드마크 쌍 인식 시 Ship Frame 전환 → A2 차로 따라 → `access_lane_id` 최근접점에서 이탈 → 목표 자세로 정차 → 오차 판정 → `onSlotFilled{slotId, err}` → React 가 PUT status
+1. "선적" 클릭 → Unity `StartScenario({mode:"load"})`. pose 는 `SetPose` 로 이미 전달돼 있다
+2. Unity: 램프 각도 계산 → 부두 시작점에 차량 스폰(Quay Frame, GPS) → 입구 랜드마크 쌍 인식 시 Ship Frame 전환 → A2 차로 따라 → `access_lane_id` 최근접점에서 이탈 → 목표 자세로 정차 → 오차 판정 → `onSlotFilled{slot_id, status, err}` → React 가 PUT status. 부두·프레임 전환은 M5b, 그 앞까지(차로 시작점 스폰부터)는 M5a
 3. pose 슬라이더 변경 → Unity `SetPose` → 선체 기울임·램프 재계산
 
 ### 9.4 위치 추정 (로컬라이제이션)
@@ -334,14 +335,16 @@ p ← p + δ
 | R→U | `Select` | feature id, 빈 문자열이면 해제 |
 | R→U | `Confirm` | tempId, id |
 | R→U | `Delete` | feature id (웹 트리·폼에서 삭제) |
-| R→U | `SetPose` | pose JSON |
+| R→U | `SetPose` | `{draft_fwd_m, draft_aft_m, heel_deg, lpp_m, ramp?:{id, angle_deg, state}}` — 램프 각도는 API 가 계산한 값 |
 | R→U | `SetNoise` | sigma_r, sigma_theta, sigma_alpha, sigma_gps |
-| R→U | `StartScenario` | `{mode: "load" | "unload"}` — 맵은 이미 `Load` 된 것을 쓴다. pose 는 M5 에서 추가 |
+| R→U | `StartScenario` | `{mode: "load" | "unload"}` — 맵은 이미 `Load` 된 것을 쓴다 |
+| R→U | `SetTimeScale` | `{scale}` — 시나리오 시간 배율 |
 | U→R | `onSeedReady` | 생성기 시드 JSON (갑판·기둥·램프·래싱) |
 | U→R | `onFeatureCreated` | tempId, layer, x, y, z, deck, mounted_on, normal[3] |
 | U→R | `onFeatureMoved` | id, x, y, z, normal[3], deck, mounted_on — 드래그를 놓았을 때. 웹이 PUT 으로 확정 |
 | U→R | `onSelected` | id |
-| U→R | `onSlotFilled` | slotId, err_lat, err_lon, err_heading |
+| U→R | `onSlotFilled` | slot_id, status, err_lat?, err_lon?, err_heading? — 하역 완료는 `status:"empty"`, 오차 없음 |
+| U→R | `onScenario` | event(start/target/leave_lane/finished), mode?, slot_id?, detail? — 시나리오 로그 |
 | U→R | `onLocalization` | est_x, est_y, est_psi, true_x, true_y, true_psi, residual_rms, n_obs, frame |
 
 - 페이로드는 전부 JSON 문자열. 좌표는 Ship Frame
@@ -376,7 +379,8 @@ p ← p + δ
 | M3a 웹 편집기 | pnpm+Vite+React 19+Zustand 셸, react-unity-webgl 브리지(`.jslib` 로 Emit 연결), Unity WebGL 빌드(압축 Disabled, `web/public/unity/`), 갑판 탭·레이어 트리·SVG 미니맵·속성 폼·pose 슬라이더·상태바, 최소 주행 탭(시작·정지·노이즈·위치 추정 패널), `Delete(id)` 메시지, `docs/api-contract.md`(absent=null, heading_deg), M2 파킹 2건 정리 | `pnpm dev` 브라우저에서 랜드마크 배치·수정·삭제 후 DB 반영, vehicle-map version 증가, 주행 탭에서 추정 패널 갱신 |
 | M3b Unity 씬 UX | 궤도 카메라·차량 추적, 마커 선택 하이라이트·드래그 이동(`onFeatureMoved`), 차로·구획 라인, 갑판 라벨, HUD 를 UI Toolkit 으로, WebGL 재빌드 | 브라우저에서 마커를 드래그하면 DB 좌표가 바뀜, 선택이 3D·트리·미니맵에서 일치 |
 | M4 적재 계획 | 구획 자동생성 API, KPI 패널, 3D 구획 렌더 | Deck 3 에서 구획 생성, 대수·활용률 표시 |
-| M5 주행 시나리오·pose | 부두·GPS·램프·프레임 전환, 주차 판정, pose 슬라이더와 선체 기울임, 시나리오 로그, WebGL 빌드 | 선적 시나리오 완주, pose 변경에도 선내 좌표 불변 확인 |
+| M5a 갑판 주행·pose | 픽스처 래싱 격자 확장, pose 슬라이더와 선체 기울임·램프 각도, 갑판 위 연속 적재·하역, 주차 판정, 시나리오 로그, WebGL 빌드 (`2026-09-16-m5a-drive-pose-design.md`) | 빈 구획을 순서대로 채우고 DB status 가 따라옴, pose 변경에도 선내 좌표 불변 확인 |
+| M5b 부두·프레임 전환 | 부두 지오메트리·GPS·Quay Frame 변환, 램프 위 차로 실시간 생성, 입구 랜드마크 쌍 인식과 프레임 전환 | 부두에서 출발한 차량이 램프를 지나 갑판에 주차 |
 | M6 문서·시연 | README(문어체 불릿), 시연 스크립트, 스크린샷 | 처음 보는 사람이 README 만으로 실행 |
 
 각 단계 끝에 (1) 한 것 (2) 결정과 이유 (3) 검증 결과 (4) 직접 확인 명령 순으로 보고하고 다음 단계는 확인 후 진행한다.
