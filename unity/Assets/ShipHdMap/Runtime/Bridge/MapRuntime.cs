@@ -20,6 +20,7 @@ namespace ShipHdMap
         public LandmarkPlacer Placer { get; private set; }
         public LocalizationHud Hud { get; private set; }
         public GameObject Ship { get; private set; }
+        public OrbitCamera Orbit { get; private set; }
 
         string _mode = "edit"; string _selected; Pose2D? _prev; float _emitTimer; SeedData _seed;
         readonly Dictionary<string, LandmarkMarker> _markers = new();
@@ -35,6 +36,7 @@ namespace ShipHdMap
             if (Ship == null) { _seed = ShipSeedBuilder.Build(shipParams); Ship = ShipMeshBuilder.Build(_seed, shipParams); }
             Placer.decks = _seed?.decks ?? new List<Deck>();
             if (cam == null) cam = Camera.main; Placer.cam = cam;
+            Orbit = cam.GetComponent<OrbitCamera>(); if (!Orbit) Orbit = cam.gameObject.AddComponent<OrbitCamera>();
             Placer.Created += lm => { _markers[lm.id] = lm; MapRefs[lm.id] = RefOf(lm.ToModel());
                 var (x, y, z) = ShipFrame.ToShip(lm.transform.position);
                 Send(BridgeMessages.OnFeatureCreated, MapJson.Serialize(new FeatureCreatedEvt { tempId = lm.id, layer = "LM", x = x, y = y, z = z, deck = lm.deckId, mounted_on = lm.mountedOn })); };
@@ -79,7 +81,11 @@ namespace ShipHdMap
             Placer.nextId = _markers.Count + 1;
         }
 
-        public void SetMode(string mode) { _mode = mode; Placer.enabledForInput = mode == "edit"; if (mode == "edit") Vehicle.running = false; }
+        public void SetMode(string mode)
+        {
+            _mode = mode; Placer.enabledForInput = mode == "edit";
+            if (mode == "edit") { Vehicle.running = false; if (Orbit) Orbit.follow = null; }
+        }
         public void SetDeck(string deck) { if (Ship) ShipMeshBuilder.SetDeckVisibility(Ship, deck); }
         public void Select(string id) => Highlight(id);
 
@@ -89,6 +95,7 @@ namespace ShipHdMap
             if (_selected != null && _markers.TryGetValue(_selected, out var prev) && prev) prev.SetHighlighted(false);
             _selected = id != null && _markers.ContainsKey(id) ? id : null;
             if (_selected != null) _markers[_selected].SetHighlighted(true);
+            if (_selected != null && Orbit) Orbit.Focus(_markers[_selected].transform.position, 12f);
         }
 
         public void Confirm(string json) { var c = MapJson.Parse<ConfirmMsg>(json); if (_markers.TryGetValue(c.tempId, out var m)) { _markers.Remove(c.tempId); m.id = c.id; m.name = c.id; _markers[c.id] = m; MapRefs[c.id] = MapRefs[c.tempId]; MapRefs.Remove(c.tempId); if (_selected == c.tempId) _selected = c.id; } }
@@ -113,6 +120,7 @@ namespace ShipHdMap
             var (lane, deck) = ResolveScenarioLane();
             if (lane == null || deck == null) { Debug.LogWarning("StartScenario: no usable lane/deck in CurrentMap."); return; }
             _prev = null; SetMode("drive"); Vehicle.StartLane(lane, deck.z_surface);
+            if (Orbit) { Orbit.follow = Vehicle.transform; Orbit.distance = 25f; Orbit.pitchDeg = 35f; }
         }
 
         /// Picks the scenario's starting lane: the lane the first ramp connects to (the vehicle drives on
