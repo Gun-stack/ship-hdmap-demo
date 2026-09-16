@@ -4,7 +4,8 @@ using UnityEngine;
 
 namespace ShipHdMap
 {
-    /// Play-mode placement: left click on ship structure spawns a marker facing the surface normal; right click on a marker deletes it.
+    /// Play-mode mouse: left click on a marker selects it, left click on ship structure spawns a marker facing the surface normal.
+    /// Deletion happens only from the web form (DB first, then Delete(id)), so there is no right-click delete.
     public class LandmarkPlacer : MonoBehaviour
     {
         public Camera cam; public Transform landmarksRoot; public float sizeM = 0.3f;
@@ -13,13 +14,12 @@ namespace ShipHdMap
         public string NextId() => $"LM-{nextId++:0000}";
         public List<LandmarkMarker> All = new();
         public List<Deck> decks = new();   // for deckId lookup by height
-        public event Action<LandmarkMarker> Created; public event Action<string> Deleted;
+        public event Action<LandmarkMarker> Created; public event Action<LandmarkMarker> Selected;
 
         void Update()
         {
             if (!enabledForInput || cam == null) return;
-            if (Input.GetMouseButtonDown(0)) TryPlace();
-            if (Input.GetMouseButtonDown(1)) TryDelete();
+            if (Input.GetMouseButtonDown(0)) OnLeftDown();
         }
 
         public LandmarkMarker PlaceAt(RaycastHit hit)
@@ -30,20 +30,17 @@ namespace ShipHdMap
             All.Add(lm); Created?.Invoke(lm); return lm;
         }
 
-        void TryPlace()
+        public static int StructureMask() { int mask = LayerMask.GetMask("ShipStructure"); return mask == 0 ? ~LayerMask.GetMask("Landmark") : mask; }
+
+        void OnLeftDown()
         {
-            int mask = LayerMask.GetMask("ShipStructure"); if (mask == 0) mask = ~LayerMask.GetMask("Landmark");
-            if (Physics.Raycast(cam.ScreenPointToRay(Input.mousePosition), out var hit, 500f, mask)) PlaceAt(hit);
+            var ray = cam.ScreenPointToRay(Input.mousePosition);
+            int lmMask = LayerMask.GetMask("Landmark");
+            if (lmMask != 0 && Physics.Raycast(ray, out var mh, 500f, lmMask) && mh.collider.TryGetComponent<LandmarkMarker>(out var lm)) { Selected?.Invoke(lm); return; }
+            if (Physics.Raycast(ray, out var hit, 500f, StructureMask())) PlaceAt(hit);
         }
 
-        void TryDelete()
-        {
-            if (!Physics.Raycast(cam.ScreenPointToRay(Input.mousePosition), out var hit, 500f)) return;
-            var lm = hit.collider.GetComponent<LandmarkMarker>(); if (lm == null) return;
-            All.Remove(lm); Deleted?.Invoke(lm.id); Destroy(lm.gameObject);
-        }
-
-        string DeckIdForHeight(float unityY)
+        public string DeckIdForHeight(float unityY)
         {
             string best = "D1"; double bestD = double.MaxValue;
             foreach (var d in decks) { double dd = Math.Abs(unityY - d.z_surface); if (unityY + 0.5 >= d.z_surface && dd < bestD) { bestD = dd; best = d.id; } }

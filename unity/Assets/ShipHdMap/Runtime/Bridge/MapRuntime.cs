@@ -21,7 +21,7 @@ namespace ShipHdMap
         public LocalizationHud Hud { get; private set; }
         public GameObject Ship { get; private set; }
 
-        string _mode = "edit"; Pose2D? _prev; float _emitTimer; SeedData _seed;
+        string _mode = "edit"; string _selected; Pose2D? _prev; float _emitTimer; SeedData _seed;
         readonly Dictionary<string, LandmarkMarker> _markers = new();
 
         void Awake()
@@ -37,8 +37,8 @@ namespace ShipHdMap
             if (cam == null) cam = Camera.main; Placer.cam = cam;
             Placer.Created += lm => { _markers[lm.id] = lm; MapRefs[lm.id] = RefOf(lm.ToModel());
                 var (x, y, z) = ShipFrame.ToShip(lm.transform.position);
-                Send(BridgeMessages.OnFeatureCreated, MapJson.Serialize(new FeatureCreatedEvt { tempId = lm.id, layer = "LM", x = x, y = y, z = z, deck = lm.deckId })); };
-            Placer.Deleted += id => { _markers.Remove(id); MapRefs.Remove(id); };
+                Send(BridgeMessages.OnFeatureCreated, MapJson.Serialize(new FeatureCreatedEvt { tempId = lm.id, layer = "LM", x = x, y = y, z = z, deck = lm.deckId, mounted_on = lm.mountedOn })); };
+            Placer.Selected += lm => { Highlight(lm.id); Send(BridgeMessages.OnSelected, "{\"id\":\"" + lm.id + "\"}"); };
             if (_seed != null && Emit != null) Send(BridgeMessages.OnSeedReady, MapJson.Serialize(_seed));
         }
 
@@ -66,7 +66,7 @@ namespace ShipHdMap
         {
             CurrentMap = MapJson.Parse<VehicleMap>(json);
             foreach (var m in _markers.Values) if (m) DestroyImmediate(m.gameObject);
-            _markers.Clear(); MapRefs.Clear(); Placer.All.Clear();
+            _selected = null; _markers.Clear(); MapRefs.Clear(); Placer.All.Clear();
             foreach (var lm in CurrentMap.landmarks ?? new List<Landmark>())
             {
                 var mk = LandmarkMarker.Spawn(LandmarksRoot, lm.id, lm.marker.code, ShipFrame.ToUnity(lm.position[0], lm.position[1], lm.position[2]),
@@ -80,8 +80,17 @@ namespace ShipHdMap
 
         public void SetMode(string mode) { _mode = mode; Placer.enabledForInput = mode == "edit"; if (mode == "edit") Vehicle.running = false; }
         public void SetDeck(string deck) { if (Ship) ShipMeshBuilder.SetDeckVisibility(Ship, deck); }
-        public void Select(string id) { Send(BridgeMessages.OnSelected, "{\"id\":\"" + id + "\"}"); }
-        public void Confirm(string json) { var c = MapJson.Parse<ConfirmMsg>(json); if (_markers.TryGetValue(c.tempId, out var m)) { _markers.Remove(c.tempId); m.id = c.id; m.name = c.id; _markers[c.id] = m; MapRefs[c.id] = MapRefs[c.tempId]; MapRefs.Remove(c.tempId); } }
+        public void Select(string id) => Highlight(id);
+
+        /// Scene-side selection: at most one halo. Does not emit — the web already knows what it selected.
+        public void Highlight(string id)
+        {
+            if (_selected != null && _markers.TryGetValue(_selected, out var prev) && prev) prev.SetHighlighted(false);
+            _selected = id != null && _markers.ContainsKey(id) ? id : null;
+            if (_selected != null) _markers[_selected].SetHighlighted(true);
+        }
+
+        public void Confirm(string json) { var c = MapJson.Parse<ConfirmMsg>(json); if (_markers.TryGetValue(c.tempId, out var m)) { _markers.Remove(c.tempId); m.id = c.id; m.name = c.id; _markers[c.id] = m; MapRefs[c.id] = MapRefs[c.tempId]; MapRefs.Remove(c.tempId); if (_selected == c.tempId) _selected = c.id; } }
         public void SetPose(string json) { /* M5 */ }
 
         public void SetNoise(string json)
@@ -155,6 +164,7 @@ namespace ShipHdMap
         public void Delete(string id)
         {
             if (!_markers.TryGetValue(id, out var m)) return;
+            if (_selected == id) _selected = null;
             _markers.Remove(id); MapRefs.Remove(id); Placer.All.Remove(m);
             if (m) { if (Application.isPlaying) Destroy(m.gameObject); else DestroyImmediate(m.gameObject); }
         }

@@ -9,6 +9,25 @@ namespace ShipHdMap
         public string id; public int code; public float sizeM = 0.3f; public string deckId; public string mountedOn;
         public Vector3 NormalUnity => -transform.forward;
 
+        Transform _halo;
+
+        /// Yellow frame behind the tag (4 mm toward the surface, 1.6x) so the selection reads at any camera distance.
+        public void SetHighlighted(bool on)
+        {
+            if (_halo == null)
+            {
+                if (!on) return;
+                var h = GameObject.CreatePrimitive(PrimitiveType.Quad); h.name = "Halo"; h.layer = gameObject.layer;
+                Object.DestroyImmediate(h.GetComponent<Collider>());
+                h.transform.SetParent(transform, false);
+                h.transform.localPosition = new Vector3(0, 0, 0.004f); // marker forward is -normal, so +z is toward the surface
+                h.transform.localScale = new Vector3(1.6f, 1.6f, 1f);
+                h.GetComponent<Renderer>().sharedMaterial = new Material(Shader.Find("Unlit/Color")) { color = new Color(1f, 0.85f, 0.1f) };
+                _halo = h.transform;
+            }
+            _halo.gameObject.SetActive(on);
+        }
+
         public static LandmarkMarker Spawn(Transform parent, string id, int code, Vector3 unityPos, Vector3 unityNormal, float sizeM, string deckId, string mountedOn)
         {
             var n = unityNormal.normalized;

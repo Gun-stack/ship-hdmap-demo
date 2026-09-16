@@ -52,5 +52,28 @@ namespace ShipHdMap.Tests
             rt.Delete("LM-NOPE"); // no throw
             Assert.That(rt.LandmarksRoot.childCount, Is.EqualTo(before - 1));
         }
+
+        [Test]
+        public void SelectHighlightsWithoutEmitting()
+        {
+            go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>(); rt.InitForTest(); rt.Load(Fixture());
+            int emitted = 0; rt.Emit += (_, _) => emitted++;
+            rt.Select("LM-0003");
+            var halo3 = rt.LandmarksRoot.Find("LM-0003/Halo");
+            Assert.That(halo3, Is.Not.Null); Assert.That(halo3.gameObject.activeSelf, Is.True);
+            rt.Select("LM-0004");
+            Assert.That(halo3.gameObject.activeSelf, Is.False);
+            Assert.That(rt.LandmarksRoot.Find("LM-0004/Halo").gameObject.activeSelf, Is.True);
+            rt.Select("LM-NOPE");
+            Assert.That(rt.LandmarksRoot.Find("LM-0004/Halo").gameObject.activeSelf, Is.False);
+            Assert.That(emitted, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void FeatureCreatedEventCarriesMountedOn()
+        {
+            var json = MapJson.Serialize(new FeatureCreatedEvt { tempId = "LM-0002", layer = "LM", x = 1, y = 2, z = 3, deck = "D3", mounted_on = "C-PILLAR-D3-001" });
+            Assert.That(json, Does.Contain("mounted_on")); Assert.That(json, Does.Contain("C-PILLAR-D3-001"));
+        }
     }
 }
