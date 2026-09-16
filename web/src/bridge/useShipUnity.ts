@@ -19,6 +19,12 @@ export function useShipUnity() {
     sendMessage("Map", name, payload === undefined ? "" : typeof payload === "string" ? payload : JSON.stringify(payload));
   }, [isLoaded, sendMessage]);
 
+  /** Re-sends the whole vehicle-map so Unity rebuilds markers and the overlay (after slot generation or a failed move). */
+  const reloadScene = useCallback(async () => {
+    const r = await fetch(api.vehicleMapUrl(datasetId)); if (!r.ok) throw new Error("vehicle-map HTTP " + r.status);
+    send("Load", await r.text()); send("SetDeck", deckFilter);
+  }, [datasetId, deckFilter, send]);
+
   // Unity -> store
   useEffect(() => {
     const onCreated = (json: string) => addDraft(JSON.parse(json));
@@ -27,12 +33,12 @@ export function useShipUnity() {
     const onMoved = (json: string) => {
       void moveFeature(JSON.parse(json)).catch(async (e) => {
         useEditorStore.setState({ error: "move failed: " + (e as Error).message });
-        try { const r = await fetch(api.vehicleMapUrl(datasetId)); if (r.ok) send("Load", await r.text()); } catch { /* the banner already says it failed */ }
+        try { await reloadScene(); } catch { /* the banner already says it failed */ }
       });
     };
     addEventListener("onFeatureCreated", onCreated); addEventListener("onSelected", onSelected); addEventListener("onLocalization", onLoc); addEventListener("onFeatureMoved", onMoved);
     return () => { removeEventListener("onFeatureCreated", onCreated); removeEventListener("onSelected", onSelected); removeEventListener("onLocalization", onLoc); removeEventListener("onFeatureMoved", onMoved); };
-  }, [addEventListener, removeEventListener, addDraft, select, setLocalization, moveFeature, datasetId, send]);
+  }, [addEventListener, removeEventListener, addDraft, select, setLocalization, moveFeature, reloadScene]);
 
   // initial Load: the vehicle-map body is exactly the Load payload (spec §10)
   useEffect(() => {
@@ -54,5 +60,5 @@ export function useShipUnity() {
     send("Select", selectedId);
   }, [selectedId, send]);
 
-  return { unityProvider, isLoaded, send };
+  return { unityProvider, isLoaded, send, reloadScene };
 }

@@ -1,4 +1,4 @@
-import type { Dataset, Deck, Feature, FeatureIn, Pose, RampState } from "./types";
+import type { Dataset, Deck, Feature, FeatureIn, GenerateSlotsIn, GenerateSlotsOut, Pose, RampState } from "./types";
 
 const BASE = "/api";
 
@@ -37,6 +37,7 @@ export const api = {
   getPose: (ds: string) => req<Pose>("GET", `/datasets/${ds}/pose`),
   putPose: (ds: string, p: Partial<Pose>) => req<Pose>("PUT", `/datasets/${ds}/pose`, p),
   getRamp: (ds: string, rid: string) => req<RampState>("GET", `/datasets/${ds}/ramps/${rid}`),
+  generateSlots: (ds: string, deck: string, body: GenerateSlotsIn) => req<GenerateSlotsOut>("POST", `/datasets/${ds}/decks/${deck}/slots/generate`, body),
   vehicleMapUrl: (ds: string) => `${BASE}/datasets/${ds}/vehicle-map`,
   geojsonUrl: (ds: string) => `${BASE}/datasets/${ds}/export.geojson`,
 };

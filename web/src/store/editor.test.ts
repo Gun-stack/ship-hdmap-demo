@@ -16,6 +16,7 @@ vi.mock("../api/client", () => ({
     updateFeature: vi.fn(async (_ds: string, id: string, patch: object) => ({ id, deck_id: "D3", layer: "LM", kind: "apriltag", geometry: { type: "Point", coordinates: [12, -6.2, 11.8] }, props: { code: 9 }, ...patch })),
     deleteFeature: vi.fn(async () => undefined),
     putPose: vi.fn(async (_ds: string, p: object) => ({ draft_fwd_m: 8.1, draft_aft_m: 8.6, tide_m: 1.2, trim_deg: 0.24, ...p })),
+    generateSlots: vi.fn(async (_ds: string, deck: string) => ({ deck, count: 2, utilization: 0.4, lashing_coverage: 1, version: 9, slots: [] })),
   },
 }));
 
@@ -102,5 +103,16 @@ describe("editor store", () => {
     vi.mocked(api.getDataset).mockResolvedValueOnce({ id: "ds1", name: "d", version: 4, ap_lat: 0, ap_lon: 0, heading_deg: 0, lpp_m: 120 });
     await useEditorStore.getState().updateFeature("LM-0001", { props: { code: 9 } });
     expect(useEditorStore.getState().dataset?.version).toBe(4);
+  });
+
+  it("generateSlots refreshes features, version and KPI", async () => {
+    await useEditorStore.getState().load("ds1");
+    vi.mocked(api.listFeatures).mockResolvedValueOnce([{ id: "PS-D3-001", deck_id: "D3", layer: "B2", kind: "parking_slot", geometry: { type: "Polygon", coordinates: [[[100, 2, 10.6], [104.8, 2, 10.6], [104.8, 3.85, 10.6], [100, 3.85, 10.6], [100, 2, 10.6]]] }, props: {} }]);
+    const out = await useEditorStore.getState().generateSlots("D3", { gap_lat_m: 0.3 });
+    expect(api.generateSlots).toHaveBeenCalledWith("ds1", "D3", { gap_lat_m: 0.3 });
+    expect(out.count).toBe(2);
+    expect(useEditorStore.getState().dataset?.version).toBe(9);
+    expect(useEditorStore.getState().slotGen.D3.lashing_coverage).toBe(1);
+    expect(Object.keys(useEditorStore.getState().features)).toEqual(["PS-D3-001"]);
   });
 });

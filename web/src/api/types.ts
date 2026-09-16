@@ -10,3 +10,5 @@ export type RampState = { id: string; length_m: number; width_m?: number; angle_
 export type FeatureCreatedEvt = { tempId: string; layer: Layer; x: number; y: number; z: number; deck: string; mounted_on?: string };
 export type FeatureMovedEvt = { id: string; x: number; y: number; z: number; normal: number[]; deck: string; mounted_on: string };
 export type LocalizationEvt = { est_x: number; est_y: number; est_psi: number; true_x: number; true_y: number; true_psi: number; residual_rms: number; n_obs: number; frame: string };
+export type GenerateSlotsIn = { vehicle_class?: string; gap_lat_m?: number; gap_lon_m?: number; lashing_pitch_m?: number };
+export type GenerateSlotsOut = { deck: string; count: number; utilization: number; lashing_coverage: number; version: number; slots: unknown[] };

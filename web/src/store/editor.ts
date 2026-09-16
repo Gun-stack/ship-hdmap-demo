@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { api } from "../api/client";
-import type { Dataset, Deck, Feature, FeatureCreatedEvt, FeatureIn, FeatureMovedEvt, Geometry, Layer, LocalizationEvt, Pose, RampState } from "../api/types";
+import type { Dataset, Deck, Feature, FeatureCreatedEvt, FeatureIn, FeatureMovedEvt, GenerateSlotsIn, GenerateSlotsOut, Geometry, Layer, LocalizationEvt, Pose, RampState } from "../api/types";
 
 export type Draft = { tempId: string; layer: Layer; deck_id: string; geometry: Geometry; props: Record<string, unknown> };
 export type Mode = "edit" | "drive";
@@ -8,6 +8,7 @@ export type Mode = "edit" | "drive";
 export type EditorState = {
   datasetId: string; dataset: Dataset | null; decks: Deck[]; features: Record<string, Feature>; drafts: Record<string, Draft>;
   selectedId: string | null; deckFilter: string; mode: Mode; pose: Pose | null; ramp: RampState | null; localization: LocalizationEvt | null; error: string | null;
+  slotGen: Record<string, { count: number; utilization: number; lashing_coverage: number }>;
   load: (datasetId: string) => Promise<void>;
   select: (id: string | null) => void;
   setDeckFilter: (d: string) => void;
@@ -22,6 +23,7 @@ export type EditorState = {
   setLocalization: (e: LocalizationEvt | null) => void;
   bumpVersion: (v: number) => void;
   unsavedCount: () => number;
+  generateSlots: (deck: string, body: GenerateSlotsIn) => Promise<GenerateSlotsOut>;
 };
 
 const RAMP_ID = "RAMP-STERN";
@@ -33,7 +35,7 @@ async function refreshVersion(get: () => EditorState) {
 
 export const useEditorStore = create<EditorState>()((set, get) => ({
   datasetId: "roro-demo-01", dataset: null, decks: [], features: {}, drafts: {}, selectedId: null, deckFilter: "all", mode: "edit",
-  pose: null, ramp: null, localization: null, error: null,
+  pose: null, ramp: null, localization: null, error: null, slotGen: {},
 
   async load(datasetId) {
     try {
@@ -81,6 +83,14 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   setLocalization: (localization) => set({ localization }),
   bumpVersion: (v) => set((s) => (s.dataset ? { dataset: { ...s.dataset, version: v } } : {})),
   unsavedCount: () => Object.keys(get().drafts).length,
+  async generateSlots(deck, body) {
+    const out = await api.generateSlots(get().datasetId, deck, body);
+    const list = await api.listFeatures(get().datasetId);
+    set((s) => ({ features: Object.fromEntries(list.map((f) => [f.id, f])), slotGen: { ...s.slotGen, [deck]: { count: out.count, utilization: out.utilization, lashing_coverage: out.lashing_coverage } },
+      selectedId: s.selectedId && !list.some((f) => f.id === s.selectedId) ? null : s.selectedId }));
+    get().bumpVersion(out.version);
+    return out;
+  },
 }));
 
 export function visibleFeatures(s: EditorState): Feature[] {
