@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useUnityContext } from "react-unity-webgl";
 import { api } from "../api/client";
-import { useEditorStore } from "../store/editor";
+import { scenarioLine, useEditorStore } from "../store/editor";
 
-export type BridgeName = "Load" | "SetMode" | "SetDeck" | "Select" | "Confirm" | "Delete" | "SetNoise" | "StartScenario" | "SetPose";
+export type BridgeName = "Load" | "SetMode" | "SetDeck" | "Select" | "Confirm" | "Delete" | "SetNoise" | "StartScenario" | "SetPose" | "SetTimeScale";
 
 const URLS = { loaderUrl: "/unity/Build/unity.loader.js", dataUrl: "/unity/Build/unity.data", frameworkUrl: "/unity/Build/unity.framework.js", codeUrl: "/unity/Build/unity.wasm" };
 
 export function useShipUnity() {
   const { unityProvider, isLoaded, sendMessage, addEventListener, removeEventListener } = useUnityContext(URLS);
-  const { datasetId, dataset, deckFilter, selectedId, mode, addDraft, select, setLocalization, moveFeature } = useEditorStore();
+  const { datasetId, dataset, deckFilter, selectedId, mode, pose, ramp, addDraft, select, setLocalization, moveFeature, onSlotFilled, appendLog } = useEditorStore();
   const loadedOnce = useRef(false);
   const loading = useRef(false);
   const fromScene = useRef<string | null>(null);
@@ -18,6 +18,14 @@ export function useShipUnity() {
     if (!isLoaded) return;
     sendMessage("Map", name, payload === undefined ? "" : typeof payload === "string" ? payload : JSON.stringify(payload));
   }, [isLoaded, sendMessage]);
+
+  /** Pose for the tilt only (spec §4.6); the ramp angle comes from the API's /ramps response the store already holds. */
+  const sendPose = useCallback(() => {
+    const { pose, ramp, dataset } = useEditorStore.getState();
+    if (!pose) return;
+    send("SetPose", { draft_fwd_m: pose.draft_fwd_m ?? 8.1, draft_aft_m: pose.draft_aft_m ?? 8.6, heel_deg: pose.heel_deg ?? 0, lpp_m: dataset?.lpp_m ?? 120,
+      ...(ramp ? { ramp: { id: ramp.id, angle_deg: ramp.angle_deg, state: ramp.state } } : {}) });
+  }, [send]);
 
   /** Re-sends the whole vehicle-map so Unity rebuilds markers and the overlay (after slot generation or a failed move). */
   const reloadScene = useCallback(async () => {
@@ -38,9 +46,15 @@ export function useShipUnity() {
         try { await reloadScene(); } catch { /* the banner already says it failed */ }
       });
     };
+    const onSlot = (json: string) => { void onSlotFilled(JSON.parse(json)); };
+    const onScenario = (json: string) => appendLog(scenarioLine(JSON.parse(json)));
     addEventListener("onFeatureCreated", onCreated); addEventListener("onSelected", onSelected); addEventListener("onLocalization", onLoc); addEventListener("onFeatureMoved", onMoved);
-    return () => { removeEventListener("onFeatureCreated", onCreated); removeEventListener("onSelected", onSelected); removeEventListener("onLocalization", onLoc); removeEventListener("onFeatureMoved", onMoved); };
-  }, [addEventListener, removeEventListener, addDraft, select, setLocalization, moveFeature, reloadScene]);
+    addEventListener("onSlotFilled", onSlot); addEventListener("onScenario", onScenario);
+    return () => {
+      removeEventListener("onFeatureCreated", onCreated); removeEventListener("onSelected", onSelected); removeEventListener("onLocalization", onLoc); removeEventListener("onFeatureMoved", onMoved);
+      removeEventListener("onSlotFilled", onSlot); removeEventListener("onScenario", onScenario);
+    };
+  }, [addEventListener, removeEventListener, addDraft, select, setLocalization, moveFeature, reloadScene, onSlotFilled, appendLog]);
 
   // initial Load: the vehicle-map body is exactly the Load payload (spec §10)
   useEffect(() => {
@@ -48,13 +62,14 @@ export function useShipUnity() {
     loading.current = true;
     fetch(api.vehicleMapUrl(datasetId)).then((r) => { if (!r.ok) throw new Error("vehicle-map HTTP " + r.status); return r.text(); }).then((json) => {
       loadedOnce.current = true;
-      send("Load", json); send("SetMode", mode); send("SetDeck", deckFilter);
+      send("Load", json); send("SetMode", mode); send("SetDeck", deckFilter); sendPose();
     }).catch((e) => useEditorStore.setState({ error: "vehicle-map load failed: " + (e as Error).message }))
       .finally(() => { loading.current = false; });
-  }, [isLoaded, dataset, datasetId, mode, deckFilter, send]);
+  }, [isLoaded, dataset, datasetId, mode, deckFilter, send, sendPose]);
 
   useEffect(() => { if (loadedOnce.current) send("SetDeck", deckFilter); }, [deckFilter, send]);
-  useEffect(() => { if (loadedOnce.current) send("SetMode", mode); }, [mode, send]);
+  useEffect(() => { if (loadedOnce.current) sendPose(); }, [pose, ramp, dataset?.lpp_m, sendPose]);
+  useEffect(() => { if (loadedOnce.current) { send("SetMode", mode); if (mode === "edit") send("SetTimeScale", { scale: 1 }); } }, [mode, send]);
   useEffect(() => {
     if (!loadedOnce.current) return;
     if (!selectedId) { fromScene.current = null; send("Select", ""); return; }

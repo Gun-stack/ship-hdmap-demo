@@ -17,6 +17,7 @@ vi.mock("../api/client", () => ({
     deleteFeature: vi.fn(async () => undefined),
     putPose: vi.fn(async (_ds: string, p: object) => ({ draft_fwd_m: 8.1, draft_aft_m: 8.6, tide_m: 1.2, trim_deg: 0.24, ...p })),
     generateSlots: vi.fn(async (_ds: string, deck: string) => ({ deck, count: 2, utilization: 0.4, lashing_coverage: 1, version: 9, slots: [] })),
+    putSlotStatus: vi.fn(async (_ds: string, id: string, status: string) => ({ id, status })),
   },
 }));
 
@@ -114,5 +115,49 @@ describe("editor store", () => {
     expect(useEditorStore.getState().dataset?.version).toBe(9);
     expect(useEditorStore.getState().slotGen.D3.lashing_coverage).toBe(1);
     expect(Object.keys(useEditorStore.getState().features)).toEqual(["PS-D3-001"]);
+  });
+});
+
+import { scenarioLine, slotFilledLine } from "./editor";
+
+describe("scenario log and slot status", () => {
+  beforeEach(() => useEditorStore.setState(useEditorStore.getInitialState()));
+
+  it("onSlotFilled PUTs the status, logs a line and refreshes the version", async () => {
+    await useEditorStore.getState().load("ds1");
+    await useEditorStore.getState().onSlotFilled({ slot_id: "PS-D3-012", status: "filled", err_lat: 0.04, err_lon: -0.11, err_heading: 0.6 });
+    expect(api.putSlotStatus).toHaveBeenCalledWith("ds1", "PS-D3-012", "filled");
+    const s = useEditorStore.getState();
+    expect(s.scenarioLog[0].text).toBe("PS-D3-012 filled  lat +0.04 lon -0.11 hdg +0.6°");
+    expect(s.scenarioLog[0].t).toMatch(/^\d\d:\d\d:\d\d$/);
+    expect(s.error).toBeNull();
+  });
+
+  it("unload lines carry no errors and a failed PUT shows the banner", async () => {
+    await useEditorStore.getState().load("ds1");
+    await useEditorStore.getState().onSlotFilled({ slot_id: "PS-D3-012", status: "empty" });
+    expect(useEditorStore.getState().scenarioLog[0].text).toBe("PS-D3-012 empty");
+    vi.mocked(api.putSlotStatus).mockRejectedValueOnce(new Error("boom"));
+    await useEditorStore.getState().onSlotFilled({ slot_id: "PS-D3-013", status: "filled", err_lat: 0, err_lon: 0, err_heading: 0 });
+    expect(useEditorStore.getState().error).toContain("boom");
+  });
+
+  it("log keeps the newest 100 lines, newest first, and clearLog empties it", () => {
+    for (let i = 0; i < 105; i++) useEditorStore.getState().appendLog("line " + i);
+    const log = useEditorStore.getState().scenarioLog;
+    expect(log).toHaveLength(100);
+    expect(log[0].text).toBe("line 104");
+    expect(log[99].text).toBe("line 5");
+    useEditorStore.getState().clearLog();
+    expect(useEditorStore.getState().scenarioLog).toHaveLength(0);
+  });
+
+  it("formats scenario events", () => {
+    expect(scenarioLine({ event: "start", mode: "load" })).toBe("▶ 선적 시작");
+    expect(scenarioLine({ event: "start", mode: "unload" })).toBe("◀ 하역 시작");
+    expect(scenarioLine({ event: "target", slot_id: "PS-D3-001" })).toBe("대상 PS-D3-001");
+    expect(scenarioLine({ event: "leave_lane", slot_id: "PS-D3-001", detail: "est x 97.48 y 0.02 psi 0.1" })).toBe("차로 이탈 · est x 97.48 y 0.02 psi 0.1");
+    expect(scenarioLine({ event: "finished", detail: "no_empty_slot" })).toBe("종료 (no_empty_slot)");
+    expect(slotFilledLine({ slot_id: "PS-D3-002", status: "needs_adjust", err_lat: -0.2, err_lon: 0.05, err_heading: -2.5 })).toBe("PS-D3-002 needs_adjust  lat -0.20 lon +0.05 hdg -2.5°");
   });
 });

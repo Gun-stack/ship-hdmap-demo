@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { api } from "../api/client";
-import type { Dataset, Deck, Feature, FeatureCreatedEvt, FeatureIn, FeatureMovedEvt, GenerateSlotsIn, GenerateSlotsOut, Geometry, Layer, LocalizationEvt, Pose, RampState } from "../api/types";
+import type { Dataset, Deck, Feature, FeatureCreatedEvt, FeatureIn, FeatureMovedEvt, GenerateSlotsIn, GenerateSlotsOut, Geometry, Layer, LocalizationEvt, Pose, RampState, ScenarioEvt, ScenarioLine, SlotFilledEvt } from "../api/types";
 
 export type Draft = { tempId: string; layer: Layer; deck_id: string; geometry: Geometry; props: Record<string, unknown> };
 export type Mode = "edit" | "drive";
@@ -9,6 +9,10 @@ export type EditorState = {
   datasetId: string; dataset: Dataset | null; decks: Deck[]; features: Record<string, Feature>; drafts: Record<string, Draft>;
   selectedId: string | null; deckFilter: string; mode: Mode; pose: Pose | null; ramp: RampState | null; localization: LocalizationEvt | null; error: string | null;
   slotGen: Record<string, { count: number; utilization: number; lashing_coverage: number }>;
+  scenarioLog: ScenarioLine[];
+  appendLog: (text: string) => void;
+  clearLog: () => void;
+  onSlotFilled: (e: SlotFilledEvt) => Promise<void>;
   load: (datasetId: string) => Promise<void>;
   select: (id: string | null) => void;
   setDeckFilter: (d: string) => void;
@@ -35,7 +39,7 @@ async function refreshVersion(get: () => EditorState) {
 
 export const useEditorStore = create<EditorState>()((set, get) => ({
   datasetId: "roro-demo-01", dataset: null, decks: [], features: {}, drafts: {}, selectedId: null, deckFilter: "all", mode: "edit",
-  pose: null, ramp: null, localization: null, error: null, slotGen: {},
+  pose: null, ramp: null, localization: null, error: null, slotGen: {}, scenarioLog: [],
 
   async load(datasetId) {
     try {
@@ -81,6 +85,14 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     set({ pose, ramp });
   },
   setLocalization: (localization) => set({ localization }),
+  appendLog: (text) => set((s) => ({ scenarioLog: [{ t: clock(), text }, ...s.scenarioLog].slice(0, 100) })),
+  clearLog: () => set({ scenarioLog: [] }),
+  /** Unity judged a slot; persist it (the server bumps version) and log it. No scene reload — Unity already recoloured the fill. */
+  async onSlotFilled(e) {
+    get().appendLog(slotFilledLine(e));
+    try { await api.putSlotStatus(get().datasetId, e.slot_id, e.status); await refreshVersion(get); set({ error: null }); }
+    catch (err) { set({ error: "slot status failed: " + (err as Error).message }); }
+  },
   bumpVersion: (v) => set((s) => (s.dataset ? { dataset: { ...s.dataset, version: v } } : {})),
   unsavedCount: () => Object.keys(get().drafts).length,
   async generateSlots(deck, body) {
@@ -96,4 +108,22 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
 export function visibleFeatures(s: EditorState): Feature[] {
   const all = Object.values(s.features);
   return s.deckFilter === "all" ? all : all.filter((f) => f.deck_id === s.deckFilter);
+}
+
+const clock = () => new Date().toTimeString().slice(0, 8);
+const signed = (v: number, digits: number) => (v >= 0 ? "+" : "") + v.toFixed(digits);
+
+export function slotFilledLine(e: SlotFilledEvt): string {
+  if (e.err_lat === undefined || e.err_lon === undefined || e.err_heading === undefined) return `${e.slot_id} ${e.status}`;
+  return `${e.slot_id} ${e.status}  lat ${signed(e.err_lat, 2)} lon ${signed(e.err_lon, 2)} hdg ${signed(e.err_heading, 1)}°`;
+}
+
+export function scenarioLine(e: ScenarioEvt): string {
+  switch (e.event) {
+    case "start": return e.mode === "unload" ? "◀ 하역 시작" : "▶ 선적 시작";
+    case "target": return `대상 ${e.slot_id}`;
+    case "leave_lane": return `차로 이탈 · ${e.detail ?? ""}`;
+    case "finished": return `종료 (${e.detail ?? ""})`;
+    default: return e.event;
+  }
 }

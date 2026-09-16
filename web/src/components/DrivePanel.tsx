@@ -10,18 +10,25 @@ const SLIDERS: { key: keyof Sig; label: string; max: number; step: number; digit
   { key: "sigma_theta", label: "σ 방위 (°)", max: 5, step: 0.5, digits: 1 },
   { key: "sigma_alpha", label: "σ 방향각 (°)", max: 10, step: 0.5, digits: 1 },
 ];
+const SCALES = [1, 5, 20];
 
 export function DrivePanel({ send }: { send: Send }) {
-  const { localization: l, setMode } = useEditorStore();
+  const { localization: l, setMode, scenarioLog, clearLog } = useEditorStore();
   const [sig, setSig] = useState<Sig>({ sigma_r: 0.2, sigma_theta: 1, sigma_alpha: 2 });
+  const [scale, setScale] = useState(1);
   const commit = () => send("SetNoise", { ...sig, sigma_gps: 0.5 }); // on release only — Unity's SetNoise is cheap but the bridge is not a slider event bus
+  const start = (mode: "load" | "unload") => { clearLog(); send("SetTimeScale", { scale }); send("StartScenario", { mode }); };
   const err = l ? Math.hypot(l.est_x - l.true_x, l.est_y - l.true_y) : null;
   return (
     <div className="panel">
       <h4>주행 시뮬레이션</h4>
       <div className="row">
-        <button className="btn primary" onClick={() => send("StartScenario", { mode: "load" })}>▶ 선적 시나리오</button>
+        <button className="btn primary" onClick={() => start("load")}>▶ 선적</button>
+        <button className="btn" onClick={() => start("unload")}>◀ 하역</button>
         <button className="btn" onClick={() => setMode("edit")}>정지</button>
+        <select value={scale} onChange={(e) => { const v = Number(e.target.value); setScale(v); send("SetTimeScale", { scale: v }); }} style={{ flex: "0 0 auto" }}>
+          {SCALES.map((k) => <option key={k} value={k}>×{k}</option>)}
+        </select>
       </div>
       {SLIDERS.map((s) => (
         <div className="row" key={s.key}><label>{s.label}</label>
@@ -38,6 +45,10 @@ export function DrivePanel({ send }: { send: Send }) {
           <div>err {err!.toFixed(2)} m · {wrapDeg(l.est_psi - l.true_psi).toFixed(1)}°</div>
         </div>
       )}
+      <h4 style={{ marginTop: 8 }}>시나리오 로그</h4>
+      <div style={{ fontFamily: "monospace", fontSize: 11, maxHeight: 220, overflowY: "auto", whiteSpace: "pre" }}>
+        {scenarioLog.length === 0 ? <span style={{ color: "#888" }}>없음</span> : scenarioLog.map((line, i) => <div key={i}>{line.t} {line.text}</div>)}
+      </div>
     </div>
   );
 }
