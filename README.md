@@ -34,5 +34,6 @@ RORO(자동차운반선) 선박 내부 정밀지도 편집기와 자율차 로�
 - M2 데이터·API 완료 (Testcontainers 테스트, 스모크 스크립트, QGIS 절차 `docs/qgis-check.md`)
 - M3a 웹 편집기 완료 (브라우저 편집 → DB 반영, Vitest 15)
 - M3b Unity 씬 UX 완료 (궤도 카메라, 클릭 선택·드래그 이동 → DB, 차로·구획 라인, UI Toolkit HUD; EditMode 49, Vitest 19)
-- 다음: M4 적재 계획
+- M4 적재 계획 완료 (갑판별 구획 자동생성 API, 적재 계획 패널 KPI, 3D 구획 채움면; api 42, EditMode 53, Vitest 22)
+- 다음: M5 주행 시나리오·pose
 - 상세: `docs/superpowers/specs/2026-09-15-ship-hdmap-demo-design.md`
