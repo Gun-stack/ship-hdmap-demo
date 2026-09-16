@@ -87,6 +87,7 @@ public final class SlotGenerator {
 	}
 
 	/** A slot is in a lane corridor if any of nine sample points (corners, edge midpoints, centre) is within width/2 + gap of the centreline. */
+	// ponytail: 9-point sampling; a lane narrower than ~2.1 m or a concave notch could slip through — fine for rectangular demo decks.
 	static boolean inCorridor(double x0, double y0, double x1, double y1, List<Lane> lanes, double gap) {
 		double[][] samples = { { x0, y0 }, { x1, y0 }, { x1, y1 }, { x0, y1 }, { (x0 + x1) / 2, y0 }, { (x0 + x1) / 2, y1 }, { x0, (y0 + y1) / 2 }, { x1, (y0 + y1) / 2 }, { (x0 + x1) / 2, (y0 + y1) / 2 } };
 		for (var l : lanes) {

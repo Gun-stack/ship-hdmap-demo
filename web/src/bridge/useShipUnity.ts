@@ -23,6 +23,8 @@ export function useShipUnity() {
   const reloadScene = useCallback(async () => {
     const r = await fetch(api.vehicleMapUrl(datasetId)); if (!r.ok) throw new Error("vehicle-map HTTP " + r.status);
     send("Load", await r.text()); send("SetDeck", deckFilter);
+    // Load clears the scene selection; re-assert the store's
+    send("Select", useEditorStore.getState().selectedId ?? "");
   }, [datasetId, deckFilter, send]);
 
   // Unity -> store

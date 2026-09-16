@@ -28,7 +28,7 @@ export function LoadPanel({ reloadScene }: { reloadScene: () => Promise<void> })
       <div className="row"><button className="btn primary" disabled={busy || !d} onClick={() => void run()}>{busy ? "생성 중…" : kpi.count ? "재생성" : "생성"}</button></div>
       <div className="row"><label>구획 수</label><b>{kpi.count}</b></div>
       <div className="row"><label>면적 활용률</label><b>{(kpi.utilization * 100).toFixed(1)} %</b></div>
-      <div className="row"><label>래싱 4점 매핑</label><b>{last ? `${(last.lashing_coverage * 100).toFixed(0)} %` : "-"}</b></div>
+      <div className="row"><label>래싱 4점 매핑(마지막 생성)</label><b>{last ? `${(last.lashing_coverage * 100).toFixed(0)} %` : "-"}</b></div>
     </div>
   );
 }

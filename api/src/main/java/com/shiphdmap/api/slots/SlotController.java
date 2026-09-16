@@ -50,26 +50,16 @@ public class SlotController {
 
 		var res = SlotGenerator.generate(deck, outline, z, obstacles, lanes, lashings, p);
 		slots.deleteDeckSlots(ds, deck);
-		var out = new ArrayList<Map<String, Object>>();
+		List<ParkingSlot> out = new ArrayList<>();
 		for (var s : res.slots()) {
 			var ps = new ParkingSlot(s.id(), deck, s.polygon(), new TargetPose(s.targetX(), s.targetY(), 0), new Tolerance(0.15, 0.30, 2), s.vehicleClass(), s.accessLaneId(), s.lashingIds(), s.sequenceNo(), "empty");
 			slots.upsert(ds, ps);
-			out.add(slotJson(ps));
+			out.add(ps);
 		}
 		int version = Datasets.bumpVersion(db, ds);
 		var body = new LinkedHashMap<String, Object>();
 		body.put("deck", deck); body.put("count", out.size()); body.put("utilization", res.utilization()); body.put("lashing_coverage", res.lashingCoverage());
 		body.put("version", version); body.put("slots", out);
 		return body;
-	}
-
-	static Map<String, Object> slotJson(ParkingSlot s) {
-		var m = new LinkedHashMap<String, Object>();
-		m.put("id", s.id()); m.put("deck_id", s.deckId()); m.put("polygon", s.polygon());
-		m.put("target_pose", Map.of("x", s.targetPose().x(), "y", s.targetPose().y(), "heading_deg", s.targetPose().headingDeg()));
-		m.put("tolerance", Map.of("lat_m", s.tolerance().latM(), "lon_m", s.tolerance().lonM(), "heading_deg", s.tolerance().headingDeg()));
-		m.put("vehicle_class", s.vehicleClass()); m.put("access_lane_id", s.accessLaneId()); m.put("lashing_points", s.lashingPoints());
-		m.put("sequence_no", s.sequenceNo()); m.put("status", s.status());
-		return m;
 	}
 }
