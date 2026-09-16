@@ -40,7 +40,8 @@ namespace ShipHdMap
             if (cam) { Placer.cam = cam; Hud.cam = cam; Orbit = cam.GetComponent<OrbitCamera>(); if (!Orbit) { Orbit = cam.gameObject.AddComponent<OrbitCamera>(); Orbit.AdoptCurrentPose(); } }
             Placer.Created += lm => { _markers[lm.id] = lm; MapRefs[lm.id] = RefOf(lm.ToModel());
                 var (x, y, z) = ShipFrame.ToShip(lm.transform.position);
-                Send(BridgeMessages.OnFeatureCreated, MapJson.Serialize(new FeatureCreatedEvt { tempId = lm.id, layer = "LM", x = x, y = y, z = z, deck = lm.deckId, mounted_on = lm.mountedOn })); };
+                var (nx, ny, nz) = ShipFrame.ToShip(lm.NormalUnity);
+                Send(BridgeMessages.OnFeatureCreated, MapJson.Serialize(new FeatureCreatedEvt { tempId = lm.id, layer = "LM", x = x, y = y, z = z, deck = lm.deckId, mounted_on = lm.mountedOn, normal = new[] { nx, ny, nz } })); };
             Placer.Selected += lm => { Highlight(lm.id); Send(BridgeMessages.OnSelected, "{\"id\":\"" + lm.id + "\"}"); };
             Placer.Moved += OnMarkerMoved;
             if (_seed != null && Emit != null) Send(BridgeMessages.OnSeedReady, MapJson.Serialize(_seed));
@@ -83,6 +84,7 @@ namespace ShipHdMap
 
             if (_overlay) DestroyImmediate(_overlay);
             _overlay = MapOverlay.Build(CurrentMap, transform); MapOverlay.SetDeck(_overlay, _deck);
+            foreach (var m in _markers.Values) if (m) m.gameObject.SetActive(_deck == "all" || m.deckId == _deck);
 
             var labels = new List<(string, Vector3)>();
             foreach (var d in CurrentMap.decks ?? new List<Deck>()) labels.Add(($"{d.id}  z {d.z_surface:F1} m", ShipFrame.ToUnity(4, 10, d.z_surface + 1.5)));
@@ -95,7 +97,12 @@ namespace ShipHdMap
             _mode = mode; Placer.enabledForInput = mode == "edit";
             if (mode == "edit") { Vehicle.running = false; if (Orbit) Orbit.follow = null; }
         }
-        public void SetDeck(string deck) { _deck = deck; if (Ship) ShipMeshBuilder.SetDeckVisibility(Ship, deck); if (_overlay) MapOverlay.SetDeck(_overlay, deck); Hud.SetContext(_deck, _selected); }
+        public void SetDeck(string deck)
+        {
+            _deck = deck; if (Ship) ShipMeshBuilder.SetDeckVisibility(Ship, deck); if (_overlay) MapOverlay.SetDeck(_overlay, deck);
+            foreach (var m in _markers.Values) if (m) m.gameObject.SetActive(deck == "all" || m.deckId == deck);
+            Hud.SetContext(_deck, _selected);
+        }
         /// Web-originated selection: highlight and bring the camera to it (edit mode only; drive keeps following the vehicle).
         public void Select(string id)
         {
@@ -107,10 +114,12 @@ namespace ShipHdMap
         /// a scene click's own drag raycast runs in the same frame, so focusing here would move the marker under the cursor.
         public void Highlight(string id)
         {
+            if (string.IsNullOrEmpty(id)) id = null;
             if (_selected != null && _markers.TryGetValue(_selected, out var prev) && prev) prev.SetHighlighted(false);
             _selected = id != null && _markers.ContainsKey(id) ? id : null;
             if (_selected != null) _markers[_selected].SetHighlighted(true);
-            Hud.SetContext(_deck, _selected);
+            if (_overlay) MapOverlay.Highlight(_overlay, _selected == null ? id : null);   // a slot id highlights its fill; a marker id or null clears fills
+            Hud.SetContext(_deck, _selected ?? id);
         }
 
         public void Confirm(string json) { var c = MapJson.Parse<ConfirmMsg>(json); if (_markers.TryGetValue(c.tempId, out var m)) { _markers.Remove(c.tempId); m.id = c.id; m.name = c.id; _markers[c.id] = m; MapRefs[c.id] = MapRefs[c.tempId]; MapRefs.Remove(c.tempId); if (_selected == c.tempId) _selected = c.id; } }

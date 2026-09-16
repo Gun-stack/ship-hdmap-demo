@@ -48,7 +48,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   setDeckFilter: (deckFilter) => set({ deckFilter }),
   setMode: (mode) => set({ mode }),
   addDraft: (e) => set((s) => ({
-    drafts: { ...s.drafts, [e.tempId]: { tempId: e.tempId, layer: e.layer, deck_id: e.deck, geometry: { type: "Point", coordinates: [e.x, e.y, e.z] }, props: { mounted_on: e.mounted_on ?? "" } } },
+    drafts: { ...s.drafts, [e.tempId]: { tempId: e.tempId, layer: e.layer, deck_id: e.deck, geometry: { type: "Point", coordinates: [e.x, e.y, e.z] }, props: { mounted_on: e.mounted_on ?? "", ...(e.normal ? { normal: e.normal } : {}) } } },
     selectedId: e.tempId,
   })),
   discardDraft: (tempId) => set((s) => { const drafts = { ...s.drafts }; delete drafts[tempId]; return { drafts, selectedId: s.selectedId === tempId ? null : s.selectedId }; }),

@@ -54,7 +54,8 @@ export function useShipUnity() {
   useEffect(() => { if (loadedOnce.current) send("SetDeck", deckFilter); }, [deckFilter, send]);
   useEffect(() => { if (loadedOnce.current) send("SetMode", mode); }, [mode, send]);
   useEffect(() => {
-    if (!loadedOnce.current || !selectedId) return;
+    if (!loadedOnce.current) return;
+    if (!selectedId) { fromScene.current = null; send("Select", ""); return; }
     if (fromScene.current === selectedId) { fromScene.current = null; return; } // this change came from the scene; do not echo
     fromScene.current = null;
     send("Select", selectedId);

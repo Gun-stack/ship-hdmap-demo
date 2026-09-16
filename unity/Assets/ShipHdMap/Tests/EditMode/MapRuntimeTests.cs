@@ -126,5 +126,41 @@ namespace ShipHdMap.Tests
             Assert.That(rt.transform.Find("Overlay").GetComponentsInChildren<LineRenderer>(true).Length, Is.EqualTo(5));
             Assert.That(rt.transform.Find("Overlay/D1/A2-D1-0001").GetComponent<LineRenderer>().enabled, Is.False);
         }
+
+        [Test]
+        public void SlotFillsFollowStatusAndSelection()
+        {
+            go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>(); rt.InitForTest(); rt.Load(Fixture());
+            var fill = rt.transform.Find("Overlay/D3/PS-D3-001/Fill");
+            Assert.That(fill, Is.Not.Null);
+            var mr = fill.GetComponent<MeshRenderer>();
+            Assert.That(mr.sharedMaterial.color.a, Is.EqualTo(0.35f).Within(1e-3));
+            rt.Select("PS-D3-001");
+            Assert.That(mr.sharedMaterial.color.a, Is.EqualTo(0.75f).Within(1e-3));
+            rt.Select("LM-0001");   // selecting a marker clears the slot highlight
+            Assert.That(mr.sharedMaterial.color.a, Is.EqualTo(0.35f).Within(1e-3));
+            Assert.That(rt.LandmarksRoot.Find("LM-0001/Halo").gameObject.activeSelf, Is.True);
+            rt.Select("");          // empty id clears everything
+            Assert.That(rt.LandmarksRoot.Find("LM-0001/Halo").gameObject.activeSelf, Is.False);
+            rt.SetDeck("D1");
+            Assert.That(mr.enabled, Is.False);
+        }
+
+        [Test]
+        public void SetDeckHidesMarkersOfOtherDecks()
+        {
+            go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>(); rt.InitForTest(); rt.Load(Fixture());
+            rt.SetDeck("D1");
+            Assert.That(rt.LandmarksRoot.Find("LM-0001").gameObject.activeSelf, Is.False); // fixture landmarks are all on D3
+            rt.SetDeck("all");
+            Assert.That(rt.LandmarksRoot.Find("LM-0001").gameObject.activeSelf, Is.True);
+        }
+
+        [Test]
+        public void FeatureCreatedEventCarriesNormal()
+        {
+            var json = MapJson.Serialize(new FeatureCreatedEvt { tempId = "LM-0002", layer = "LM", x = 1, y = 2, z = 3, deck = "D3", mounted_on = "P", normal = new[] { 0.0, -1.0, 0.0 } });
+            Assert.That(json, Does.Contain("normal"));
+        }
     }
 }

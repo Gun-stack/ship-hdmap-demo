@@ -331,14 +331,14 @@ p ← p + δ
 | R→U | `Load` | vehicle-map 과 같은 구조 + 편집용 전체 피처 |
 | R→U | `SetMode` | `"edit"` / `"drive"` |
 | R→U | `SetDeck` | deck_id 또는 `"all"` |
-| R→U | `Select` | feature id |
+| R→U | `Select` | feature id, 빈 문자열이면 해제 |
 | R→U | `Confirm` | tempId, id |
 | R→U | `Delete` | feature id (웹 트리·폼에서 삭제) |
 | R→U | `SetPose` | pose JSON |
 | R→U | `SetNoise` | sigma_r, sigma_theta, sigma_alpha, sigma_gps |
 | R→U | `StartScenario` | `{mode: "load" | "unload"}` — 맵은 이미 `Load` 된 것을 쓴다. pose 는 M5 에서 추가 |
 | U→R | `onSeedReady` | 생성기 시드 JSON (갑판·기둥·램프·래싱) |
-| U→R | `onFeatureCreated` | tempId, layer, x, y, z, deck, mounted_on |
+| U→R | `onFeatureCreated` | tempId, layer, x, y, z, deck, mounted_on, normal[3] |
 | U→R | `onFeatureMoved` | id, x, y, z, normal[3], deck, mounted_on — 드래그를 놓았을 때. 웹이 PUT 으로 확정 |
 | U→R | `onSelected` | id |
 | U→R | `onSlotFilled` | slotId, err_lat, err_lon, err_heading |
