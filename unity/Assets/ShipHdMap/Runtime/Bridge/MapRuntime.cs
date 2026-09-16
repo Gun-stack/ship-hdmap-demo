@@ -82,7 +82,7 @@ namespace ShipHdMap
             Placer.nextCode = _markers.Count + 1;
             Placer.nextId = _markers.Count + 1;
 
-            // free fill meshes before the overlay itself: destroying a parent does not reliably dispatch child OnDestroy in the editor
+            // free fill meshes before the overlay itself: SlotFill.OnDestroy does not run in EditMode (no [ExecuteAlways])
             if (_overlay) { foreach (var fill in _overlay.GetComponentsInChildren<SlotFill>(true)) { var m = fill.GetComponent<MeshFilter>()?.sharedMesh; if (m) DestroyImmediate(m); } DestroyImmediate(_overlay); }
             _overlay = MapOverlay.Build(CurrentMap, transform); MapOverlay.SetDeck(_overlay, _deck);
             foreach (var m in _markers.Values) if (m) m.gameObject.SetActive(_deck == "all" || m.deckId == _deck);

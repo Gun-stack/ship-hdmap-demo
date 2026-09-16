@@ -84,8 +84,8 @@ namespace ShipHdMap
     {
         public string status = "empty";
 
-        /// Covers a fill destroyed on its own; DestroyImmediate on an ancestor does not reliably dispatch
-        /// child OnDestroy in the editor, so MapRuntime.Load also frees fill meshes explicitly before that call.
+        /// Play-mode backstop for a fill destroyed on its own. In EditMode (tests) OnDestroy never runs because
+        /// SlotFill has no [ExecuteAlways], so MapRuntime.Load frees fill meshes explicitly before destroying the overlay.
         void OnDestroy()
         {
             var m = GetComponent<MeshFilter>()?.sharedMesh;
