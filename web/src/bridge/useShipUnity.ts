@@ -12,7 +12,7 @@ export function useShipUnity() {
   const { datasetId, dataset, deckFilter, selectedId, mode, addDraft, select, setLocalization, moveFeature } = useEditorStore();
   const loadedOnce = useRef(false);
   const loading = useRef(false);
-  const fromScene = useRef(false);
+  const fromScene = useRef<string | null>(null);
 
   const send = useCallback((name: BridgeName, payload?: string | object) => {
     if (!isLoaded) return;
@@ -22,7 +22,7 @@ export function useShipUnity() {
   // Unity -> store
   useEffect(() => {
     const onCreated = (json: string) => addDraft(JSON.parse(json));
-    const onSelected = (json: string) => { fromScene.current = true; select(JSON.parse(json).id ?? null); };
+    const onSelected = (json: string) => { const id = JSON.parse(json).id ?? null; fromScene.current = id; select(id); };
     const onLoc = (json: string) => setLocalization(JSON.parse(json));
     const onMoved = (json: string) => {
       void moveFeature(JSON.parse(json)).catch(async (e) => {
@@ -49,7 +49,8 @@ export function useShipUnity() {
   useEffect(() => { if (loadedOnce.current) send("SetMode", mode); }, [mode, send]);
   useEffect(() => {
     if (!loadedOnce.current || !selectedId) return;
-    if (fromScene.current) { fromScene.current = false; return; }
+    if (fromScene.current === selectedId) { fromScene.current = null; return; } // this change came from the scene; do not echo
+    fromScene.current = null;
     send("Select", selectedId);
   }, [selectedId, send]);
 
