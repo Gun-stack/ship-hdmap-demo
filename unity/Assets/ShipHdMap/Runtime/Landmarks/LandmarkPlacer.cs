@@ -19,7 +19,7 @@ namespace ShipHdMap
 
         void Update()
         {
-            if (!enabledForInput || cam == null) { _drag = null; return; }
+            if (!enabledForInput || cam == null) { EndDrag(); return; } // flush any in-progress drag so a moved marker still gets reported before input is cut
             if (Input.GetMouseButtonDown(0)) OnLeftDown();
             if (_drag && Input.GetMouseButton(0)) DragTo();
             if (_drag && Input.GetMouseButtonUp(0)) EndDrag();
