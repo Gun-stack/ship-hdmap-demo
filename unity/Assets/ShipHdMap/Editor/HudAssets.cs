@@ -18,7 +18,7 @@ namespace ShipHdMap.Editor
             var theme = AssetDatabase.LoadAssetAtPath<ThemeStyleSheet>(Tss);
             var ps = AssetDatabase.LoadAssetAtPath<PanelSettings>(Ps);
             if (ps == null) { ps = ScriptableObject.CreateInstance<PanelSettings>(); AssetDatabase.CreateAsset(ps, Ps); }
-            ps.themeStyleSheet = theme; ps.scaleMode = PanelScaleMode.ConstantPixelSize; ps.scale = 1f;
+            ps.themeStyleSheet = theme; ps.scaleMode = PanelScaleMode.ConstantPhysicalSize; ps.scale = 1f; ps.referenceDpi = 96f; ps.fallbackDpi = 96f;
             EditorUtility.SetDirty(ps); AssetDatabase.SaveAssets();
             Debug.Log($"[HudAssets] {Ps} theme={(theme ? theme.name : "null")}");
         }

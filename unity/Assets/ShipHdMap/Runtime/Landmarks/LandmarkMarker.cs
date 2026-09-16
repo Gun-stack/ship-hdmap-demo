@@ -35,7 +35,7 @@ namespace ShipHdMap
             g.transform.SetParent(parent, false);
             g.transform.localScale = new Vector3(sizeM, sizeM, 1);
             Object.DestroyImmediate(g.GetComponent<Collider>());
-            var box = g.AddComponent<BoxCollider>(); box.size = new Vector3(1, 1, 0.02f / sizeM);
+            var box = g.AddComponent<BoxCollider>(); box.size = new Vector3(1.6f, 1.6f, 0.02f / sizeM);
             var shader = Shader.Find("Unlit/Texture") ?? Shader.Find("Standard");
             g.GetComponent<Renderer>().sharedMaterial = new Material(shader) { mainTexture = AprilTag36h11.MakeTexture(code) };
             var lm = g.AddComponent<LandmarkMarker>();

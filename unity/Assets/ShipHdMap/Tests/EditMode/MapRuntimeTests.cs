@@ -70,6 +70,28 @@ namespace ShipHdMap.Tests
         }
 
         [Test]
+        public void SelectFocusesOrbitOnlyFromTheWeb()
+        {
+            go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>(); rt.InitForTest(); rt.Load(Fixture());
+            var camGo = new GameObject("Cam"); var orbit = camGo.AddComponent<OrbitCamera>(); rt.Orbit = orbit;
+            var startTarget = orbit.target;
+
+            rt.Highlight("LM-0003");
+            Assert.That(orbit.target, Is.EqualTo(startTarget)); // scene-side highlight must not move the camera
+
+            rt.Select("LM-0003");
+            var markerPos = rt.LandmarksRoot.Find("LM-0003").position;
+            Assert.That(Vector3.Distance(orbit.target, markerPos), Is.LessThan(1e-3f));
+
+            rt.SetMode("drive");
+            var driveTarget = orbit.target;
+            rt.Select("LM-0004");
+            Assert.That(orbit.target, Is.EqualTo(driveTarget)); // drive mode never refocuses on a selection
+
+            Object.DestroyImmediate(camGo);
+        }
+
+        [Test]
         public void FeatureCreatedEventCarriesMountedOn()
         {
             var json = MapJson.Serialize(new FeatureCreatedEvt { tempId = "LM-0002", layer = "LM", x = 1, y = 2, z = 3, deck = "D3", mounted_on = "C-PILLAR-D3-001" });

@@ -20,7 +20,7 @@ namespace ShipHdMap
         public LandmarkPlacer Placer { get; private set; }
         public HudView Hud { get; private set; }
         public GameObject Ship { get; private set; }
-        public OrbitCamera Orbit { get; private set; }
+        public OrbitCamera Orbit { get; set; }
 
         string _mode = "edit"; string _selected; Pose2D? _prev; float _emitTimer; SeedData _seed;
         GameObject _overlay; string _deck = "all";
@@ -36,8 +36,8 @@ namespace ShipHdMap
             Ship = GameObject.Find("Ship");
             if (Ship == null) { _seed = ShipSeedBuilder.Build(shipParams); Ship = ShipMeshBuilder.Build(_seed, shipParams); }
             Placer.decks = _seed?.decks ?? new List<Deck>();
-            if (cam == null) cam = Camera.main; Placer.cam = cam; Hud.cam = cam;
-            Orbit = cam.GetComponent<OrbitCamera>(); if (!Orbit) { Orbit = cam.gameObject.AddComponent<OrbitCamera>(); Orbit.AdoptCurrentPose(); }
+            if (cam == null) cam = Camera.main;
+            if (cam) { Placer.cam = cam; Hud.cam = cam; Orbit = cam.GetComponent<OrbitCamera>(); if (!Orbit) { Orbit = cam.gameObject.AddComponent<OrbitCamera>(); Orbit.AdoptCurrentPose(); } }
             Placer.Created += lm => { _markers[lm.id] = lm; MapRefs[lm.id] = RefOf(lm.ToModel());
                 var (x, y, z) = ShipFrame.ToShip(lm.transform.position);
                 Send(BridgeMessages.OnFeatureCreated, MapJson.Serialize(new FeatureCreatedEvt { tempId = lm.id, layer = "LM", x = x, y = y, z = z, deck = lm.deckId, mounted_on = lm.mountedOn })); };
@@ -87,6 +87,7 @@ namespace ShipHdMap
             var labels = new List<(string, Vector3)>();
             foreach (var d in CurrentMap.decks ?? new List<Deck>()) labels.Add(($"{d.id}  z {d.z_surface:F1} m", ShipFrame.ToUnity(4, 10, d.z_surface + 1.5)));
             Hud.SetDeckLabels(labels);
+            Hud.SetContext(_deck, null);
         }
 
         public void SetMode(string mode)
@@ -95,15 +96,20 @@ namespace ShipHdMap
             if (mode == "edit") { Vehicle.running = false; if (Orbit) Orbit.follow = null; }
         }
         public void SetDeck(string deck) { _deck = deck; if (Ship) ShipMeshBuilder.SetDeckVisibility(Ship, deck); if (_overlay) MapOverlay.SetDeck(_overlay, deck); Hud.SetContext(_deck, _selected); }
-        public void Select(string id) => Highlight(id);
+        /// Web-originated selection: highlight and bring the camera to it (edit mode only; drive keeps following the vehicle).
+        public void Select(string id)
+        {
+            Highlight(id);
+            if (_selected != null && Orbit && _mode != "drive") Orbit.Focus(_markers[_selected].transform.position, 12f);
+        }
 
-        /// Scene-side selection: at most one halo. Does not emit — the web already knows what it selected.
+        /// Scene-side selection: at most one halo. Does not emit and does not move the camera —
+        /// a scene click's own drag raycast runs in the same frame, so focusing here would move the marker under the cursor.
         public void Highlight(string id)
         {
             if (_selected != null && _markers.TryGetValue(_selected, out var prev) && prev) prev.SetHighlighted(false);
             _selected = id != null && _markers.ContainsKey(id) ? id : null;
             if (_selected != null) _markers[_selected].SetHighlighted(true);
-            if (_selected != null && Orbit) Orbit.Focus(_markers[_selected].transform.position, 12f);
             Hud.SetContext(_deck, _selected);
         }
 

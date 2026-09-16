@@ -27,6 +27,7 @@ namespace ShipHdMap.Tests
             var ps = Resources.Load<PanelSettings>("HudPanelSettings");
             Assert.That(ps, Is.Not.Null, "run menu ShipHdMap/Create HUD Assets");
             Assert.That(ps.themeStyleSheet, Is.Not.Null);
+            Assert.That(ps.scaleMode, Is.EqualTo(PanelScaleMode.ConstantPhysicalSize));
         }
     }
 }
