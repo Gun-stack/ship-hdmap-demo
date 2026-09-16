@@ -89,5 +89,20 @@ namespace ShipHdMap.Tests
             Assert.That(name, Is.EqualTo("onFeatureMoved"));
             Assert.That(json, Does.Contain("C-PILLAR-D3-009")); Assert.That(json, Does.Contain("normal"));
         }
+
+        [Test]
+        public void LoadBuildsOverlayLinesAndSetDeckFilters()
+        {
+            go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>(); rt.InitForTest(); rt.Load(Fixture());
+            var overlay = rt.transform.Find("Overlay"); Assert.That(overlay, Is.Not.Null);
+            var lines = overlay.GetComponentsInChildren<LineRenderer>(true);
+            Assert.That(lines.Length, Is.EqualTo(5)); // 3 lanes + 2 slots
+            rt.SetDeck("D3");
+            Assert.That(overlay.Find("D1/A2-D1-0001").GetComponent<LineRenderer>().enabled, Is.False);
+            Assert.That(overlay.Find("D3/A2-D3-0001").GetComponent<LineRenderer>().enabled, Is.True);
+            rt.Load(Fixture()); // rebuild keeps the filter and does not duplicate
+            Assert.That(rt.transform.Find("Overlay").GetComponentsInChildren<LineRenderer>(true).Length, Is.EqualTo(5));
+            Assert.That(rt.transform.Find("Overlay/D1/A2-D1-0001").GetComponent<LineRenderer>().enabled, Is.False);
+        }
     }
 }

@@ -23,6 +23,7 @@ namespace ShipHdMap
         public OrbitCamera Orbit { get; private set; }
 
         string _mode = "edit"; string _selected; Pose2D? _prev; float _emitTimer; SeedData _seed;
+        GameObject _overlay; string _deck = "all";
         readonly Dictionary<string, LandmarkMarker> _markers = new();
 
         void Awake()
@@ -79,6 +80,9 @@ namespace ShipHdMap
             Placer.decks = CurrentMap.decks ?? Placer.decks;
             Placer.nextCode = _markers.Count + 1;
             Placer.nextId = _markers.Count + 1;
+
+            if (_overlay) DestroyImmediate(_overlay);
+            _overlay = MapOverlay.Build(CurrentMap, transform); MapOverlay.SetDeck(_overlay, _deck);
         }
 
         public void SetMode(string mode)
@@ -86,7 +90,7 @@ namespace ShipHdMap
             _mode = mode; Placer.enabledForInput = mode == "edit";
             if (mode == "edit") { Vehicle.running = false; if (Orbit) Orbit.follow = null; }
         }
-        public void SetDeck(string deck) { if (Ship) ShipMeshBuilder.SetDeckVisibility(Ship, deck); }
+        public void SetDeck(string deck) { _deck = deck; if (Ship) ShipMeshBuilder.SetDeckVisibility(Ship, deck); if (_overlay) MapOverlay.SetDeck(_overlay, deck); }
         public void Select(string id) => Highlight(id);
 
         /// Scene-side selection: at most one halo. Does not emit — the web already knows what it selected.
