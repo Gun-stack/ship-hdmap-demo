@@ -29,7 +29,9 @@ namespace ShipHdMap
         {
             string id = NextId();
             int code = nextCode++ % AprilTag36h11.Count;
-            var lm = LandmarkMarker.Spawn(landmarksRoot, id, code, hit.point, hit.normal, sizeM, DeckIdForHeight(LocalY(hit.point)), hit.collider.name);
+            // Spawn takes root-local input; the raycast hit is world.
+            var lm = LandmarkMarker.Spawn(landmarksRoot, id, code, landmarksRoot.InverseTransformPoint(hit.point), landmarksRoot.InverseTransformDirection(hit.normal),
+                sizeM, DeckIdForHeight(LocalY(hit.point)), hit.collider.name);
             All.Add(lm); Created?.Invoke(lm); return lm;
         }
 

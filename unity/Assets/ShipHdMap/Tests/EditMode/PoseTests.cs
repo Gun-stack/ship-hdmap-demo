@@ -91,5 +91,24 @@ namespace ShipHdMap.Tests
             var bow = MapRuntime.PoseRotation(10, 0) * Vector3.right;   Assert.That(bow.y, Is.GreaterThan(0.1f));
             var stbd = MapRuntime.PoseRotation(0, 10) * Vector3.forward; Assert.That(stbd.y, Is.LessThan(-0.1f));
         }
+
+        [Test]
+        public void PlacementUnderTiltLandsOnTheDeckInShipFrame()
+        {
+            var rt = NewRuntime();
+            var p = new ShipParams(); ShipMeshBuilder.Build(ShipSeedBuilder.Build(p), p);
+            rt.Load(Fixture());
+            rt.SetPose(TrimOnly);   // attaches the ship and tilts the root; Physics.SyncTransforms runs inside
+            // ray straight down onto Deck 3 at ship (50, 0), expressed in world space through the tilted root
+            var origin = rt.transform.TransformPoint(ShipFrame.ToUnity(50, 0, 12.5));
+            var down = rt.transform.TransformDirection(Vector3.down);
+            Assert.That(Physics.Raycast(origin, down, out var hit, 10f, LandmarkPlacer.StructureMask()), Is.True);
+            var lm = rt.Placer.PlaceAt(hit);
+            var m = lm.ToModel();
+            Assert.That(m.position[0], Is.EqualTo(50).Within(0.05));
+            Assert.That(m.position[1], Is.EqualTo(0).Within(0.05));
+            Assert.That(m.position[2], Is.EqualTo(10.6).Within(0.05));   // Deck 3 surface, not the world height
+            Assert.That(m.deck_id, Is.EqualTo("D3"));
+        }
     }
 }
