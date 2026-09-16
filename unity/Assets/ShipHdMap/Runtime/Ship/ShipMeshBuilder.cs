@@ -43,7 +43,7 @@ namespace ShipHdMap
                 foreach (float y in new[] { -8f, -3f, 8f }) // kept clear of the centreline lane (y in [-1.6, 1.6])
                 {
                     var pipe = Prim(mep, $"Pipe_{y:+0;-0;0}", PrimitiveType.Cylinder, ShipFrame.ToUnity(p.lengthM / 2, y, d.z_surface + d.z_clear - 0.3), new Vector3(MepRadius * 2, L / 2, MepRadius * 2), Color(0.75f, 0.6f, 0.2f), layer, materials);
-                    pipe.transform.rotation = Quaternion.Euler(0, 0, 90); // cylinder axis along Unity X
+                    pipe.transform.localRotation = Quaternion.Euler(0, 0, 90); // cylinder axis along Unity X
                     UnityEngine.Object.DestroyImmediate(pipe.GetComponent<Collider>());
                     pipe.AddComponent<BoxCollider>(); // structure colliders must be MeshCollider or BoxCollider, not the primitive's CapsuleCollider; auto-sizes to the mesh bounds and follows the rotation above since it's local-space
                 }
@@ -51,9 +51,9 @@ namespace ShipHdMap
             foreach (var r in seed.ramps)
             {
                 var ramp = Child(ship, "Ramp");
-                ramp.transform.position = ShipFrame.ToUnity((r.hinge[0][0] + r.hinge[1][0]) / 2, (r.hinge[0][1] + r.hinge[1][1]) / 2, r.hinge[0][2]);
+                ramp.transform.localPosition = ShipFrame.ToUnity((r.hinge[0][0] + r.hinge[1][0]) / 2, (r.hinge[0][1] + r.hinge[1][1]) / 2, r.hinge[0][2]);
                 float len = (float)r.length_m, w = (float)r.width_m;
-                Prim(ramp, "Plate", PrimitiveType.Cube, ramp.transform.position + new Vector3(-len / 2, -FloorThick / 2, 0), new Vector3(len, FloorThick, w), Color(0.5f, 0.5f, 0.45f), layer, materials);
+                Prim(ramp, "Plate", PrimitiveType.Cube, new Vector3(-len / 2, -FloorThick / 2, 0), new Vector3(len, FloorThick, w), Color(0.5f, 0.5f, 0.45f), layer, materials);   // local to the hinge
             }
             Physics.SyncTransforms(); // project has autoSyncTransforms off; Collider.bounds needs a manual sync after transform edits
             return ship;
@@ -63,7 +63,7 @@ namespace ShipHdMap
         public static void SetRampAngle(GameObject ship, double angleDeg)
         {
             var ramp = ship.transform.Find("Ramp"); if (!ramp) return;
-            ramp.rotation = Quaternion.Euler(0, 0, (float)-angleDeg);
+            ramp.localRotation = Quaternion.Euler(0, 0, (float)-angleDeg);
             // Flushes ALL pending transforms scene-wide (autoSyncTransforms is off in this project). Call this on
             // pose changes only (e.g. an operator moving the ramp), not every frame.
             Physics.SyncTransforms();
@@ -84,7 +84,7 @@ namespace ShipHdMap
         static GameObject Prim(GameObject parent, string name, PrimitiveType t, Vector3 pos, Vector3 scale, Color c, int layer, Dictionary<Color, Material> materials)
         {
             var g = GameObject.CreatePrimitive(t); g.name = name; g.layer = layer; g.transform.SetParent(parent.transform, false);
-            g.transform.position = pos; g.transform.localScale = scale;
+            g.transform.localPosition = pos; g.transform.localScale = scale;
             if (!materials.TryGetValue(c, out var mat)) { mat = new Material(Shader.Find("Standard")) { color = c }; materials[c] = mat; }
             g.GetComponent<Renderer>().sharedMaterial = mat;
             return g;

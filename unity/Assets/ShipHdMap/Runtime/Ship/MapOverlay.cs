@@ -46,7 +46,7 @@ namespace ShipHdMap
             if (deck == null) { deck = new GameObject(deckId ?? "none").transform; deck.SetParent(root.transform, false); }
             var g = new GameObject(id); g.transform.SetParent(deck, false);
             var lr = g.AddComponent<LineRenderer>();
-            lr.useWorldSpace = true; lr.loop = false; lr.startWidth = lr.endWidth = width; lr.positionCount = pts.Length;
+            lr.useWorldSpace = false; lr.loop = false; lr.startWidth = lr.endWidth = width; lr.positionCount = pts.Length;
             for (int i = 0; i < pts.Length; i++) lr.SetPosition(i, ShipFrame.ToUnity(pts[i][0], pts[i][1], pts[i][2] + Lift));
             if (!LineMats.TryGetValue(c, out var m) || !m) { m = new Material(Shader.Find("Unlit/Color")) { color = c }; LineMats[c] = m; }
             lr.sharedMaterial = m; lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; lr.receiveShadows = false;

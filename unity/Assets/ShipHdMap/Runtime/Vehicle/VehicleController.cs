@@ -24,8 +24,8 @@ namespace ShipHdMap
         {
             var (p, h, _) = LaneFollower.At(centerline, s);
             Truth = new Pose2D { x = p.x, y = p.y, psiRad = h };
-            transform.position = ShipFrame.ToUnity(p.x, p.y, deckZ + 0.5);
-            transform.rotation = Quaternion.Euler(0, ShipFrame.UnityYawDeg(h * 180 / System.Math.PI), 0);
+            transform.localPosition = ShipFrame.ToUnity(p.x, p.y, deckZ + 0.5);
+            transform.localRotation = Quaternion.Euler(0, ShipFrame.UnityYawDeg(h * 180 / System.Math.PI), 0);
         }
     }
 }

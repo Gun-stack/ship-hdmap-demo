@@ -28,6 +28,7 @@ namespace ShipHdMap
             _halo.gameObject.SetActive(on);
         }
 
+        /// unityPos/unityNormal are in the parent's local space (Ship Frame mapped by ShipFrame.ToUnity); MoveTo takes world.
         public static LandmarkMarker Spawn(Transform parent, string id, int code, Vector3 unityPos, Vector3 unityNormal, float sizeM, string deckId, string mountedOn)
         {
             var g = GameObject.CreatePrimitive(PrimitiveType.Quad); g.name = id;
@@ -39,7 +40,7 @@ namespace ShipHdMap
             var shader = Shader.Find("Unlit/Texture") ?? Shader.Find("Standard");
             g.GetComponent<Renderer>().sharedMaterial = new Material(shader) { mainTexture = AprilTag36h11.MakeTexture(code) };
             var lm = g.AddComponent<LandmarkMarker>();
-            lm.id = id; lm.code = code; lm.sizeM = sizeM; lm.MoveTo(unityPos, unityNormal, deckId, mountedOn);
+            lm.id = id; lm.code = code; lm.sizeM = sizeM; lm.MoveTo(parent.TransformPoint(unityPos), parent.TransformDirection(unityNormal), deckId, mountedOn);
             return lm;
         }
 
@@ -52,11 +53,14 @@ namespace ShipHdMap
             this.deckId = deckId; this.mountedOn = mountedOn;
         }
 
-        /// DTO for vehicle-map / API. Position is the mounting point (marker centre pushed back onto the surface).
+        /// DTO for vehicle-map / API, in Ship Frame = the parent's local space. Position is the mounting point (centre pushed back onto the surface).
         public Landmark ToModel()
         {
-            var (x, y, z) = ShipFrame.ToShip(transform.position - NormalUnity * 0.01f);
-            var (nx, ny, nz) = ShipFrame.ToShip(NormalUnity);
+            Vector3 p = transform.position - NormalUnity * 0.01f, n = NormalUnity;
+            var root = transform.parent;
+            if (root) { p = root.InverseTransformPoint(p); n = root.InverseTransformDirection(n); }
+            var (x, y, z) = ShipFrame.ToShip(p);
+            var (nx, ny, nz) = ShipFrame.ToShip(n);
             return new Landmark { id = id, marker = new Marker { family = "apriltag-36h11", code = code },
                 position = new[] { x, y, z }, normal = new[] { nx, ny, nz }, size_m = sizeM, deck_id = deckId, mounted_on = mountedOn };
         }

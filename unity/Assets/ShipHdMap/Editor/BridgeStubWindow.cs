@@ -10,7 +10,7 @@ namespace ShipHdMap.Editor
     {
         [MenuItem("ShipHdMap/Bridge Stub")] static void Open() => GetWindow<BridgeStubWindow>("Bridge Stub");
 
-        readonly List<string> _log = new(); MapRuntime _rt; float _sr = 0.2f, _st = 1f, _sa = 2f;
+        readonly List<string> _log = new(); MapRuntime _rt; float _sr = 0.2f, _st = 1f, _sa = 2f; float _aft = 8.6f, _heel;
 
         MapRuntime Runtime()
         {
@@ -40,6 +40,9 @@ namespace ShipHdMap.Editor
             EditorGUI.BeginChangeCheck();
             _sr = EditorGUILayout.Slider("sigma r (m)", _sr, 0, 1); _st = EditorGUILayout.Slider("sigma theta (deg)", _st, 0, 5); _sa = EditorGUILayout.Slider("sigma alpha (deg)", _sa, 0, 10);
             if (EditorGUI.EndChangeCheck()) rt.SetNoise($"{{\"sigma_r\":{_sr},\"sigma_theta\":{_st},\"sigma_alpha\":{_sa},\"sigma_gps\":0.5}}");
+            EditorGUI.BeginChangeCheck();
+            _aft = EditorGUILayout.Slider("draft aft (m)", _aft, 6, 10); _heel = EditorGUILayout.Slider("heel (deg)", _heel, -3, 3);
+            if (EditorGUI.EndChangeCheck()) rt.SetPose($"{{\"draft_fwd_m\":8.1,\"draft_aft_m\":{_aft},\"heel_deg\":{_heel},\"lpp_m\":120}}");
             EditorGUILayout.LabelField("Events", EditorStyles.boldLabel);
             foreach (var l in _log) EditorGUILayout.LabelField(l, EditorStyles.miniLabel);
         }

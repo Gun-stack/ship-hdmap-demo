@@ -10,23 +10,25 @@ namespace ShipHdMap
     public class HudView : MonoBehaviour
     {
         public Camera cam;
-        UIDocument _doc; Label _info; VisualElement _labelLayer;
-        readonly List<(Label label, Vector3 world)> _deckLabels = new();
+        UIDocument _doc; Label _info; VisualElement _labelLayer; string _ramp;
+        readonly List<(Label label, Vector3 local)> _deckLabels = new();
         LocalizerResult _last; Pose2D _truth; string _frame = "SHIP_AP", _deck = "all", _selected;
 
         public void Set(LocalizerResult r, Pose2D truth, string frame) { _last = r; _truth = truth; _frame = frame; }
         public void SetContext(string deck, string selected) { _deck = deck ?? "all"; _selected = selected; }
+        public void SetRamp(string line) { _ramp = line; }
 
-        public void SetDeckLabels(IEnumerable<(string text, Vector3 world)> items)
+        /// items carry root-local Unity points (Ship Frame); LateUpdate converts each to world via the Map root before projecting.
+        public void SetDeckLabels(IEnumerable<(string text, Vector3 local)> items)
         {
             foreach (var (label, _) in _deckLabels) label.RemoveFromHierarchy();
             _deckLabels.Clear();
             if (_labelLayer == null) return;
-            foreach (var (text, world) in items)
+            foreach (var (text, local) in items)
             {
                 var l = new Label(text) { pickingMode = PickingMode.Ignore };
                 Style(l.style, 12); l.style.position = Position.Absolute;
-                _labelLayer.Add(l); _deckLabels.Add((l, world));
+                _labelLayer.Add(l); _deckLabels.Add((l, local));
             }
         }
 
@@ -73,11 +75,12 @@ namespace ShipHdMap
         void LateUpdate()
         {
             if (_info == null) return;
-            _info.text = string.Join("\n", Lines(_deck, _selected, CursorShip(), _last, _truth, _frame));
+            _info.text = string.Join("\n", Lines(_deck, _selected, CursorShip(), _last, _truth, _frame)) + (_ramp == null ? "" : "\n" + _ramp);
             if (cam == null) return;
             var panel = _doc.rootVisualElement.panel;
-            foreach (var (label, world) in _deckLabels)
+            foreach (var (label, local) in _deckLabels)
             {
+                var world = transform.TransformPoint(local);
                 var vp = cam.WorldToViewportPoint(world);
                 label.visible = vp.z > 0;
                 if (!label.visible) continue;
@@ -90,7 +93,7 @@ namespace ShipHdMap
         {
             if (cam == null || !Application.isPlaying) return null;
             if (!Physics.Raycast(cam.ScreenPointToRay(Input.mousePosition), out var hit, 500f, LandmarkPlacer.StructureMask())) return null;
-            return ShipFrame.ToShip(hit.point);
+            return ShipFrame.ToShip(transform.InverseTransformPoint(hit.point));
         }
     }
 }

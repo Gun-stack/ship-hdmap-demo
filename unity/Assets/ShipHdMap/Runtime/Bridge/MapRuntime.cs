@@ -23,7 +23,7 @@ namespace ShipHdMap
         public OrbitCamera Orbit { get; set; }
 
         string _mode = "edit"; string _selected; Pose2D? _prev; float _emitTimer; SeedData _seed;
-        GameObject _overlay; string _deck = "all";
+        GameObject _overlay; string _deck = "all"; SetPoseMsg _pose;
         readonly Dictionary<string, LandmarkMarker> _markers = new();
 
         void Awake()
@@ -34,14 +34,13 @@ namespace ShipHdMap
 #endif
             if (!Application.isPlaying) return;
             Ship = GameObject.Find("Ship");
-            if (Ship == null) { _seed = ShipSeedBuilder.Build(shipParams); Ship = ShipMeshBuilder.Build(_seed, shipParams); }
+            if (Ship == null) { _seed = ShipSeedBuilder.Build(shipParams); Ship = ShipMeshBuilder.Build(_seed, shipParams, transform); }
+            AttachShip();
             Placer.decks = _seed?.decks ?? new List<Deck>();
             if (cam == null) cam = Camera.main;
             if (cam) { Placer.cam = cam; Hud.cam = cam; Orbit = cam.GetComponent<OrbitCamera>(); if (!Orbit) { Orbit = cam.gameObject.AddComponent<OrbitCamera>(); Orbit.AdoptCurrentPose(); } }
-            Placer.Created += lm => { _markers[lm.id] = lm; MapRefs[lm.id] = RefOf(lm.ToModel());
-                var (x, y, z) = ShipFrame.ToShip(lm.transform.position);
-                var (nx, ny, nz) = ShipFrame.ToShip(lm.NormalUnity);
-                Send(BridgeMessages.OnFeatureCreated, MapJson.Serialize(new FeatureCreatedEvt { tempId = lm.id, layer = "LM", x = x, y = y, z = z, deck = lm.deckId, mounted_on = lm.mountedOn, normal = new[] { nx, ny, nz } })); };
+            Placer.Created += lm => { var m = lm.ToModel(); _markers[lm.id] = lm; MapRefs[lm.id] = RefOf(m);
+                Send(BridgeMessages.OnFeatureCreated, MapJson.Serialize(new FeatureCreatedEvt { tempId = lm.id, layer = "LM", x = m.position[0], y = m.position[1], z = m.position[2], deck = lm.deckId, mounted_on = lm.mountedOn, normal = m.normal })); };
             Placer.Selected += lm => { Highlight(lm.id); Send(BridgeMessages.OnSelected, "{\"id\":\"" + lm.id + "\"}"); };
             Placer.Moved += OnMarkerMoved;
             if (_seed != null && Emit != null) Send(BridgeMessages.OnSeedReady, MapJson.Serialize(_seed));
@@ -91,6 +90,7 @@ namespace ShipHdMap
             foreach (var d in CurrentMap.decks ?? new List<Deck>()) labels.Add(($"{d.id}  z {d.z_surface:F1} m", ShipFrame.ToUnity(4, 10, d.z_surface + 1.5)));
             Hud.SetDeckLabels(labels);
             Hud.SetContext(_deck, null);
+            ApplyPose();
         }
 
         public void SetMode(string mode)
@@ -124,7 +124,29 @@ namespace ShipHdMap
         }
 
         public void Confirm(string json) { var c = MapJson.Parse<ConfirmMsg>(json); if (_markers.TryGetValue(c.tempId, out var m)) { _markers.Remove(c.tempId); m.id = c.id; m.name = c.id; _markers[c.id] = m; MapRefs[c.id] = MapRefs[c.tempId]; MapRefs.Remove(c.tempId); if (_selected == c.tempId) _selected = c.id; } }
-        public void SetPose(string json) { /* M5 */ }
+        /// Ship Frame is the Map root's local space; pose only rotates this root (spec §4.1). Children keep their local coordinates.
+        public void SetPose(string json) { _pose = MapJson.Parse<SetPoseMsg>(json); ApplyPose(); }
+
+        /// Trim > 0 (stern deeper) raises the bow (+x); heel > 0 lowers starboard (Unity +z). Rotation about the AP origin.
+        public static Quaternion PoseRotation(double trimDeg, double heelDeg) => Quaternion.Euler((float)heelDeg, 0, (float)trimDeg);
+
+        public void ApplyPose()
+        {
+            if (_pose == null) return;
+            double trimDeg = Math.Atan2(_pose.draft_aft_m - _pose.draft_fwd_m, _pose.lpp_m <= 0 ? 120 : _pose.lpp_m) * 180 / Math.PI;
+            transform.localRotation = PoseRotation(trimDeg, _pose.heel_deg);
+            AttachShip();
+            if (Ship && _pose.ramp != null) ShipMeshBuilder.SetRampAngle(Ship, _pose.ramp.angle_deg);
+            Hud.SetRamp(_pose.ramp == null ? null : $"ramp {_pose.ramp.angle_deg:F1} deg  {_pose.ramp.state}");
+            Physics.SyncTransforms();   // autoSyncTransforms is off; placement/drag raycasts must see the tilted colliders
+        }
+
+        /// The Demo scene may carry a pre-built "Ship" at the scene root; it must ride on the Map root to follow the pose.
+        public void AttachShip()
+        {
+            if (!Ship) Ship = GameObject.Find("Ship");
+            if (Ship && Ship.transform.parent != transform) Ship.transform.SetParent(transform, false);
+        }
 
         /// Drag ended in the scene: refresh the localization map entry and tell the web, which persists it (PUT) — the scene never commits a move itself.
         public void OnMarkerMoved(LandmarkMarker lm)

@@ -29,7 +29,7 @@ namespace ShipHdMap
         {
             string id = NextId();
             int code = nextCode++ % AprilTag36h11.Count;
-            var lm = LandmarkMarker.Spawn(landmarksRoot, id, code, hit.point, hit.normal, sizeM, DeckIdForHeight(hit.point.y), hit.collider.name);
+            var lm = LandmarkMarker.Spawn(landmarksRoot, id, code, hit.point, hit.normal, sizeM, DeckIdForHeight(LocalY(hit.point)), hit.collider.name);
             All.Add(lm); Created?.Invoke(lm); return lm;
         }
 
@@ -46,11 +46,14 @@ namespace ShipHdMap
         void DragTo()
         {
             if (!Physics.Raycast(cam.ScreenPointToRay(Input.mousePosition), out var hit, 500f, StructureMask())) return; // marker colliders are on Landmark, so they never block the drag ray
-            _drag.MoveTo(hit.point, hit.normal, DeckIdForHeight(hit.point.y), hit.collider.name);
+            _drag.MoveTo(hit.point, hit.normal, DeckIdForHeight(LocalY(hit.point)), hit.collider.name);
             if ((_drag.transform.position - _dragStart).sqrMagnitude > 1e-4f) _moved = true;
         }
 
         void EndDrag() { if (_moved) Moved?.Invoke(_drag); _drag = null; _moved = false; }
+
+        /// Deck lookup must use the Map-root-local height: with a 2 deg trim the bow floor is 4 m higher in world space.
+        float LocalY(Vector3 world) => landmarksRoot ? landmarksRoot.InverseTransformPoint(world).y : world.y;
 
         public string DeckIdForHeight(float unityY)
         {
