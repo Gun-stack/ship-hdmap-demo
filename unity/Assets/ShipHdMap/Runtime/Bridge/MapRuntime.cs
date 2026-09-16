@@ -39,6 +39,7 @@ namespace ShipHdMap
                 var (x, y, z) = ShipFrame.ToShip(lm.transform.position);
                 Send(BridgeMessages.OnFeatureCreated, MapJson.Serialize(new FeatureCreatedEvt { tempId = lm.id, layer = "LM", x = x, y = y, z = z, deck = lm.deckId, mounted_on = lm.mountedOn })); };
             Placer.Selected += lm => { Highlight(lm.id); Send(BridgeMessages.OnSelected, "{\"id\":\"" + lm.id + "\"}"); };
+            Placer.Moved += OnMarkerMoved;
             if (_seed != null && Emit != null) Send(BridgeMessages.OnSeedReady, MapJson.Serialize(_seed));
         }
 
@@ -92,6 +93,13 @@ namespace ShipHdMap
 
         public void Confirm(string json) { var c = MapJson.Parse<ConfirmMsg>(json); if (_markers.TryGetValue(c.tempId, out var m)) { _markers.Remove(c.tempId); m.id = c.id; m.name = c.id; _markers[c.id] = m; MapRefs[c.id] = MapRefs[c.tempId]; MapRefs.Remove(c.tempId); if (_selected == c.tempId) _selected = c.id; } }
         public void SetPose(string json) { /* M5 */ }
+
+        /// Drag ended in the scene: refresh the localization map entry and tell the web, which persists it (PUT) — the scene never commits a move itself.
+        public void OnMarkerMoved(LandmarkMarker lm)
+        {
+            var m = lm.ToModel(); MapRefs[lm.id] = RefOf(m);
+            Send(BridgeMessages.OnFeatureMoved, MapJson.Serialize(new FeatureMovedEvt { id = lm.id, x = m.position[0], y = m.position[1], z = m.position[2], normal = m.normal, deck = lm.deckId, mounted_on = lm.mountedOn }));
+        }
 
         public void SetNoise(string json)
         {

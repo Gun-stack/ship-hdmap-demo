@@ -75,5 +75,19 @@ namespace ShipHdMap.Tests
             var json = MapJson.Serialize(new FeatureCreatedEvt { tempId = "LM-0002", layer = "LM", x = 1, y = 2, z = 3, deck = "D3", mounted_on = "C-PILLAR-D3-001" });
             Assert.That(json, Does.Contain("mounted_on")); Assert.That(json, Does.Contain("C-PILLAR-D3-001"));
         }
+
+        [Test]
+        public void MarkerMovedUpdatesMapRefAndEmits()
+        {
+            go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>(); rt.InitForTest(); rt.Load(Fixture());
+            string name = null, json = null; rt.Emit += (n, j) => { name = n; json = j; };
+            var lm = rt.LandmarksRoot.Find("LM-0001").GetComponent<LandmarkMarker>();
+            lm.MoveTo(ShipFrame.ToUnity(30, 6, 11.8), ShipFrame.ToUnity(0, -1, 0), "D3", "C-PILLAR-D3-009");
+            rt.OnMarkerMoved(lm);
+            Assert.That(rt.MapRefs["LM-0001"].mx, Is.EqualTo(30).Within(1e-3));
+            Assert.That(rt.MapRefs["LM-0001"].phiRad, Is.EqualTo(-System.Math.PI / 2).Within(1e-3));
+            Assert.That(name, Is.EqualTo("onFeatureMoved"));
+            Assert.That(json, Does.Contain("C-PILLAR-D3-009")); Assert.That(json, Does.Contain("normal"));
+        }
     }
 }
