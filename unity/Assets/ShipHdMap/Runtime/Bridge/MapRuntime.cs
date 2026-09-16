@@ -18,7 +18,7 @@ namespace ShipHdMap
         public LandmarkSensor Sensor { get; private set; }
         public VehicleController Vehicle { get; private set; }
         public LandmarkPlacer Placer { get; private set; }
-        public LocalizationHud Hud { get; private set; }
+        public HudView Hud { get; private set; }
         public GameObject Ship { get; private set; }
         public OrbitCamera Orbit { get; private set; }
 
@@ -36,7 +36,7 @@ namespace ShipHdMap
             Ship = GameObject.Find("Ship");
             if (Ship == null) { _seed = ShipSeedBuilder.Build(shipParams); Ship = ShipMeshBuilder.Build(_seed, shipParams); }
             Placer.decks = _seed?.decks ?? new List<Deck>();
-            if (cam == null) cam = Camera.main; Placer.cam = cam;
+            if (cam == null) cam = Camera.main; Placer.cam = cam; Hud.cam = cam;
             Orbit = cam.GetComponent<OrbitCamera>(); if (!Orbit) { Orbit = cam.gameObject.AddComponent<OrbitCamera>(); Orbit.AdoptCurrentPose(); }
             Placer.Created += lm => { _markers[lm.id] = lm; MapRefs[lm.id] = RefOf(lm.ToModel());
                 var (x, y, z) = ShipFrame.ToShip(lm.transform.position);
@@ -62,7 +62,7 @@ namespace ShipHdMap
             body.transform.localScale = new Vector3(4.8f, 1.5f, 1.85f); body.transform.localPosition = new Vector3(0, 0.25f, 0);
             UnityEngine.Object.DestroyImmediate(body.GetComponent<Collider>());
             Placer = gameObject.AddComponent<LandmarkPlacer>(); Placer.landmarksRoot = LandmarksRoot;
-            Hud = gameObject.AddComponent<LocalizationHud>();
+            Hud = gameObject.AddComponent<HudView>();
         }
 
         // ---- incoming (React -> Unity) ----
@@ -83,6 +83,10 @@ namespace ShipHdMap
 
             if (_overlay) DestroyImmediate(_overlay);
             _overlay = MapOverlay.Build(CurrentMap, transform); MapOverlay.SetDeck(_overlay, _deck);
+
+            var labels = new List<(string, Vector3)>();
+            foreach (var d in CurrentMap.decks ?? new List<Deck>()) labels.Add(($"{d.id}  z {d.z_surface:F1} m", ShipFrame.ToUnity(4, 10, d.z_surface + 1.5)));
+            Hud.SetDeckLabels(labels);
         }
 
         public void SetMode(string mode)
@@ -90,7 +94,7 @@ namespace ShipHdMap
             _mode = mode; Placer.enabledForInput = mode == "edit";
             if (mode == "edit") { Vehicle.running = false; if (Orbit) Orbit.follow = null; }
         }
-        public void SetDeck(string deck) { _deck = deck; if (Ship) ShipMeshBuilder.SetDeckVisibility(Ship, deck); if (_overlay) MapOverlay.SetDeck(_overlay, deck); }
+        public void SetDeck(string deck) { _deck = deck; if (Ship) ShipMeshBuilder.SetDeckVisibility(Ship, deck); if (_overlay) MapOverlay.SetDeck(_overlay, deck); Hud.SetContext(_deck, _selected); }
         public void Select(string id) => Highlight(id);
 
         /// Scene-side selection: at most one halo. Does not emit — the web already knows what it selected.
@@ -100,6 +104,7 @@ namespace ShipHdMap
             _selected = id != null && _markers.ContainsKey(id) ? id : null;
             if (_selected != null) _markers[_selected].SetHighlighted(true);
             if (_selected != null && Orbit) Orbit.Focus(_markers[_selected].transform.position, 12f);
+            Hud.SetContext(_deck, _selected);
         }
 
         public void Confirm(string json) { var c = MapJson.Parse<ConfirmMsg>(json); if (_markers.TryGetValue(c.tempId, out var m)) { _markers.Remove(c.tempId); m.id = c.id; m.name = c.id; _markers[c.id] = m; MapRefs[c.id] = MapRefs[c.tempId]; MapRefs.Remove(c.tempId); if (_selected == c.tempId) _selected = c.id; } }
