@@ -80,5 +80,17 @@ namespace ShipHdMap
     }
 
     /// Marks a slot fill quad and remembers its status for re-colouring on selection.
-    public class SlotFill : MonoBehaviour { public string status = "empty"; }
+    public class SlotFill : MonoBehaviour
+    {
+        public string status = "empty";
+
+        /// Covers a fill destroyed on its own; DestroyImmediate on an ancestor does not reliably dispatch
+        /// child OnDestroy in the editor, so MapRuntime.Load also frees fill meshes explicitly before that call.
+        void OnDestroy()
+        {
+            var m = GetComponent<MeshFilter>()?.sharedMesh;
+            if (!m) return;
+            if (Application.isPlaying) Destroy(m); else DestroyImmediate(m);
+        }
+    }
 }

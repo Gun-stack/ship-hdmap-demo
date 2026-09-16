@@ -122,9 +122,18 @@ namespace ShipHdMap.Tests
             rt.SetDeck("D3");
             Assert.That(overlay.Find("D1/A2-D1-0001").GetComponent<LineRenderer>().enabled, Is.False);
             Assert.That(overlay.Find("D3/A2-D3-0001").GetComponent<LineRenderer>().enabled, Is.True);
+            int fillMeshesBefore = CountFillMeshes();
             rt.Load(Fixture()); // rebuild keeps the filter and does not duplicate
             Assert.That(rt.transform.Find("Overlay").GetComponentsInChildren<LineRenderer>(true).Length, Is.EqualTo(5));
             Assert.That(rt.transform.Find("Overlay/D1/A2-D1-0001").GetComponent<LineRenderer>().enabled, Is.False);
+            Assert.That(CountFillMeshes(), Is.EqualTo(fillMeshesBefore)); // the old overlay's fill meshes were destroyed, not leaked
+        }
+
+        static int CountFillMeshes()
+        {
+            int n = 0;
+            foreach (var m in Resources.FindObjectsOfTypeAll<Mesh>()) if (m && m.name.EndsWith("~fill")) n++;
+            return n;
         }
 
         [Test]
