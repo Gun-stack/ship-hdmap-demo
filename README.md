@@ -9,7 +9,7 @@ RORO(자동차운반선) 선박 내부 정밀지도 편집기와 자율차 로�
 
 ## 구성
 
-- `unity/` Unity 6.3 LTS (WebGL). 편집 모드 + 주행 시뮬레이션 모드, 빌드 하나
+- `unity/` Unity 6.3 LTS (WebGL). 편집 모드 + 주행 시뮬레이션 모드, 빌드 하나, 주행 모드는 연속 적재·하역과 추정 기반 주차 판정
 - `web/` React 19 + Vite + TS + Zustand. Unity WebGL 을 품은 편집기: 갑판 트리·미니맵·속성 폼·pose·주행 패널. `./scripts/m3-dev.sh` 로 실행
 - `api/` Spring Boot 4 + JdbcClient + PostGIS. 데이터셋·피처 CRUD, 시드 적재, vehicle-map(ETag), pose·램프, WGS84 GeoJSON. `./scripts/m2-smoke.sh` 로 종단 확인
 - `db/` docker compose PostGIS 17 (호스트 5433)
@@ -27,6 +27,7 @@ RORO(자동차운반선) 선박 내부 정밀지도 편집기와 자율차 로�
 - 준비: Docker, JDK 25(`JAVA_HOME=/opt/homebrew/opt/openjdk`), Node 22 + pnpm, Unity 6.3(WebGL 빌드 1회: 메뉴 `ShipHdMap/Build WebGL`, HUD 에셋은 저장소에 포함)
 - `./scripts/m3-dev.sh` → http://localhost:5173 (PostGIS 5433, API 8081)
 - API 만: `./scripts/m2-smoke.sh`
+- 픽스처를 다시 시드했으면 적재 계획 패널에서 구획을 재생성한다(래싱 매핑 100 %)
 
 ## 상태
 
@@ -35,5 +36,6 @@ RORO(자동차운반선) 선박 내부 정밀지도 편집기와 자율차 로�
 - M3a 웹 편집기 완료 (브라우저 편집 → DB 반영, Vitest 15)
 - M3b Unity 씬 UX 완료 (궤도 카메라, 클릭 선택·드래그 이동 → DB, 차로·구획 라인, UI Toolkit HUD; EditMode 49, Vitest 19)
 - M4 적재 계획 완료 (갑판별 구획 자동생성 API, 적재 계획 패널 KPI, 3D 구획 채움면; api 42, EditMode 53, Vitest 22)
-- 다음: M5 주행 시나리오·pose
+- M5a 갑판 주행·pose 완료 (연속 선적·하역 시나리오, 추정 기반 주차 판정 → DB status, pose 로 선체 기울임·램프 각도, 시나리오 로그; api 42, EditMode 75, Vitest 26)
+- 다음: M5b 부두·프레임 전환
 - 상세: `docs/superpowers/specs/2026-09-15-ship-hdmap-demo-design.md`

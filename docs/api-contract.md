@@ -24,5 +24,5 @@
 
 ## 브리지 (React ↔ Unity, 스펙 §10)
 
-- R→U `sendMessage("Map", name, json)`: `Load`, `SetMode("edit"|"drive")`, `SetDeck("D3"|"all")`, `Select(id)`(씬 하이라이트만; 에코 없음; 빈 문자열이면 해제), `Confirm({tempId,id})`, `Delete(id)`, `SetNoise({sigma_r,sigma_theta,sigma_alpha,sigma_gps})`, `StartScenario({mode})`
-- U→R 이벤트(`addEventListener(name, (json) => …)`): `onSeedReady`, `onFeatureCreated{tempId,layer,x,y,z,deck,mounted_on,normal}`, `onFeatureMoved{id,x,y,z,normal,deck,mounted_on}`, `onSelected{id}`, `onLocalization{est_x,est_y,est_psi,true_x,true_y,true_psi,residual_rms,n_obs,frame}`
+- R→U `sendMessage("Map", name, json)`: `Load`, `SetMode("edit"|"drive")`(edit 는 시나리오 중단·차량 숨김·배율 1), `SetDeck("D3"|"all")`, `Select(id)`(씬 하이라이트만; 에코 없음; 빈 문자열이면 해제), `Confirm({tempId,id})`, `Delete(id)`, `SetNoise({sigma_r,sigma_theta,sigma_alpha,sigma_gps})`, `SetPose({draft_fwd_m,draft_aft_m,heel_deg,lpp_m,ramp?:{id,angle_deg,state}})`(Map 루트 회전 + 램프 각도; 각도는 API 가 계산), `StartScenario({mode:"load"|"unload"})`(맵은 `Load` 된 것; 연속 적재/하역), `SetTimeScale({scale})`
+- U→R 이벤트(`addEventListener(name, (json) => …)`): `onSeedReady`, `onFeatureCreated{tempId,layer,x,y,z,deck,mounted_on,normal}`, `onFeatureMoved{id,x,y,z,normal,deck,mounted_on}`, `onSelected{id}`, `onLocalization{est_x,est_y,est_psi,true_x,true_y,true_psi,residual_rms,n_obs,frame}`, `onSlotFilled{slot_id,status,err_lat?,err_lon?,err_heading?}`(하역 완료는 `status:"empty"`, 오차 없음; 웹이 `PUT /slots/{sid}/status`), `onScenario{event:start|target|leave_lane|finished,mode?,slot_id?,detail?}`
