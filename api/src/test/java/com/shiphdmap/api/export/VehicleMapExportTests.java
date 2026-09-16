@@ -7,7 +7,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import tools.jackson.databind.ObjectMapper;
 import com.shiphdmap.api.TestcontainersConfiguration;
 import com.shiphdmap.api.dataset.DatasetController;
-import com.shiphdmap.api.dataset.SeedImportTests;
 import com.shiphdmap.api.dataset.SeedImporter;
 import com.shiphdmap.api.model.SeedData;
 import com.shiphdmap.api.model.VehicleMap;
@@ -45,7 +44,7 @@ class VehicleMapExportTests {
 	}
 
 	@Test
-	void assembledMapMatchesFixtureContent() throws Exception {
+	void assembledMapMatchesFixtureContent() {
 		VehicleMap m = assembler.assemble(DS);
 		assertThat(m.schema()).isEqualTo(VehicleMap.SCHEMA);
 		assertThat(m.mapId()).isEqualTo(DS);
@@ -66,7 +65,7 @@ class VehicleMapExportTests {
 		assertThat(ps.targetPose().x()).isEqualTo(102.4);
 		assertThat(ps.lashingPoints()).hasSize(4);
 		assertThat(ps.accessLaneId()).isEqualTo("A2-D3-0001");
-		assertThat(m.lashingPoints()).hasSize(SeedImportTests.fixtureLashingCount(json));
+		assertThat(m.lashingPoints()).hasSize(fixture.lashingPoints().size());
 		assertThat(m.facilities()).hasSize(18);
 		assertThat(m.ramps()).hasSize(1);
 		assertThat(m.ramps().get(0).transitionLandmarks()).containsExactly("LM-0001", "LM-0002");

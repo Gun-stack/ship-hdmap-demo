@@ -34,5 +34,14 @@ namespace ShipHdMap.Tests
             Assert.That(lm1.position[2], Is.EqualTo(11.2 + 1.2).Within(1e-9));
             Assert.That(lms.First(l => l.id == "LM-0019").position[1], Is.EqualTo(14.9).Within(1e-9));
         }
+
+        [Test]
+        public void BuildMapExportsTheWholeDeckThreeLashingGrid()
+        {
+            var seed = ShipSeedBuilder.Build(new ShipParams());
+            var map = FixtureExporter.BuildMap(seed, new VehicleMap(), FixtureExporter.SeedLandmarks(seed));
+            Assert.That(map.lashing_points.Count, Is.EqualTo(seed.lashing_points.Count(l => l.deck_id == "D3")));
+            Assert.That(map.lashing_points.Count, Is.GreaterThan(1000));
+        }
     }
 }

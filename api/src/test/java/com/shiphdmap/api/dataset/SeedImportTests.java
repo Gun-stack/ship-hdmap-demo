@@ -46,8 +46,9 @@ public class SeedImportTests {
 
 	@Test
 	void importsFixtureIntoFourTables() throws Exception {
-		int lp = fixtureLashingCount(json);
-		Map<String, Object> r = importer.importSeed("roro-demo-01", fixtureAsSeed(json));
+		SeedData seed = fixtureAsSeed(json);
+		int lp = seed.lashingPoints().size();
+		Map<String, Object> r = importer.importSeed("roro-demo-01", seed);
 		assertThat(r).containsEntry("decks", 3).containsEntry("parking_slots", 2);
 		assertThat(db.sql("SELECT count(*) FROM deck WHERE dataset_id = 'roro-demo-01'").query(Integer.class).single()).isEqualTo(3);
 		assertThat(db.sql("SELECT count(*) FROM feature WHERE dataset_id = 'roro-demo-01' AND layer = 'LM'").query(Integer.class).single()).isEqualTo(19);
@@ -67,9 +68,10 @@ public class SeedImportTests {
 
 	@Test
 	void reimportUpsertsWithoutDuplicates() throws Exception {
-		importer.importSeed("roro-demo-01", fixtureAsSeed(json));
-		importer.importSeed("roro-demo-01", fixtureAsSeed(json));
-		assertThat(db.sql("SELECT count(*) FROM feature WHERE dataset_id = 'roro-demo-01'").query(Integer.class).single()).isEqualTo(19 + 18 + 1 + 3 + fixtureLashingCount(json) + 2);
+		SeedData seed = fixtureAsSeed(json);
+		importer.importSeed("roro-demo-01", seed);
+		importer.importSeed("roro-demo-01", seed);
+		assertThat(db.sql("SELECT count(*) FROM feature WHERE dataset_id = 'roro-demo-01'").query(Integer.class).single()).isEqualTo(19 + 18 + 1 + 3 + seed.lashingPoints().size() + 2);
 		assertThat(db.sql("SELECT version FROM dataset WHERE id = 'roro-demo-01'").query(Integer.class).single()).isEqualTo(3);
 	}
 

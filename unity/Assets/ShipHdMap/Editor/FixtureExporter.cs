@@ -64,7 +64,7 @@ namespace ShipHdMap.Editor
         /// and the whole Deck 3 lashing grid, so slot.access_lane_id and slot.lashing_points always resolve inside
         /// the fixture instead of pointing at pre-regeneration ids (spec bug: was A2-0001 / LP-0001.. against seed
         /// A2-D3-0001 / LP-D3-....).
-        static VehicleMap BuildMap(SeedData seed, VehicleMap existing, List<Landmark> landmarks)
+        public static VehicleMap BuildMap(SeedData seed, VehicleMap existing, List<Landmark> landmarks)
         {
             var d3Lashing = seed.lashing_points.Where(l => l.deck_id == "D3").ToList();
             var slots = existing.parking_slots ?? new List<ParkingSlot>();
@@ -102,7 +102,7 @@ namespace ShipHdMap.Editor
 
         static (double x, double y) PillarCenter(Facility f) => ((f.footprint[0][0] + f.footprint[2][0]) / 2, (f.footprint[0][1] + f.footprint[2][1]) / 2);
 
-        static Landmark Lm(string id, int code, double x, double y, double z, double nx, double ny, double nz, string mountedOn, string deckId = "D3") =>
+        static Landmark Lm(string id, int code, double x, double y, double z, double nx, double ny, double nz, string mountedOn, string deckId) =>
             new Landmark { id = id, marker = new Marker { family = "apriltag-36h11", code = code },
                 position = new[] { x, y, z }, normal = new[] { nx, ny, nz }, size_m = 0.30, deck_id = deckId, mounted_on = mountedOn };
     }
