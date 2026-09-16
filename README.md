@@ -24,7 +24,7 @@ RORO(자동차운반선) 선박 내부 정밀지도 편집기와 자율차 로�
 
 ## 실행
 
-- 준비: Docker, JDK 25(`JAVA_HOME=/opt/homebrew/opt/openjdk`), Node 22 + pnpm, Unity 6.3(WebGL 빌드 1회: 메뉴 `ShipHdMap/Build WebGL`)
+- 준비: Docker, JDK 25(`JAVA_HOME=/opt/homebrew/opt/openjdk`), Node 22 + pnpm, Unity 6.3(WebGL 빌드 1회: 메뉴 `ShipHdMap/Build WebGL`, HUD 에셋은 저장소에 포함)
 - `./scripts/m3-dev.sh` → http://localhost:5173 (PostGIS 5433, API 8081)
 - API 만: `./scripts/m2-smoke.sh`
 
@@ -33,5 +33,6 @@ RORO(자동차운반선) 선박 내부 정밀지도 편집기와 자율차 로�
 - M1 Unity 수직 슬라이스 완료 (EditMode 테스트 39)
 - M2 데이터·API 완료 (Testcontainers 테스트, 스모크 스크립트, QGIS 절차 `docs/qgis-check.md`)
 - M3a 웹 편집기 완료 (브라우저 편집 → DB 반영, Vitest 15)
-- 다음: M3b Unity 씬 UX
+- M3b Unity 씬 UX 완료 (궤도 카메라, 클릭 선택·드래그 이동 → DB, 차로·구획 라인, UI Toolkit HUD; EditMode 49, Vitest 19)
+- 다음: M4 적재 계획
 - 상세: `docs/superpowers/specs/2026-09-15-ship-hdmap-demo-design.md`
