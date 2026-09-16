@@ -15,7 +15,7 @@ export function PropertyForm({ send }: { send: Send }) {
   useEffect(() => {
     setErr(null);
     if (draft) { setDeck(draft.deck_id); setKind("apriltag"); const y = (draft.geometry.coordinates as number[])[1];
-      setPropsText(JSON.stringify({ family: "apriltag-36h11", code: nextCode(Object.values(s.features)), normal: y < 0 ? [0, 1, 0] : [0, -1, 0], size_m: 0.3, mounted_on: "" }, null, 1)); }
+      setPropsText(JSON.stringify({ family: "apriltag-36h11", code: nextCode(Object.values(s.features)), normal: y < 0 ? [0, 1, 0] : [0, -1, 0], size_m: 0.3, mounted_on: (draft.props.mounted_on as string) ?? "" }, null, 1)); }
     else if (feat) { setDeck(feat.deck_id ?? ""); setKind(feat.kind); setPropsText(JSON.stringify(feat.props, null, 1)); }
   }, [id, draft, feat]); // eslint-disable-line react-hooks/exhaustive-deps
 

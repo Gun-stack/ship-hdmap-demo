@@ -7,5 +7,6 @@ export type Dataset = { id: string; name: string; ship_name?: string; version: n
 export type Pose = { draft_fwd_m?: number; draft_aft_m?: number; heel_deg?: number; heading_deg?: number; tide_m?: number; quay_z_m?: number; ap_lat?: number; ap_lon?: number; measured_at?: string; trim_deg?: number };
 export type RampState = { id: string; length_m: number; width_m?: number; angle_deg: number; state: "deployed" | "blocked"; connects_lane?: string };
 /** Unity -> React events (spec §10). */
-export type FeatureCreatedEvt = { tempId: string; layer: Layer; x: number; y: number; z: number; deck: string };
+export type FeatureCreatedEvt = { tempId: string; layer: Layer; x: number; y: number; z: number; deck: string; mounted_on?: string };
+export type FeatureMovedEvt = { id: string; x: number; y: number; z: number; normal: number[]; deck: string; mounted_on: string };
 export type LocalizationEvt = { est_x: number; est_y: number; est_psi: number; true_x: number; true_y: number; true_psi: number; residual_rms: number; n_obs: number; frame: string };

@@ -26,7 +26,7 @@ export default function App() {
         <LayerTree />
         <MiniMap />
       </aside>
-      <main className="center">
+      <main className="center" onContextMenu={(e) => e.preventDefault()}>
         {!isLoaded && <div className="loading">Unity 로딩 중…</div>}
         <Unity unityProvider={unityProvider} style={{ width: "100%", height: "100%" }} />
       </main>

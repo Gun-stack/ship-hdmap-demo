@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { api } from "../api/client";
-import type { Dataset, Deck, Feature, FeatureCreatedEvt, FeatureIn, Geometry, Layer, LocalizationEvt, Pose, RampState } from "../api/types";
+import type { Dataset, Deck, Feature, FeatureCreatedEvt, FeatureIn, FeatureMovedEvt, Geometry, Layer, LocalizationEvt, Pose, RampState } from "../api/types";
 
 export type Draft = { tempId: string; layer: Layer; deck_id: string; geometry: Geometry; props: Record<string, unknown> };
 export type Mode = "edit" | "drive";
@@ -16,6 +16,7 @@ export type EditorState = {
   discardDraft: (tempId: string) => void;
   applyDraft: (tempId: string, patch: { kind: string; props?: Record<string, unknown>; deck_id?: string }) => Promise<{ tempId: string; id: string }>;
   updateFeature: (id: string, patch: Partial<FeatureIn>) => Promise<void>;
+  moveFeature: (e: FeatureMovedEvt) => Promise<void>;
   removeFeature: (id: string) => Promise<void>;
   savePose: (patch: Partial<Pose>) => Promise<void>;
   setLocalization: (e: LocalizationEvt | null) => void;
@@ -45,7 +46,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   setDeckFilter: (deckFilter) => set({ deckFilter }),
   setMode: (mode) => set({ mode }),
   addDraft: (e) => set((s) => ({
-    drafts: { ...s.drafts, [e.tempId]: { tempId: e.tempId, layer: e.layer, deck_id: e.deck, geometry: { type: "Point", coordinates: [e.x, e.y, e.z] }, props: {} } },
+    drafts: { ...s.drafts, [e.tempId]: { tempId: e.tempId, layer: e.layer, deck_id: e.deck, geometry: { type: "Point", coordinates: [e.x, e.y, e.z] }, props: { mounted_on: e.mounted_on ?? "" } } },
     selectedId: e.tempId,
   })),
   discardDraft: (tempId) => set((s) => { const drafts = { ...s.drafts }; delete drafts[tempId]; return { drafts, selectedId: s.selectedId === tempId ? null : s.selectedId }; }),
@@ -60,6 +61,12 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     const f = await api.updateFeature(get().datasetId, id, patch);
     set((s) => ({ features: { ...s.features, [id]: f } }));
     await refreshVersion(get);
+  },
+  async moveFeature(e) {
+    const d = get().drafts[e.id];
+    if (d) { set((s) => ({ drafts: { ...s.drafts, [e.id]: { ...d, deck_id: e.deck, geometry: { type: "Point", coordinates: [e.x, e.y, e.z] }, props: { ...d.props, normal: e.normal, mounted_on: e.mounted_on } } } })); return; }
+    const f = get().features[e.id]; if (!f) return;
+    await get().updateFeature(e.id, { deck_id: e.deck, geometry: { type: "Point", coordinates: [e.x, e.y, e.z] }, props: { ...f.props, normal: e.normal, mounted_on: e.mounted_on } });
   },
   async removeFeature(id) {
     await api.deleteFeature(get().datasetId, id);

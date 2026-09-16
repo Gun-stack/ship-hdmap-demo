@@ -78,6 +78,24 @@ describe("editor store", () => {
     expect(api.putPose).toHaveBeenCalledWith("ds1", { tide_m: 1.2 });
   });
 
+  it("moveFeature PUTs geometry, deck and normal for a saved feature", async () => {
+    await useEditorStore.getState().load("ds1");
+    await useEditorStore.getState().moveFeature({ id: "LM-0001", x: 30, y: 6, z: 11.8, normal: [0, -1, 0], deck: "D3", mounted_on: "C-PILLAR-D3-009" });
+    expect(api.updateFeature).toHaveBeenCalledWith("ds1", "LM-0001", { deck_id: "D3", geometry: { type: "Point", coordinates: [30, 6, 11.8] }, props: { code: 1, normal: [0, -1, 0], mounted_on: "C-PILLAR-D3-009" } });
+    expect(useEditorStore.getState().features["LM-0001"].geometry.coordinates).toEqual([30, 6, 11.8]);
+  });
+
+  it("moveFeature on a draft only updates the draft", async () => {
+    await useEditorStore.getState().load("ds1");
+    useEditorStore.getState().addDraft({ tempId: "LM-0002", layer: "LM", x: 84, y: -6.2, z: 11.8, deck: "D3", mounted_on: "C-PILLAR-D3-001" });
+    vi.mocked(api.updateFeature).mockClear();
+    await useEditorStore.getState().moveFeature({ id: "LM-0002", x: 85, y: -6.2, z: 11.8, normal: [0, 1, 0], deck: "D3", mounted_on: "C-PILLAR-D3-002" });
+    expect(api.updateFeature).not.toHaveBeenCalled();
+    const d = useEditorStore.getState().drafts["LM-0002"];
+    expect(d.geometry.coordinates).toEqual([85, -6.2, 11.8]);
+    expect(d.props.mounted_on).toBe("C-PILLAR-D3-002");
+  });
+
   it("writes refresh the dataset version", async () => {
     await useEditorStore.getState().load("ds1");
     expect(useEditorStore.getState().dataset?.version).toBe(3);

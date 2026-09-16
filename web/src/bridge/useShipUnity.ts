@@ -9,7 +9,7 @@ const URLS = { loaderUrl: "/unity/Build/unity.loader.js", dataUrl: "/unity/Build
 
 export function useShipUnity() {
   const { unityProvider, isLoaded, sendMessage, addEventListener, removeEventListener } = useUnityContext(URLS);
-  const { datasetId, dataset, deckFilter, selectedId, mode, addDraft, select, setLocalization } = useEditorStore();
+  const { datasetId, dataset, deckFilter, selectedId, mode, addDraft, select, setLocalization, moveFeature } = useEditorStore();
   const loadedOnce = useRef(false);
   const loading = useRef(false);
 
@@ -23,9 +23,10 @@ export function useShipUnity() {
     const onCreated = (json: string) => addDraft(JSON.parse(json));
     const onSelected = (json: string) => select(JSON.parse(json).id ?? null);
     const onLoc = (json: string) => setLocalization(JSON.parse(json));
-    addEventListener("onFeatureCreated", onCreated); addEventListener("onSelected", onSelected); addEventListener("onLocalization", onLoc);
-    return () => { removeEventListener("onFeatureCreated", onCreated); removeEventListener("onSelected", onSelected); removeEventListener("onLocalization", onLoc); };
-  }, [addEventListener, removeEventListener, addDraft, select, setLocalization]);
+    const onMoved = (json: string) => { void moveFeature(JSON.parse(json)).catch((e) => useEditorStore.setState({ error: "move failed: " + (e as Error).message })); };
+    addEventListener("onFeatureCreated", onCreated); addEventListener("onSelected", onSelected); addEventListener("onLocalization", onLoc); addEventListener("onFeatureMoved", onMoved);
+    return () => { removeEventListener("onFeatureCreated", onCreated); removeEventListener("onSelected", onSelected); removeEventListener("onLocalization", onLoc); removeEventListener("onFeatureMoved", onMoved); };
+  }, [addEventListener, removeEventListener, addDraft, select, setLocalization, moveFeature]);
 
   // initial Load: the vehicle-map body is exactly the Load payload (spec §10)
   useEffect(() => {
