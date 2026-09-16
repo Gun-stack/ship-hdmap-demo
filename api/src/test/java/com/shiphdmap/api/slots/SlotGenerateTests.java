@@ -46,7 +46,7 @@ class SlotGenerateTests {
 		int count = (Integer) r.get("count");
 		assertThat(db.sql("SELECT count(*) FROM parking_slot WHERE dataset_id = :ds").param("ds", DS).query(Integer.class).single()).isEqualTo(count);
 		assertThat(db.sql("SELECT count(*) FROM feature WHERE dataset_id = :ds AND id IN ('PS-D3-001','PS-D3-002') AND kind = 'parking_slot'").param("ds", DS).query(Integer.class).single()).isEqualTo(2); // ids reused, rows replaced
-		// the fixture's two slots referenced lashing points the fixture carried; the fixture only ships 49 LP so most generated slots have none
+		// the fixture now ships the whole Deck 3 lashing grid, so slot generation maps every corner to a socket
 		mvc.perform(get("/api/datasets/" + DS + "/vehicle-map")).andExpect(status().isOk()).andExpect(jsonPath("$.parking_slots.length()").value(count));
 	}
 

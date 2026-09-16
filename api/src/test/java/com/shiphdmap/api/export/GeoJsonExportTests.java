@@ -9,6 +9,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import com.shiphdmap.api.TestcontainersConfiguration;
 import com.shiphdmap.api.dataset.DatasetController;
+import com.shiphdmap.api.dataset.SeedImportTests;
 import com.shiphdmap.api.dataset.SeedImporter;
 import com.shiphdmap.api.geo.ShipFrame;
 import com.shiphdmap.api.model.SeedData;
@@ -66,7 +67,7 @@ class GeoJsonExportTests {
 		assertThat(lm1.get("properties").get("code").asInt()).isEqualTo(1);
 		assertThat(deck3.get("geometry").get("type").asText()).isEqualTo("Polygon");
 		assertThat(deck3.get("geometry").get("coordinates").get(0)).hasSize(5);
-		assertThat(fc.get("features").size()).isEqualTo(3 + 19 + 18 + 1 + 3 + 49 + 2);
+		assertThat(fc.get("features").size()).isEqualTo(3 + 19 + 18 + 1 + 3 + SeedImportTests.fixtureLashingCount(json) + 2);
 	}
 
 	@Test

@@ -36,11 +36,17 @@ public class SeedImportTests {
 		return new SeedData(m.decks(), m.facilities(), m.lashingPoints(), m.ramps(), m.lanes(), m.parkingSlots(), m.landmarks(), m.markings());
 	}
 
+	/** Lashing-point count of the fixture; tests compare against this instead of a literal so a regenerated fixture does not break them. */
+	public static int fixtureLashingCount(ObjectMapper json) throws Exception {
+		return json.readValue(Files.readString(Path.of("..", "docs", "fixtures", "vehicle-map.sample.json")), VehicleMap.class).lashingPoints().size();
+	}
+
 	@BeforeEach
 	void clean() { db.sql("DELETE FROM dataset").update(); datasets.create(new DatasetController.NewDataset("roro-demo-01", "RORO demo", "Demo Ship", 12.3456, 45.6789, 87.5, 120.0)); }
 
 	@Test
 	void importsFixtureIntoFourTables() throws Exception {
+		int lp = fixtureLashingCount(json);
 		Map<String, Object> r = importer.importSeed("roro-demo-01", fixtureAsSeed(json));
 		assertThat(r).containsEntry("decks", 3).containsEntry("parking_slots", 2);
 		assertThat(db.sql("SELECT count(*) FROM deck WHERE dataset_id = 'roro-demo-01'").query(Integer.class).single()).isEqualTo(3);
@@ -48,7 +54,7 @@ public class SeedImportTests {
 		assertThat(db.sql("SELECT count(*) FROM feature WHERE dataset_id = 'roro-demo-01' AND layer = 'C' AND kind = 'pillar'").query(Integer.class).single()).isEqualTo(18);
 		assertThat(db.sql("SELECT count(*) FROM feature WHERE dataset_id = 'roro-demo-01' AND kind = 'ramp'").query(Integer.class).single()).isEqualTo(1);
 		assertThat(db.sql("SELECT count(*) FROM feature WHERE dataset_id = 'roro-demo-01' AND layer = 'A2'").query(Integer.class).single()).isEqualTo(3);
-		assertThat(db.sql("SELECT count(*) FROM feature WHERE dataset_id = 'roro-demo-01' AND layer = 'LP'").query(Integer.class).single()).isEqualTo(49);
+		assertThat(db.sql("SELECT count(*) FROM feature WHERE dataset_id = 'roro-demo-01' AND layer = 'LP'").query(Integer.class).single()).isEqualTo(lp);
 		assertThat(db.sql("SELECT version FROM dataset WHERE id = 'roro-demo-01'").query(Integer.class).single()).isEqualTo(2);
 		// geometry really is Z and in Ship Frame: LM-0001 at (12, -6.2, 11.8)
 		String gj = db.sql("SELECT ST_AsGeoJSON(geom)::text FROM feature WHERE dataset_id = 'roro-demo-01' AND id = 'LM-0001'").query(String.class).single();
@@ -63,7 +69,7 @@ public class SeedImportTests {
 	void reimportUpsertsWithoutDuplicates() throws Exception {
 		importer.importSeed("roro-demo-01", fixtureAsSeed(json));
 		importer.importSeed("roro-demo-01", fixtureAsSeed(json));
-		assertThat(db.sql("SELECT count(*) FROM feature WHERE dataset_id = 'roro-demo-01'").query(Integer.class).single()).isEqualTo(19 + 18 + 1 + 3 + 49 + 2);
+		assertThat(db.sql("SELECT count(*) FROM feature WHERE dataset_id = 'roro-demo-01'").query(Integer.class).single()).isEqualTo(19 + 18 + 1 + 3 + fixtureLashingCount(json) + 2);
 		assertThat(db.sql("SELECT version FROM dataset WHERE id = 'roro-demo-01'").query(Integer.class).single()).isEqualTo(3);
 	}
 
