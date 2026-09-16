@@ -31,7 +31,7 @@ export function useShipUnity() {
   useEffect(() => {
     if (!isLoaded || loadedOnce.current || loading.current || dataset === null) return;
     loading.current = true;
-    fetch(api.vehicleMapUrl(datasetId)).then((r) => r.text()).then((json) => {
+    fetch(api.vehicleMapUrl(datasetId)).then((r) => { if (!r.ok) throw new Error("vehicle-map HTTP " + r.status); return r.text(); }).then((json) => {
       loadedOnce.current = true;
       send("Load", json); send("SetMode", mode); send("SetDeck", deckFilter);
     }).catch((e) => useEditorStore.setState({ error: "vehicle-map load failed: " + (e as Error).message }))

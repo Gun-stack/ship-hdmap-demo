@@ -6,7 +6,7 @@ export function DeckTabs() {
   return (
     <div className="panel decktabs">
       <h4>갑판</h4>
-      {ids.map((id) => <span key={id} className={deckFilter === id ? "on" : ""} onClick={() => setDeckFilter(id)}>{id === "all" ? "전체" : id}</span>)}
+      {ids.map((id) => <button type="button" key={id} className={deckFilter === id ? "on" : ""} onClick={() => setDeckFilter(id)}>{id === "all" ? "전체" : id}</button>)}
     </div>
   );
 }

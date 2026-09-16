@@ -20,4 +20,7 @@ if [ "$(curl -s -o /dev/null -w '%{http_code}' "$API/datasets/$DS")" != "200" ];
   echo "seeded $DS"
 fi
 [ -f "$ROOT/web/public/unity/Build/unity.loader.js" ] || echo "WARN: no WebGL build at web/public/unity — run the Unity menu ShipHdMap/Build WebGL first"
-cd "$ROOT/web" && pnpm install --frozen-lockfile >/dev/null && pnpm dev
+cd "$ROOT/web" && pnpm install --frozen-lockfile >/dev/null
+pnpm dev & VITE_PID=$!
+trap 'kill $VITE_PID $BOOT_PID 2>/dev/null || true; pkill -f "com.shiphdmap.api.ApiApplication" 2>/dev/null || true' EXIT
+wait $VITE_PID

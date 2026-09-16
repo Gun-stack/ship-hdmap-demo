@@ -25,6 +25,11 @@ export type EditorState = {
 
 const RAMP_ID = "RAMP-STERN";
 
+/** After any write the server bumped dataset.version; fetch it so the top bar stays honest. Failure is not an error worth showing. */
+async function refreshVersion(get: () => EditorState) {
+  try { const d = await api.getDataset(get().datasetId); get().bumpVersion(d.version); } catch { /* keep the old value */ }
+}
+
 export const useEditorStore = create<EditorState>()((set, get) => ({
   datasetId: "roro-demo-01", dataset: null, decks: [], features: {}, drafts: {}, selectedId: null, deckFilter: "all", mode: "edit",
   pose: null, ramp: null, localization: null, error: null,
@@ -48,15 +53,18 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     const d = get().drafts[tempId]; if (!d) throw new Error("no draft " + tempId);
     const created = await api.createFeature(get().datasetId, { layer: d.layer, deck_id: patch.deck_id ?? d.deck_id, kind: patch.kind, geometry: d.geometry, props: patch.props ?? d.props });
     set((s) => { const drafts = { ...s.drafts }; delete drafts[tempId]; return { drafts, features: { ...s.features, [created.id]: created }, selectedId: created.id }; });
+    await refreshVersion(get);
     return { tempId, id: created.id };
   },
   async updateFeature(id, patch) {
     const f = await api.updateFeature(get().datasetId, id, patch);
     set((s) => ({ features: { ...s.features, [id]: f } }));
+    await refreshVersion(get);
   },
   async removeFeature(id) {
     await api.deleteFeature(get().datasetId, id);
     set((s) => { const features = { ...s.features }; delete features[id]; return { features, selectedId: s.selectedId === id ? null : s.selectedId }; });
+    await refreshVersion(get);
   },
   async savePose(patch) {
     const pose = await api.putPose(get().datasetId, patch);

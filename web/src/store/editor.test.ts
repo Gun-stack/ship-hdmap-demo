@@ -77,4 +77,12 @@ describe("editor store", () => {
     expect(useEditorStore.getState().pose?.tide_m).toBe(1.2);
     expect(api.putPose).toHaveBeenCalledWith("ds1", { tide_m: 1.2 });
   });
+
+  it("writes refresh the dataset version", async () => {
+    await useEditorStore.getState().load("ds1");
+    expect(useEditorStore.getState().dataset?.version).toBe(3);
+    vi.mocked(api.getDataset).mockResolvedValueOnce({ id: "ds1", name: "d", version: 4, ap_lat: 0, ap_lon: 0, heading_deg: 0, lpp_m: 120 });
+    await useEditorStore.getState().updateFeature("LM-0001", { props: { code: 9 } });
+    expect(useEditorStore.getState().dataset?.version).toBe(4);
+  });
 });

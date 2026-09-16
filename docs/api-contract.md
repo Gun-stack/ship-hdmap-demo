@@ -23,5 +23,5 @@
 
 ## 브리지 (React ↔ Unity, 스펙 §10)
 
-- R→U `sendMessage("Map", name, json)`: `Load`, `SetMode("edit"|"drive")`, `SetDeck("D3"|"all")`, `Select(id)`, `Confirm({tempId,id})`, `Delete(id)`, `SetNoise({sigma_r,sigma_theta,sigma_alpha,sigma_gps})`, `StartScenario({mode})`
-- U→R 이벤트(`addEventListener(name, (json) => …)`): `onSeedReady`, `onFeatureCreated{tempId,layer,x,y,z,deck}`, `onSelected{id}`, `onLocalization{est_x,est_y,est_psi,true_x,true_y,true_psi,residual_rms,n_obs,frame}`
+- R→U `sendMessage("Map", name, json)`: `Load`, `SetMode("edit"|"drive")`, `SetDeck("D3"|"all")`, `Select(id)`(씬 하이라이트만; 에코 없음), `Confirm({tempId,id})`, `Delete(id)`, `SetNoise({sigma_r,sigma_theta,sigma_alpha,sigma_gps})`, `StartScenario({mode})`
+- U→R 이벤트(`addEventListener(name, (json) => …)`): `onSeedReady`, `onFeatureCreated{tempId,layer,x,y,z,deck,mounted_on}`, `onFeatureMoved{id,x,y,z,normal,deck,mounted_on}`, `onSelected{id}`, `onLocalization{est_x,est_y,est_psi,true_x,true_y,true_psi,residual_rms,n_obs,frame}`

@@ -2,7 +2,7 @@
 html, body, #root { height: 100%; margin: 0; font: 13px/1.4 system-ui, sans-serif; background: #f4f5f7; color: #222; }
 .app { height: 100%; display: grid; grid-template-columns: 300px 1fr 340px; grid-template-rows: 40px 1fr 28px; grid-template-areas: "top top top" "left center right" "status status status"; }
 .topbar { grid-area: top; display: flex; align-items: center; gap: 12px; padding: 0 12px; background: #2b2f36; color: #eee; }
-.topbar .tab { padding: 3px 10px; border-radius: 4px; background: #444; cursor: pointer; }
+.topbar .tab { padding: 3px 10px; border-radius: 4px; background: #444; color: inherit; border: 0; font: inherit; cursor: pointer; }
 .topbar .tab.on { background: #1e88e5; }
 .topbar .spacer { flex: 1; }
 .topbar a { color: #9cf; }
@@ -21,6 +21,6 @@ html, body, #root { height: 100%; margin: 0; font: 13px/1.4 system-ui, sans-seri
 .tree li { list-style: none; padding: 1px 4px; cursor: pointer; }
 .tree li.sel { background: #e3f2fd; }
 .tree ul { margin: 0; padding-left: 14px; }
-.decktabs span { display: inline-block; border: 1px solid #999; border-radius: 3px; padding: 1px 8px; margin: 2px; cursor: pointer; }
-.decktabs span.on { background: #1e88e5; color: #fff; border-color: #1e88e5; }
+.decktabs button { display: inline-block; border: 1px solid #999; border-radius: 3px; padding: 1px 8px; margin: 2px; cursor: pointer; font: inherit; background: #fff; color: inherit; }
+.decktabs button.on { background: #1e88e5; color: #fff; border-color: #1e88e5; }
 .err { color: #c62828; }

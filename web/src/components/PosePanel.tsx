@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ApiError } from "../api/client";
 import { useEditorStore } from "../store/editor";
 import type { Pose } from "../api/types";
@@ -14,9 +14,11 @@ export function PosePanel() {
   const { pose, ramp, savePose } = useEditorStore();
   const [local, setLocal] = useState<Pose>({});
   const [err, setErr] = useState<string | null>(null);
-  useEffect(() => { if (pose) setLocal(pose); }, [pose]);
+  const dragging = useRef(false);
+  useEffect(() => { if (pose && !dragging.current) setLocal(pose); }, [pose]);
   if (!pose) return null;
   const commit = (key: keyof Pose) => {
+    dragging.current = false;
     const v = local[key];
     if (typeof v === "number" && v !== pose[key]) {
       setErr(null);
@@ -31,7 +33,8 @@ export function PosePanel() {
         <div className="row" key={f.key}>
           <label>{f.label}</label>
           <input type="range" min={f.min} max={f.max} step={f.step} value={(local[f.key] as number) ?? f.min}
-            onChange={(e) => setLocal({ ...local, [f.key]: Number(e.target.value) })} onMouseUp={() => commit(f.key)} onKeyUp={() => commit(f.key)} onTouchEnd={() => commit(f.key)} />
+            onChange={(e) => setLocal({ ...local, [f.key]: Number(e.target.value) })} onMouseUp={() => commit(f.key)} onKeyUp={() => commit(f.key)} onTouchEnd={() => commit(f.key)}
+            onMouseDown={() => { dragging.current = true; }} onTouchStart={() => { dragging.current = true; }} />
           <span style={{ width: 52, textAlign: "right" }}>{(local[f.key] as number)?.toFixed(1)} {f.unit}</span>
         </div>
       ))}

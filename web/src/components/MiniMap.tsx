@@ -13,7 +13,8 @@ export function linePath(pts: number[][]): string { return pts.map((p, i) => `${
 export function MiniMap() {
   const s = useEditorStore();
   const decks = s.deckFilter === "all" ? s.decks : s.decks.filter((d) => d.id === s.deckFilter);
-  const deck = decks[0] ?? s.decks[0];
+  const area = (d: { outline: number[][] }) => (d.outline.length ? bbox(d.outline).w * bbox(d.outline).h : 0);
+  const deck = [...decks, ...s.decks].filter((d) => d.outline.length > 0).sort((a, b) => area(b) - area(a))[0];
   if (!deck) return <div className="panel"><h4>평면도</h4><span>갑판 없음</span></div>;
   const b = bbox(deck.outline, 3);
   const feats = visibleFeatures(s);

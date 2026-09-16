@@ -259,9 +259,10 @@ GET    /api/datasets/{id}/ramps/{rid}                   angle_deg·state 포함
 ### 9.1 편집·저장
 
 1. 페이지 로드 → React 가 features·decks·pose 조회 → `sendMessage("Map", "Load", json)` 으로 Unity 에 일괄 전달
-2. 3D 클릭 배치 → Unity `onFeatureCreated{tempId, layer, x, y, z, deck}` → React draft 추가 → 속성 폼 → "적용" 시 POST → 응답 id 로 tempId 교체 → Unity `Confirm(tempId, id)`
+2. 3D 클릭 배치 → Unity `onFeatureCreated{tempId, layer, x, y, z, deck, mounted_on}` → React draft 추가 → 속성 폼 → "적용" 시 POST → 응답 id 로 tempId 교체 → Unity `Confirm(tempId, id)`
 3. 2D 트리·평면도 선택 ↔ Unity 선택은 양방향 `Select(id)` 하나로 통일
-4. 저장 시 `dataset.version` +1
+4. 3D 드래그 → 놓으면 Unity `onFeatureMoved{id, x, y, z, normal, deck, mounted_on}` → React 가 PUT → 응답으로 스토어 갱신
+5. 저장 시 `dataset.version` +1
 
 ### 9.2 구획 자동생성
 
@@ -272,7 +273,7 @@ GET    /api/datasets/{id}/ramps/{rid}                   angle_deg·state 포함
 
 ### 9.3 주행 시나리오
 
-1. "선적" 클릭 → React 가 vehicle-map·pose 조회 → Unity `StartScenario(map, pose, "load")`
+1. "선적" 클릭 → React 가 vehicle-map·pose 조회 → Unity `StartScenario({mode:"load"})`(pose 는 M5)
 2. Unity: 램프 각도 계산 → 부두 시작점에 차량 스폰(Quay Frame, GPS) → 입구 랜드마크 쌍 인식 시 Ship Frame 전환 → A2 차로 따라 → `access_lane_id` 최근접점에서 이탈 → 목표 자세로 정차 → 오차 판정 → `onSlotFilled{slotId, err}` → React 가 PUT status
 3. pose 슬라이더 변경 → Unity `SetPose` → 선체 기울임·램프 재계산
 
@@ -335,10 +336,10 @@ p ← p + δ
 | R→U | `Delete` | feature id (웹 트리·폼에서 삭제) |
 | R→U | `SetPose` | pose JSON |
 | R→U | `SetNoise` | sigma_r, sigma_theta, sigma_alpha, sigma_gps |
-| R→U | `StartScenario` | map, pose, `"load"` / `"unload"` |
+| R→U | `StartScenario` | `{mode: "load" | "unload"}` — 맵은 이미 `Load` 된 것을 쓴다. pose 는 M5 에서 추가 |
 | U→R | `onSeedReady` | 생성기 시드 JSON (갑판·기둥·램프·래싱) |
-| U→R | `onFeatureCreated` | tempId, layer, x, y, z, deck |
-| U→R | `onFeatureMoved` | id, x, y, z |
+| U→R | `onFeatureCreated` | tempId, layer, x, y, z, deck, mounted_on |
+| U→R | `onFeatureMoved` | id, x, y, z, normal[3], deck, mounted_on — 드래그를 놓았을 때. 웹이 PUT 으로 확정 |
 | U→R | `onSelected` | id |
 | U→R | `onSlotFilled` | slotId, err_lat, err_lon, err_heading |
 | U→R | `onLocalization` | est_x, est_y, est_psi, true_x, true_y, true_psi, residual_rms, n_obs, frame |
