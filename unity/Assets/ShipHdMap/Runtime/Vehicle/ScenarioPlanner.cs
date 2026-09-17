@@ -22,6 +22,12 @@ namespace ShipHdMap
         /// Belief-frame path on the quay: from the GPS fix, in behind the ramp, then along the ramp centreline to the hinge.
         /// foot/hinge are the ramp's real ends expressed in the Quay Frame — berth infrastructure the vehicle is told about.
         /// Executed through ToTruthFrame, so the GPS error becomes the lateral miss at the ramp.
+        /// ponytail: these are absolute Quay-Frame coordinates frozen when the leg is planned, and MapRuntime.ApplyPose
+        /// moves the hull (and with it the ramp's ends) without replanning — so dragging a draft slider during the quay
+        /// or quay-out leg leaves the car steering for where the ramp used to be, about a metre of hinge travel per metre
+        /// of draft. Deliberate for this milestone: the demo changes pose between runs, not during them, and replanning
+        /// mid-leg means re-deriving the belief frame from a fresh GPS fix on every slider tick. Upgrade path: replan from
+        /// the vehicle's current position in ApplyPose while ScenarioPhase is OnQuay or QuayOut.
         public static double[][] QuayPath(Pose2D est, double[] foot, double[] hinge) => new[]
         {
             new[] { est.x, est.y, foot[2] },
@@ -34,16 +40,22 @@ namespace ShipHdMap
         /// The first point carries the vehicle's actual CURRENT height (estZ), not the hinge's -- the ramp is a slope,
         /// so starting at hinge height here would drop/teleport the vehicle to that height on the first Apply() and
         /// then drive it flat (zero pitch) instead of climbing the remaining slope.
-        public static double[][] RampTopPath(Pose2D est, double estZ, double[] hingeShip) => new[]
+        /// The last point is the deck lane's own first point, so the lane leg picks up exactly where this one stops:
+        /// ending at the hinge and handing over to StartLane (which restarts at s = 0, the lane's first point) jumped
+        /// the vehicle the gap between them and snapped its pitch flat, one frame after the demo's highlight moment.
+        public static double[][] RampTopPath(Pose2D est, double estZ, double[] hingeShip, double[] laneStart) => new[]
         {
             new[] { est.x, est.y, estZ },
             new[] { hingeShip[0], hingeShip[1], hingeShip[2] },
+            new[] { laneStart[0], laneStart[1], laneStart[2] },
         };
 
-        /// Quay Frame path off the ship: from the hinge to the ramp foot (may climb or descend, depending on tide and
-        /// quay height), then out to the spawn point.
-        public static double[][] QuayOutPath(double[] hinge, double[] foot) => new[]
+        /// Quay Frame path off the ship: from where the departure leg left the vehicle (the deck lane's start) back over
+        /// the hinge, along the ramp to its foot (may climb or descend, depending on tide and quay height), then out to
+        /// the spawn point. Starting at the hinge instead teleported the car the gap between the two, backwards.
+        public static double[][] QuayOutPath(double[] start, double[] hinge, double[] foot) => new[]
         {
+            new[] { start[0], start[1], start[2] },
             new[] { hinge[0], hinge[1], hinge[2] },
             new[] { foot[0], foot[1], foot[2] },
             new[] { QuaySpawn[0], QuaySpawn[1], foot[2] },

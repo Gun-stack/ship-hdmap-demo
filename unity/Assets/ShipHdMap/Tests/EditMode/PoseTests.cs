@@ -50,7 +50,7 @@ namespace ShipHdMap.Tests
         public void PoseKeepsShipFrameCoordinatesAndTiltsRampAndShip()
         {
             var rt = NewRuntime();
-            var p = new ShipParams(); ShipMeshBuilder.Build(ShipSeedBuilder.Build(p), p);   // built at the scene root, like the Demo scene before Awake attaches it
+            var p = new ShipParams(); ShipMeshBuilder.Build(ShipSeedBuilder.Build(p));   // built at the scene root, like the Demo scene before Awake attaches it
             rt.Load(Fixture());
             var lm = rt.LandmarksRoot.Find("LM-0001").GetComponent<LandmarkMarker>();
             var before = lm.ToModel();
@@ -93,7 +93,7 @@ namespace ShipHdMap.Tests
         {
             var rt = NewRuntime();
             rt.SetPose(HeelOnly);
-            var p = new ShipParams(); ShipMeshBuilder.Build(ShipSeedBuilder.Build(p), p);
+            var p = new ShipParams(); ShipMeshBuilder.Build(ShipSeedBuilder.Build(p));
             rt.Load(Fixture());
             Assert.That(GameObject.Find("Ship").transform.parent, Is.EqualTo(rt.transform));
             var stbd = rt.transform.TransformPoint(ShipFrame.ToUnity(50, -10, 10));
@@ -111,7 +111,7 @@ namespace ShipHdMap.Tests
         public void PlacementUnderTiltLandsOnTheDeckInShipFrame()
         {
             var rt = NewRuntime();
-            var p = new ShipParams(); ShipMeshBuilder.Build(ShipSeedBuilder.Build(p), p);
+            var p = new ShipParams(); ShipMeshBuilder.Build(ShipSeedBuilder.Build(p));
             rt.Load(Fixture());
             rt.SetPose(TrimOnly);   // attaches the ship and tilts the root; Physics.SyncTransforms runs inside
             // ray straight down onto Deck 3 at ship (50, 0), expressed in world space through the tilted root
@@ -152,7 +152,7 @@ namespace ShipHdMap.Tests
             {
                 var go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>(); rt.InitForTest();
                 var seed = ShipSeedBuilder.Build(new ShipParams());
-                var ship = ShipMeshBuilder.Build(seed, new ShipParams(), rt.transform);
+                var ship = ShipMeshBuilder.Build(seed, rt.transform);
                 var r = seed.ramps[0];
                 double hingeZ = r.hinge[0][2];
                 double angle = Math.Asin(((quayZ + tide) - (hingeZ - draftAft)) / r.length_m) * 180 / Math.PI;

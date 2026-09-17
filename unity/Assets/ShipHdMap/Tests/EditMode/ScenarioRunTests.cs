@@ -81,13 +81,84 @@ namespace ShipHdMap.Tests
             Assert.That(System.Math.Abs(offset - centred), Is.GreaterThan(0.3), "a 2 m GPS sigma must show up as a lateral miss");
         }
 
+        /// World height difference between the two ends of the ramp's hinge line (ship y = -6 and +6).
+        static double HingeTwist(MapRuntime rt, Ramp r) =>
+              rt.transform.TransformPoint(ShipFrame.ToUnity(r.hinge[1][0], r.hinge[1][1], r.hinge[1][2])).y
+            - rt.transform.TransformPoint(ShipFrame.ToUnity(r.hinge[0][0], r.hinge[0][1], r.hinge[0][2])).y;
+
         [Test]
-        public void RampFootStillLandsOnTheQuaySurfaceWhenTheHullIsHeeled()
+        public void HeelTwistsTheRampAcrossItsWidth()
         {
-            // A heeled hull is where a wrong transform chain (heel/trim/draft composed in the wrong order) shows up next.
+            // What heel actually does to the ramp (spec §2.5, browser check 9): the hull rotates about the AP origin,
+            // so the two ends of the hinge line separate in world height by 2*hy*sin(heel) -- 0.63 m across a 12 m
+            // hinge at 3 deg. Asserting the ramp FOOT's height instead would say nothing: both the hinge midpoint
+            // and the foot midpoint sit on y = 0, the one line heel cannot move.
             var rt = NewRuntime(Fixture());
+            var r = rt.CurrentMap.ramps[0];
+            double hy = r.hinge[1][1];   // +6 m, half the ramp width
+
+            rt.SetPose(PoseJson(0));
+            Assert.That(HingeTwist(rt, r), Is.EqualTo(0).Within(1e-3), "a level hull leaves the hinge line level");
             rt.SetPose(PoseJson(3));
-            Assert.That(rt.RampEndsInQuay().foot[2], Is.EqualTo(3.5).Within(0.05));
+            Assert.That(HingeTwist(rt, r), Is.EqualTo(2 * hy * System.Math.Sin(3 * System.Math.PI / 180)).Within(0.01),
+                "port end up, starboard end down: positive heel lowers starboard");
+        }
+
+        [Test]
+        public void TheQuaySlabStopsAtTheRampFootAndCarriesTheSpawnPoint()
+        {
+            var rt = NewRuntime(Fixture());
+            rt.SetPose(PoseJson(0));
+            var q = rt.Quay.transform;
+            double x0 = q.position.x - q.localScale.x / 2, x1 = q.position.x + q.localScale.x / 2;
+            double y0 = -(q.position.z + q.localScale.z / 2), y1 = -(q.position.z - q.localScale.z / 2);   // Quay Frame y = -Unity z
+            double top = QuayBuilder.SurfaceZ(rt.Quay);
+            var (hinge, foot) = rt.RampEndsInQuay();
+
+            // Nothing tied the slab's footprint to either of these before: shrink LengthM and the car spawns in mid-air.
+            Assert.That(ScenarioPlanner.QuaySpawn[0], Is.InRange(x0, x1), "the car must spawn on concrete");
+            Assert.That(ScenarioPlanner.QuaySpawn[1], Is.InRange(y0, y1));
+            Assert.That(foot[0], Is.InRange(x0 - 0.02, x1 + 0.02), "the ramp must come down onto the slab");
+            Assert.That(foot[1], Is.InRange(y0, y1));
+            // ...and the ramp must not run through the slab wherever they do overlap in x. At the default pose
+            // (quay 3.5 m, hinge 2.0 m) the ramp DESCENDS to the ship, so a slab carried on to the AP swallows
+            // all 30 m of it: the ramp is invisible and the car drives through concrete to reach it.
+            for (int i = 0; i <= 30; i++)
+            {
+                double t = i / 30.0;
+                double x = foot[0] + (hinge[0] - foot[0]) * t, z = foot[2] + (hinge[2] - foot[2]) * t;
+                if (x > x0 && x < x1) Assert.That(z, Is.GreaterThanOrEqualTo(top - 0.01), $"the ramp is buried at quay x {x:F1}");
+            }
+            Assert.That(x1, Is.EqualTo(foot[0]).Within(0.02), "the slab ends at the ramp foot, not at the AP");
+        }
+
+        [Test]
+        public void TheRampAndLaneLegsMeetInsteadOfTeleportingTheVehicle()
+        {
+            // The ramp leg used to end at the hinge (ship x 0) while StartLane restarted at the lane's first point
+            // (x 2, s = 0): a 2 m jump with the pitch snapping flat, one frame after the demo's highlight moment.
+            var rt = NewRuntime(Fixture());
+            rt.SetPose(PoseJson(0));
+            rt.StartScenario("{\"mode\":\"load\"}");
+            var last = rt.Vehicle.transform.position;
+            for (int i = 0; i < 4000 && rt.ScenarioPhase != MapRuntime.Phase.OnLane; i++) { last = rt.Vehicle.transform.position; rt.Step(0.05f); }
+            Assert.That(rt.ScenarioPhase, Is.EqualTo(MapRuntime.Phase.OnLane));
+            // one 0.05 s step at ParkSpeedMps is 0.1 m of honest travel; 0.3 m leaves margin without hiding a 2 m jump
+            Assert.That(Vector3.Distance(rt.Vehicle.transform.position, last), Is.LessThan(0.3f), "the lane leg must start where the ramp leg ended");
+        }
+
+        [Test]
+        public void TheDepartureAndQuayOutLegsMeetInsteadOfTeleportingTheVehicle()
+        {
+            // The mirror image: the departure leg ends at the lane start, so the quay-out leg must start there too
+            // and not at the hinge, 2 m astern of it.
+            var rt = NewRuntime(FilledFixture());
+            rt.SetPose(PoseJson(0));
+            rt.StartScenario("{\"mode\":\"unload\"}");
+            var last = rt.Vehicle.transform.position;
+            for (int i = 0; i < 4000 && rt.ScenarioPhase == MapRuntime.Phase.Departing; i++) { last = rt.Vehicle.transform.position; rt.Step(0.05f); }
+            Assert.That(rt.ScenarioPhase, Is.EqualTo(MapRuntime.Phase.RampDown));
+            Assert.That(Vector3.Distance(rt.Vehicle.transform.position, last), Is.LessThan(0.3f), "the quay-out leg must start where the departure leg ended");
         }
 
         [Test]

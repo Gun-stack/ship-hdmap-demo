@@ -22,26 +22,31 @@ namespace ShipHdMap
                 ramps = map.ramps ?? new List<Ramp>(),
                 lanes = map.lanes ?? new List<Lane>(),
             };
-            return Build(seed, null, parent);
+            return Build(seed, parent);
         }
 
-        public static GameObject Build(SeedData seed, ShipParams p, Transform parent = null)
+        public static GameObject Build(SeedData seed, Transform parent = null)
         {
             var ship = new GameObject("Ship"); if (parent) ship.transform.SetParent(parent, false);
             int layer = LayerMask.NameToLayer("ShipStructure"); if (layer < 0) layer = 0;
             var materials = new Dictionary<Color, Material>(); // one shared Material per colour so identical-colour primitives don't each allocate their own
             foreach (var d in seed.decks)
             {
+                // A deck with no outline has no hull to draw. Skip it rather than throwing halfway through a Load and
+                // leaving a half-built scene -- MapRuntime.ShipSignature already tolerates the same map the same way.
+                if (d.outline == null || d.outline.Length == 0) continue;
                 var deck = Child(ship, d.id);
-                // Hull dimensions come from the deck's own outline; ShipParams is only a fallback for the seed path.
+                // Both the size AND the position come from the deck's own outline: a deck that starts forward of the AP,
+                // or whose centreline is not ship y = 0, is drawn where the map puts it instead of at the origin.
                 double x0 = d.outline.Min(pt => pt[0]), x1 = d.outline.Max(pt => pt[0]);
                 double y0 = d.outline.Min(pt => pt[1]), y1 = d.outline.Max(pt => pt[1]);
                 float z = (float)d.z_surface, L = (float)(x1 - x0), B = (float)(y1 - y0);
-                var floor = Prim(deck, "Floor", PrimitiveType.Cube, new Vector3(L / 2, z - FloorThick / 2, 0), new Vector3(L, FloorThick, B), Color(0.55f, 0.55f, 0.6f), layer, materials);
-                Prim(deck, "HullPort", PrimitiveType.Cube, new Vector3(L / 2, z + (float)d.z_clear / 2, -B / 2), new Vector3(L, (float)d.z_clear, WallThick), Color(0.4f, 0.45f, 0.5f), layer, materials);
-                Prim(deck, "HullStbd", PrimitiveType.Cube, new Vector3(L / 2, z + (float)d.z_clear / 2, B / 2), new Vector3(L, (float)d.z_clear, WallThick), Color(0.4f, 0.45f, 0.5f), layer, materials);
+                float deckCx = (float)((x0 + x1) / 2), deckCz = -(float)((y0 + y1) / 2);   // Unity z = -ship y, so port (+y) is -z
+                var floor = Prim(deck, "Floor", PrimitiveType.Cube, new Vector3(deckCx, z - FloorThick / 2, deckCz), new Vector3(L, FloorThick, B), Color(0.55f, 0.55f, 0.6f), layer, materials);
+                Prim(deck, "HullPort", PrimitiveType.Cube, new Vector3(deckCx, z + (float)d.z_clear / 2, deckCz - B / 2), new Vector3(L, (float)d.z_clear, WallThick), Color(0.4f, 0.45f, 0.5f), layer, materials);
+                Prim(deck, "HullStbd", PrimitiveType.Cube, new Vector3(deckCx, z + (float)d.z_clear / 2, deckCz + B / 2), new Vector3(L, (float)d.z_clear, WallThick), Color(0.4f, 0.45f, 0.5f), layer, materials);
                 // Bow bulkhead: closes the deck at the forward end so landmarks placed there sit on structure and occlude like the hull.
-                Prim(deck, "Bow", PrimitiveType.Cube, new Vector3(L - WallThick / 2, z + (float)d.z_clear / 2, 0), new Vector3(WallThick, (float)d.z_clear, B), Color(0.4f, 0.45f, 0.5f), layer, materials);
+                Prim(deck, "Bow", PrimitiveType.Cube, new Vector3((float)x1 - WallThick / 2, z + (float)d.z_clear / 2, deckCz), new Vector3(WallThick, (float)d.z_clear, B), Color(0.4f, 0.45f, 0.5f), layer, materials);
                 var pillars = Child(deck, "Pillars");
                 foreach (var f in seed.facilities) if (f.deck_id == d.id && f.kind == "pillar")
                 {
@@ -60,7 +65,9 @@ namespace ShipHdMap
                     UnityEngine.Object.DestroyImmediate(g.GetComponent<Collider>()); // sockets are visual only
                 }
                 var mep = Child(deck, "MEP");
-                foreach (float y in new[] { -8f, -3f, 8f }) // kept clear of the centreline lane (y in [-1.6, 1.6])
+                // y is absolute Ship Frame, not deck-relative: these run clear of the centreline lane (y in [-1.6, 1.6]),
+                // which sits on ship y = 0 whatever the outline does.
+                foreach (float y in new[] { -8f, -3f, 8f })
                 {
                     var pipe = Prim(mep, $"Pipe_{y:+0;-0;0}", PrimitiveType.Cylinder, ShipFrame.ToUnity((x0 + x1) / 2, y, d.z_surface + d.z_clear - 0.3), new Vector3(MepRadius * 2, L / 2, MepRadius * 2), Color(0.75f, 0.6f, 0.2f), layer, materials);
                     pipe.transform.localRotation = Quaternion.Euler(0, 0, 90); // cylinder axis along Unity X

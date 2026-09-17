@@ -24,7 +24,7 @@ namespace ShipHdMap.Tests
         public void VehicleAtLaneStartSeesAtLeastOneLandmark()
         {
             var seed = ShipSeedBuilder.Build(new ShipParams());
-            ShipMeshBuilder.Build(seed, new ShipParams());
+            ShipMeshBuilder.Build(seed);
             Physics.SyncTransforms();
 
             go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>();

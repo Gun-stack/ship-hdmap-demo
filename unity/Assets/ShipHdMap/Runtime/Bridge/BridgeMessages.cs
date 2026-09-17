@@ -16,7 +16,10 @@ namespace ShipHdMap
     public class SetTimeScaleMsg { public double scale = 1; }
     /// Parking result (load) or an emptied slot (unload: status "empty", no errors — nulls are dropped from the JSON).
     public class SlotFilledEvt { public string slot_id; public string status; public double? err_lat, err_lon, err_heading; }
-    /// Scenario log line. `event`: start | target | leave_lane | finished.
+    /// Scenario log line. `event`: start | target | frame_switch | leave_lane | finished.
+    /// `frame_switch` fires when the entrance landmark pair is seen and the vehicle leaves the Quay Frame for the
+    /// Ship Frame; its `detail` carries the estimate at that instant. `finished`'s `detail` is one of
+    /// no_empty_slot | no_filled_slot | ramp_blocked | no_frame_switch.
     public class ScenarioEvt { [Newtonsoft.Json.JsonProperty("event")] public string evt; public string mode; public string slot_id; public string detail; }
     public class RampMsg { public string id; public double angle_deg; public string state; }
     public class SetPoseMsg { public double draft_fwd_m = 8.1, draft_aft_m = 8.6, heel_deg, lpp_m = 120, tide_m = 0, quay_z_m = 3.5; public RampMsg ramp; }

@@ -12,7 +12,7 @@ namespace ShipHdMap.Tests
         public void BuildsDeckHierarchyInUnityCoordinates()
         {
             var p = new ShipParams();
-            ship = ShipMeshBuilder.Build(ShipSeedBuilder.Build(p), p);
+            ship = ShipMeshBuilder.Build(ShipSeedBuilder.Build(p));
             Assert.That(ship.name, Is.EqualTo("Ship"));
             var floor = ship.transform.Find("D3/Floor");
             Assert.That(floor, Is.Not.Null);
@@ -41,7 +41,7 @@ namespace ShipHdMap.Tests
         public void RampAngleRotatesAboutHinge()
         {
             var p = new ShipParams();
-            ship = ShipMeshBuilder.Build(ShipSeedBuilder.Build(p), p);
+            ship = ShipMeshBuilder.Build(ShipSeedBuilder.Build(p));
             var ramp = ship.transform.Find("Ramp");
             ShipMeshBuilder.SetRampAngle(ship, 0, 0);
             float minX0 = ramp.Find("Plate").GetComponent<Collider>().bounds.min.x; // far end of ramp is at x = -30
@@ -55,12 +55,12 @@ namespace ShipHdMap.Tests
         [Test]
         public void BuildFromMapMatchesBuildFromSeed()
         {
-            // Coarser lashing pitch than the default: BuildFromMapMatchesBuildFromSeed builds the hull twice, and the
-            // default pitch produces thousands of lashing sockets per deck -- fine for one build, slow for two.
+            // Coarser lashing pitch than the default, purely for speed: this test builds the hull twice and the
+            // default pitch puts thousands of lashing sockets on every deck -- bearable once, slow twice.
             var p = new ShipParams { lashingPitchM = 4 };
             var seed = ShipSeedBuilder.Build(p);
             var map = new VehicleMap { decks = seed.decks, facilities = seed.facilities, ramps = seed.ramps, lashing_points = seed.lashing_points };
-            var fromSeed = ShipMeshBuilder.Build(seed, p);
+            var fromSeed = ShipMeshBuilder.Build(seed);
             var fromMap = ShipMeshBuilder.Build(map);
             foreach (var d in seed.decks)
             {
@@ -75,10 +75,41 @@ namespace ShipHdMap.Tests
         }
 
         [Test]
+        public void HullFollowsAnOutlineThatDoesNotStartAtTheOrigin()
+        {
+            // The builder read only the outline's EXTENT and then placed the floor at L/2 about y = 0, so a deck that
+            // starts forward of the AP -- or does not straddle the centreline -- was drawn at the origin regardless of
+            // what the map said. Extent 80 x 12, centred on ship (60, 2).
+            var map = new VehicleMap { decks = new System.Collections.Generic.List<Deck> { new Deck { id = "D1", z_surface = 5.4, z_clear = 2.2,
+                outline = new[] { new[] { 20.0, -4.0, 5.4 }, new[] { 100.0, -4.0, 5.4 }, new[] { 100.0, 8.0, 5.4 }, new[] { 20.0, 8.0, 5.4 }, new[] { 20.0, -4.0, 5.4 } } } } };
+            ship = ShipMeshBuilder.Build(map);
+            var floor = ship.transform.Find("D1/Floor");
+            Assert.That(floor.localPosition.x, Is.EqualTo(60f).Within(1e-3f), "(20 + 100) / 2, not the extent's own half");
+            Assert.That(floor.localPosition.z, Is.EqualTo(-2f).Within(1e-3f), "Unity z = -(ship y centre)");
+            Assert.That(floor.localScale.x, Is.EqualTo(80f).Within(1e-3f));
+            Assert.That(floor.localScale.z, Is.EqualTo(12f).Within(1e-3f));
+            Assert.That(ship.transform.Find("D1/Bow").localPosition.x, Is.EqualTo(100f - 0.1f).Within(1e-3f), "the bow bulkhead closes the deck at its own forward end");
+            Assert.That(ship.transform.Find("D1/HullPort").localPosition.z, Is.EqualTo(-8f).Within(1e-3f), "port is ship +y, i.e. Unity -z");
+        }
+
+        [Test]
+        public void ADeckWithoutAnOutlineIsSkippedInsteadOfThrowing()
+        {
+            // MapRuntime.ShipSignature already defends against a missing outline; the builder used to throw on the
+            // same map, which would abort a Load with the scene half rebuilt.
+            var map = new VehicleMap { decks = new System.Collections.Generic.List<Deck> {
+                new Deck { id = "D1", z_surface = 5.4, z_clear = 2.2, outline = null },
+                new Deck { id = "D2", z_surface = 8.0, z_clear = 2.2, outline = new double[0][] } } };
+            Assert.That(() => ship = ShipMeshBuilder.Build(map), Throws.Nothing);
+            Assert.That(ship.transform.Find("D1"), Is.Null);
+            Assert.That(ship.transform.Find("D2"), Is.Null);
+        }
+
+        [Test]
         public void DeckVisibilityFadesOthers()
         {
             var p = new ShipParams();
-            ship = ShipMeshBuilder.Build(ShipSeedBuilder.Build(p), p);
+            ship = ShipMeshBuilder.Build(ShipSeedBuilder.Build(p));
             ShipMeshBuilder.SetDeckVisibility(ship, "D3");
             var d1FloorRenderer = ship.transform.Find("D1/Floor").GetComponent<Renderer>();
             float a1 = d1FloorRenderer.sharedMaterial.color.a;

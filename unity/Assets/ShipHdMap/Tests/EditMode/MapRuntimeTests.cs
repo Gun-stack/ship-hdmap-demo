@@ -18,7 +18,7 @@ namespace ShipHdMap.Tests
             // an EditMode test can observe synchronously (Destroy() defers to end of frame and is refused outright
             // in edit mode), but it is the same collect-then-destroy sweep the play-mode branch runs.
             var p = new ShipParams { lashingPitchM = 4 };
-            var ship = ShipMeshBuilder.Build(ShipSeedBuilder.Build(p), p);
+            var ship = ShipMeshBuilder.Build(ShipSeedBuilder.Build(p));
             ShipMeshBuilder.SetDeckVisibility(ship, "D1"); // clones every renderer's material to its own "~inst" instance
             var mats = new System.Collections.Generic.List<Material>();
             foreach (var r in ship.GetComponentsInChildren<Renderer>(true)) if (r.sharedMaterial) mats.Add(r.sharedMaterial);
@@ -183,6 +183,20 @@ namespace ShipHdMap.Tests
             Assert.That(rt.LandmarksRoot.Find("LM-0001").gameObject.activeSelf, Is.False); // fixture landmarks are all on D3
             rt.SetDeck("all");
             Assert.That(rt.LandmarksRoot.Find("LM-0001").gameObject.activeSelf, Is.True);
+        }
+
+        [Test]
+        public void ShipSignatureRepeatsForTheSameMapAndChangesWithTheHull()
+        {
+            // The whole point of the signature is that a slot regeneration reloads the map without rebuilding
+            // thousands of primitives -- and that a genuinely different hull still rebuilds. Its only call site
+            // sits behind Application.isPlaying, which is false here, so nothing else reaches it.
+            var a = MapJson.Parse<VehicleMap>(Fixture());
+            var b = MapJson.Parse<VehicleMap>(Fixture());
+            Assert.That(MapRuntime.ShipSignature(b), Is.EqualTo(MapRuntime.ShipSignature(a)), "a reload of the same map must not rebuild the hull");
+
+            b.decks[0].outline[1][0] += 10; b.decks[0].outline[2][0] += 10;   // same deck heights, 10 m longer Deck 1
+            Assert.That(MapRuntime.ShipSignature(b), Is.Not.EqualTo(MapRuntime.ShipSignature(a)), "a different deck outline must rebuild the hull");
         }
 
         [Test]

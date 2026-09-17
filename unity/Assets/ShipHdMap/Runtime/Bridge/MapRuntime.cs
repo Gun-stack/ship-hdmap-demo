@@ -45,7 +45,7 @@ namespace ShipHdMap
             if (!Application.isPlaying) return;
             Ship = GameObject.Find("Ship");
             // Seed-built hull so the scene is not empty before the first Load; Load replaces it with the map's own hull.
-            if (Ship == null) { _seed = ShipSeedBuilder.Build(shipParams); Ship = ShipMeshBuilder.Build(_seed, shipParams, transform); }
+            if (Ship == null) { _seed = ShipSeedBuilder.Build(shipParams); Ship = ShipMeshBuilder.Build(_seed, transform); }
             AttachShip();
             Placer.decks = _seed?.decks ?? new List<Deck>();
             if (cam == null) cam = Camera.main;
@@ -81,7 +81,8 @@ namespace ShipHdMap
         /// and rebuilding thousands of primitives every time would stall the browser.
         /// Includes each deck's own outline extent (not just z_surface/z_clear): two ships can share deck heights
         /// while differing only in length/beam, and the hull must still rebuild when the outline is what changed.
-        static string ShipSignature(VehicleMap m)
+        /// Public only so an EditMode test can reach it: its one call site sits behind Application.isPlaying.
+        public static string ShipSignature(VehicleMap m)
         {
             var sb = new System.Text.StringBuilder();
             foreach (var d in m.decks ?? new List<Deck>())
@@ -211,7 +212,9 @@ namespace ShipHdMap
             double trimDeg = _trimDeg = Math.Atan2(_pose.draft_aft_m - _pose.draft_fwd_m, _pose.lpp_m <= 0 ? 120 : _pose.lpp_m) * 180 / Math.PI;
             transform.localRotation = PoseRotation(trimDeg, _pose.heel_deg);
             transform.localPosition = new Vector3(0, (float)(-_pose.draft_aft_m), 0);   // waterline is world y = 0; the AP origin sits one aft draft below it
-            QuayBuilder.SetHeight(Quay, _pose.quay_z_m + _pose.tide_m);
+            // Stop the slab at the ramp's foot, not at the AP -- see QuayBuilder.Place. No ramp in the map means
+            // nothing to bury and no quay leg to drive, so the historical edge (the AP) stands.
+            QuayBuilder.Place(Quay, _pose.quay_z_m + _pose.tide_m, RampEndsInQuay().foot?[0] ?? 0);
             AttachShip();
             if (Ship && _pose.ramp != null) ShipMeshBuilder.SetRampAngle(Ship, _pose.ramp.angle_deg, trimDeg);
             Hud.SetRamp(_pose.ramp == null ? null : $"ramp {_pose.ramp.angle_deg:F1} deg  {_pose.ramp.state}");
@@ -356,7 +359,7 @@ namespace ShipHdMap
                     // vehicle's actual current height, so the ramp path climbs from where it really is (see RampTopPath).
                     var (truth, truthZ) = ShipTruthPose();
                     Vehicle.transform.SetParent(transform, true);                       // Ship Frame, same world pose
-                    Vehicle.StartPath(ScenarioPlanner.ToTruthFrame(ScenarioPlanner.RampTopPath(est, truthZ, hingeShip), est, truth), ScenarioPlanner.ParkSpeedMps);
+                    Vehicle.StartPath(ScenarioPlanner.ToTruthFrame(ScenarioPlanner.RampTopPath(est, truthZ, hingeShip, _targetLane.centerline[0]), est, truth), ScenarioPlanner.ParkSpeedMps);
                     ScenarioPhase = Phase.OnRamp;
                     Send(BridgeMessages.OnScenario, MapJson.Serialize(new ScenarioEvt { evt = "frame_switch",
                         detail = $"est x {est.x:F2} y {est.y:F2} psi {est.psiRad * R2D:F1}" }));
@@ -400,8 +403,12 @@ namespace ShipHdMap
                     Send(BridgeMessages.OnSlotFilled, MapJson.Serialize(new SlotFilledEvt { slot_id = _target.id, status = "empty" }));
                     var (hingeQ, footQ) = RampEndsInQuay();
                     if (hingeQ == null) { NextVehicle(); break; }
+                    // Where the departure leg actually left it (the lane's first point), read BEFORE the reparent while
+                    // Vehicle.Truth/Z are still Ship Frame: the quay-out leg starts there instead of at the hinge,
+                    // which sits 2 m astern of it and used to teleport the car backwards on the handover.
+                    var hereQ = InQuay(Vehicle.Truth.x, Vehicle.Truth.y, Vehicle.Z);
                     Vehicle.transform.SetParent(null, true);
-                    Vehicle.StartPath(ScenarioPlanner.QuayOutPath(hingeQ, footQ), ScenarioPlanner.ParkSpeedMps);
+                    Vehicle.StartPath(ScenarioPlanner.QuayOutPath(hereQ, hingeQ, footQ), ScenarioPlanner.ParkSpeedMps);
                     ScenarioPhase = Phase.RampDown;
                     break;
                 }

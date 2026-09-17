@@ -29,7 +29,7 @@ z 는 이 마일스톤에서 처음으로 pose 에 따라 움직인다. 기준�
 
 | 대상 | 변경 |
 | --- | --- |
-| `QuayBuilder`(신규, Unity) | pose 로 부두 슬래브 생성·갱신. 선미 쪽 60 × 30 m, 월드 z = `quay_z + tide`. 지도가 아니므로 레이어 트리·미니맵에는 없고 편집 모드에서도 보인다 |
+| `QuayBuilder`(신규, Unity) | pose 로 부두 슬래브 생성·갱신. 선미 쪽 60 × 30 m, 월드 z = `quay_z + tide`, 선측 끝은 **램프 발끝**(AP 가 아니라). 부두면이 힌지보다 높으면 램프는 배를 향해 내려가므로 AP 까지 이어진 슬래브는 램프 전체를 덮어버린다. 지도가 아니므로 레이어 트리·미니맵에는 없고 편집 모드에서도 보인다 |
 | `MapRuntime` | 루트 위치 z 적용, 부두 생성 호출, 상태기계 확장, 프레임 전환, GPS |
 | `ScenarioPlanner` | `QuayPath(spawn, est, ramp)`, `RampPath(ramp, angleDeg)`, `RampAngleFromPose` 검증 헬퍼 |
 | `VehicleController` | 경로 점별 z 보간, 구간 기울기로 피치, `SetParent` 를 통한 프레임 이동 |
