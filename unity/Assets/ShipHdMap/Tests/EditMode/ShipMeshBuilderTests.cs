@@ -33,7 +33,7 @@ namespace ShipHdMap.Tests
             }
             var bow = ship.transform.Find("D3/Bow");
             Assert.That(bow, Is.Not.Null);
-            Assert.That(bow.GetComponent<Collider>().bounds.center.x, Is.EqualTo(119.9f).Within(0.05f)); // inner face at x = 120
+            Assert.That(bow.GetComponent<Collider>().bounds.center.x, Is.EqualTo(119.9f).Within(0.05f)); // 0.2 m thick wall centred at x = 119.9, inner face at x = 119.8
             Assert.That(ship.transform.Find("Ramp/Plate"), Is.Not.Null);
         }
 

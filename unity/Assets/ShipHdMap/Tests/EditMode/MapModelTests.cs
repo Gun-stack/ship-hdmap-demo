@@ -43,7 +43,7 @@ namespace ShipHdMap.Tests
             foreach (var r in map.ramps)
                 foreach (var lmId in r.transition_landmarks) Assert.That(landmarkIds, Does.Contain(lmId), $"ramp {r.id} transition_landmarks");
             foreach (var lm in map.landmarks)
-                Assert.That(lm.mounted_on == "HULL-PORT" || lm.mounted_on == "HULL-STBD" || lm.mounted_on.StartsWith("BOW-") || facilityIds.Contains(lm.mounted_on),
+                Assert.That(lm.mounted_on == "HULL-PORT" || lm.mounted_on == "HULL-STBD" || map.decks.Any(d => lm.mounted_on == "BOW-" + d.id) || facilityIds.Contains(lm.mounted_on),
                     Is.True, $"landmark {lm.id} mounted_on {lm.mounted_on} unresolved");
         }
 
