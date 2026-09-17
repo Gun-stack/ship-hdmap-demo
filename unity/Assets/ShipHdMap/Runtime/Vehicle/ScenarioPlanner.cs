@@ -43,6 +43,11 @@ namespace ShipHdMap
         /// The last point is the deck lane's own first point, so the lane leg picks up exactly where this one stops:
         /// ending at the hinge and handing over to StartLane (which restarts at s = 0, the lane's first point) jumped
         /// the vehicle the gap between them and snapped its pitch flat, one frame after the demo's highlight moment.
+        /// This whole path is planned in the BELIEF frame and executed through ToTruthFrame, the lane's first point
+        /// included, while the lane leg then follows the map's own centreline. So a residual offset equal to the
+        /// estimation error at the switch survives the handover -- it is not the old fixed gap, and it is the design:
+        /// M5b spec §4.4 says the frame-switch error shows up as how squarely the vehicle reaches the top of the ramp
+        /// and is absorbed when it joins the lane. Transforming only part of the path would hide that error instead.
         public static double[][] RampTopPath(Pose2D est, double estZ, double[] hingeShip, double[] laneStart) => new[]
         {
             new[] { est.x, est.y, estZ },
@@ -53,6 +58,9 @@ namespace ShipHdMap
         /// Quay Frame path off the ship: from where the departure leg left the vehicle (the deck lane's start) back over
         /// the hinge, along the ramp to its foot (may climb or descend, depending on tide and quay height), then out to
         /// the spawn point. Starting at the hinge instead teleported the car the gap between the two, backwards.
+        /// Like QuayPath, the hinge and foot are read once when the leg starts and frozen into the path: a pose slider
+        /// dragged mid-leg moves the ship without replanning, so the car drives to where the ramp was. Same upgrade
+        /// path -- replan on ApplyPose while a quay-frame leg is running.
         public static double[][] QuayOutPath(double[] start, double[] hinge, double[] foot) => new[]
         {
             new[] { start[0], start[1], start[2] },

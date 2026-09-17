@@ -443,6 +443,9 @@ namespace ShipHdMap
         /// The sensor and the map live in Ship Frame. While the vehicle drives in the Quay Frame its TRUE pose is
         /// projected through the Map root's inverse so observations stay meaningful; the vehicle's own belief is GPS
         /// until the entrance pair is seen.
+        /// Last accepted estimate (finite solve only). Exposed so a test can measure what the belief cost at a handover.
+        public Pose2D? LastEstimate => _prev;
+
         public Pose2D ShipTruth() => ShipTruthPose().pose;
 
         /// Same projection as ShipTruth(), plus the height (dropped from Pose2D) -- used at the frame switch, which

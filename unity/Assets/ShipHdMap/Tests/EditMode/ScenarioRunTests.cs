@@ -148,6 +148,41 @@ namespace ShipHdMap.Tests
         }
 
         [Test]
+        public void UnderNoiseTheHandoverGapIsTheEstimationErrorNotTheOldFixedJump()
+        {
+            // The ramp leg is planned in the belief frame and executed through ToTruthFrame, the lane's first point
+            // included, while the lane leg follows the map's own centreline -- so a residual offset survives the
+            // handover whenever the estimate is not the truth. That is the design (M5b spec §4.4): the frame-switch
+            // error shows up here and the lane drive absorbs it. What must NOT come back is the old fixed ~2 m jump,
+            // so this pins the gap to the localization error at the switch rather than to a magic number.
+            var rt = NewRuntime(Fixture());
+            rt.SetNoise("{\"sigma_r\":0.2,\"sigma_theta\":1,\"sigma_alpha\":2,\"sigma_gps\":0.5}");   // the drive panel's defaults
+            rt.SetPose(PoseJson(0));
+            rt.StartScenario("{\"mode\":\"load\"}");
+            double errAtSwitch = -1;
+            var last = rt.Vehicle.transform.position;
+            for (int i = 0; i < 4000 && rt.ScenarioPhase != MapRuntime.Phase.OnLane; i++)
+            {
+                var wasQuay = rt.ScenarioPhase == MapRuntime.Phase.OnQuay;
+                last = rt.Vehicle.transform.position;
+                rt.Step(0.05f);
+                // The switch happens inside this Step, after that frame's Localize and with nothing localizing after it,
+                // so the estimate the switch used is still the last one when the phase first reads OnRamp.
+                if (wasQuay && rt.ScenarioPhase == MapRuntime.Phase.OnRamp)
+                {
+                    var t = rt.ShipTruth(); var e = rt.LastEstimate ?? t;
+                    errAtSwitch = System.Math.Sqrt((e.x - t.x) * (e.x - t.x) + (e.y - t.y) * (e.y - t.y));
+                }
+            }
+            Assert.That(errAtSwitch, Is.GreaterThan(0), "the run must have gone through a frame switch with a noisy estimate");
+            Assert.That(rt.ScenarioPhase, Is.EqualTo(MapRuntime.Phase.OnLane));
+            double gap = Vector3.Distance(rt.Vehicle.transform.position, last);
+            TestContext.WriteLine($"handover gap {gap:F3} m, estimation error at the switch {errAtSwitch:F3} m");
+            Assert.That(gap, Is.LessThan(errAtSwitch + 0.3), "the gap must be the estimation error, not a fixed jump");
+            Assert.That(gap, Is.LessThan(1.0), "and nowhere near the 2 m the hinge handover used to cost");
+        }
+
+        [Test]
         public void TheDepartureAndQuayOutLegsMeetInsteadOfTeleportingTheVehicle()
         {
             // The mirror image: the departure leg ends at the lane start, so the quay-out leg must start there too
