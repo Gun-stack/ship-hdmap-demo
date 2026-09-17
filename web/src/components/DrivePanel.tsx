@@ -26,7 +26,7 @@ const BELIEF_SLIDERS: { key: keyof BeliefParamsIn; label: string; min: number; m
 const SCALES = [1, 5, 20];
 
 export function DrivePanel({ send }: { send: Send }) {
-  const { localization: l, setMode, scenarioLog, clearLog, datasetId, decks, deckFilter, occluded, belief: b, beliefParams: bp, setBeliefParams } = useEditorStore();
+  const { localization: l, setMode, scenarioLog, clearLog, datasetId, decks, deckFilter, occluded, belief: b, beliefParams: bp, setBeliefParams, setError } = useEditorStore();
   const [sig, setSig] = useState<Sig>({ sigma_r: 0.2, sigma_theta: 1, sigma_alpha: 2, sigma_gps: 0.5 });
   const [scale, setScale] = useState(1);
   const commit = () => send("SetNoise", sig); // on release only — Unity's SetNoise is cheap but the bridge is not a slider event bus
@@ -41,9 +41,14 @@ export function DrivePanel({ send }: { send: Send }) {
         send("SetPrediction", { grid_m: cov.grid_m, bbox: cov.bbox, cells: cov.cells.map((c) => ({ x: c.x, y: c.y, s: c.sigma_xy ?? null })) });
       } catch (e) {
         // no prediction is still a valid drive: BeliefMonitor skips the Degraded check when predictedSigmaXy
-        // is null and Lost/backtracking/stopped still work off observation count alone — start anyway
-        useEditorStore.setState({ error: "coverage prediction unavailable: " + (e as Error).message });
+        // is null and Lost/backtracking/stopped still work off observation count alone — start anyway. But
+        // Unity must actually drop whatever prediction it was holding, or a stale one (another deck's, another
+        // occlusion set's) keeps judging Degraded against a promise this run never made.
+        send("SetPrediction", { grid_m: 1, bbox: [0, 0, 0, 0], cells: [] });
+        setError("coverage prediction unavailable: " + (e as Error).message);
       }
+    } else {
+      send("SetPrediction", { grid_m: 1, bbox: [0, 0, 0, 0], cells: [] });
     }
     send("SetOccluded", { ids: occluded });
     send("SetBeliefParams", bp);
