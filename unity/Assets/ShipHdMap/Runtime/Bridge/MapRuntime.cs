@@ -242,6 +242,14 @@ namespace ShipHdMap
             Sensor.noise.sigmaGps = n.sigma_gps;
         }
 
+        /// Not persisted anywhere: damage is a fact about this moment, not about the map (spec §4).
+        public void SetOccluded(string json)
+        {
+            var m = MapJson.Parse<SetOccludedMsg>(json);
+            Sensor.occluded.Clear();
+            if (m?.ids != null) foreach (var id in m.ids) Sensor.occluded.Add(id);
+        }
+
         public PredictionGrid Prediction { get; private set; }
 
         /// The coverage map for the deck being driven. The web fetches it (Unity does not do HTTP) and pushes it

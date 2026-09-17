@@ -87,4 +87,19 @@ public class LocalizerSigmaTests
         Assert.That(bad.sigmaXy.Value, Is.GreaterThan(good.sigmaXy.Value));
         Assert.That(bad.sigmaPsiDeg.Value, Is.GreaterThan(good.sigmaPsiDeg.Value));
     }
+
+    [Test]
+    public void OccludedMarkersAreNotSeen()
+    {
+        var lm = At("a", 10, 0);
+        var sensor = new UnityEngine.GameObject("s").AddComponent<LandmarkSensor>();
+        var map = new Dictionary<string, LandmarkRef> { [lm.id] = lm };
+        var truth = new Pose2D { x = 0, y = 0, psiRad = 0 };
+        UnityEngine.Vector3 PosOf(string id) => new UnityEngine.Vector3((float)lm.mx, 1.2f, -(float)lm.my);
+
+        Assert.That(sensor.Sense(truth, map, PosOf), Has.Count.EqualTo(1));
+        sensor.occluded.Add("a");
+        Assert.That(sensor.Sense(truth, map, PosOf), Is.Empty, "a damaged marker is simply not detected");
+        UnityEngine.Object.DestroyImmediate(sensor.gameObject);
+    }
 }
