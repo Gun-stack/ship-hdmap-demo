@@ -4,19 +4,20 @@ import { useEditorStore } from "../store/editor";
 import type { BridgeName } from "../bridge/useShipUnity";
 
 type Send = (name: BridgeName, payload?: string | object) => void;
-type Sig = { sigma_r: number; sigma_theta: number; sigma_alpha: number };
+type Sig = { sigma_r: number; sigma_theta: number; sigma_alpha: number; sigma_gps: number };
 const SLIDERS: { key: keyof Sig; label: string; max: number; step: number; digits: number }[] = [
   { key: "sigma_r", label: "σ 거리 (m)", max: 1, step: 0.05, digits: 2 },
   { key: "sigma_theta", label: "σ 방위 (°)", max: 5, step: 0.5, digits: 1 },
   { key: "sigma_alpha", label: "σ 방향각 (°)", max: 10, step: 0.5, digits: 1 },
+  { key: "sigma_gps", label: "σ GPS (m)", max: 3, step: 0.1, digits: 1 },   // quay leg only: decides how squarely the vehicle enters the ramp
 ];
 const SCALES = [1, 5, 20];
 
 export function DrivePanel({ send }: { send: Send }) {
   const { localization: l, setMode, scenarioLog, clearLog } = useEditorStore();
-  const [sig, setSig] = useState<Sig>({ sigma_r: 0.2, sigma_theta: 1, sigma_alpha: 2 });
+  const [sig, setSig] = useState<Sig>({ sigma_r: 0.2, sigma_theta: 1, sigma_alpha: 2, sigma_gps: 0.5 });
   const [scale, setScale] = useState(1);
-  const commit = () => send("SetNoise", { ...sig, sigma_gps: 0.5 }); // on release only — Unity's SetNoise is cheap but the bridge is not a slider event bus
+  const commit = () => send("SetNoise", sig); // on release only — Unity's SetNoise is cheap but the bridge is not a slider event bus
   const start = (mode: "load" | "unload") => { clearLog(); send("SetTimeScale", { scale }); send("StartScenario", { mode }); };
   const err = l ? Math.hypot(l.est_x - l.true_x, l.est_y - l.true_y) : null;
   return (
