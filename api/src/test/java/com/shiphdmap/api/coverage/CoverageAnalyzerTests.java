@@ -226,4 +226,101 @@ class CoverageAnalyzerTests {
 		assertThat(CoverageAnalyzer.analyze(deck, List.of(), List.of(bow), CoverageAnalyzer.Scope.ALL,
 			CoverageAnalyzer.PSI_LOAD, 1.0, S).cells()).anyMatch(c -> c.n() == 1);
 	}
+
+	@Test
+	void candidatesSitOnFacesAndFaceTheVehicleSide() {
+		var deck = rect(0, -12, 120, 12);
+		var pillar = rect(59.7, -0.3, 60.3, 0.3);
+		var cs = CoverageAnalyzer.candidates(deck, List.of("Pillar-1"), List.<double[][]>of(pillar), List.of());
+		// 4 pillar faces (0.6 m, one point each) + the deck outline split every 12 m: 2 x 10 long, 2 x 2 short
+		assertThat(cs).hasSize(4 + 24);
+		var stern = cs.stream().filter(c -> c.mountedOn().equals("Pillar-1") && c.x() < 59.8).findFirst().orElseThrow();
+		assertThat(Math.toDegrees(stern.phiRad())).isCloseTo(180, within(1e-6));   // the aft face looks aft, away from the pillar
+		var bulkhead = cs.stream().filter(c -> c.mountedOn().equals("deck") && c.x() < 0.1).findFirst().orElseThrow();
+		assertThat(Math.toDegrees(bulkhead.phiRad())).isCloseTo(0, within(1e-6));  // the stern bulkhead looks forward, into the deck
+	}
+
+	/** Only the face the marker already occupies is taken: same spot AND same direction. */
+	@Test
+	void candidatesSkipTheFaceAnExistingMarkerAlreadyCovers() {
+		var deck = rect(0, -12, 120, 12);
+		var pillar = rect(59.7, -0.3, 60.3, 0.3);
+		var occupied = List.of(new CoverageAnalyzer.Landmark("LM-1", 59.7, 0, Math.PI));   // on the aft face, facing aft
+		var cs = CoverageAnalyzer.candidates(deck, List.of("Pillar-1"), List.<double[][]>of(pillar), occupied);
+		var onPillar = cs.stream().filter(c -> c.mountedOn().equals("Pillar-1")).toList();
+		assertThat(onPillar).hasSize(3);                                                   // the aft face is gone
+		assertThat(onPillar).noneMatch(c -> Math.abs(ShipFrame.wrapRad(c.phiRad() - Math.PI)) < 1e-6);
+	}
+
+	/**
+	 * The defect that makes §1.4 reachable. Every fixture pillar already carries a marker 0.12-0.67 m away, so a
+	 * distance-only rule would drop all 72 pillar faces and leave nothing that can light up the outer slot rows.
+	 */
+	@Test
+	void aMarkerOnOneFaceDoesNotBlockTheOppositeFace() {
+		var deck = rect(0, -12, 120, 12);
+		var pillar = rect(11.6, -6.86, 12.2, -6.26);                        // the fixture's shape and place
+		var lm = List.of(new CoverageAnalyzer.Landmark("LM-0001", 12.0, -6.2, Math.toRadians(90)));
+		var onPillar = CoverageAnalyzer.candidates(deck, List.of("P"), List.<double[][]>of(pillar), lm).stream()
+			.filter(c -> c.mountedOn().equals("P")).toList();
+		assertThat(onPillar).hasSize(3);
+		var outward = onPillar.stream().filter(c -> Math.abs(Math.toDegrees(c.phiRad()) + 90) < 1e-6).findFirst();
+		assertThat(outward).as("the face pointing away from the lane survives").isPresent();
+		// and it is what reaches the outer row: y = -10 is blind without it, lit with it
+		var scope = new CoverageAnalyzer.Scope(List.<double[][]>of(rect(0, -11.1, 120, -9.1)), List.of());
+		var before = CoverageAnalyzer.analyze(deck, List.<double[][]>of(pillar), lm, scope, CoverageAnalyzer.PSI_LOAD, 1.0, S);
+		var after = CoverageAnalyzer.analyze(deck, List.<double[][]>of(pillar),
+			java.util.stream.Stream.concat(lm.stream(), java.util.stream.Stream.of(
+				new CoverageAnalyzer.Landmark("NEW", outward.get().x(), outward.get().y(), outward.get().phiRad()))).toList(),
+			scope, CoverageAnalyzer.PSI_LOAD, 1.0, S);
+		assertThat(after.blindRatio()).isLessThan(before.blindRatio());
+	}
+
+	@Test
+	void suggestFillsABlindSpotFirst() {
+		var deck = rect(0, -12, 120, 12);
+		var lms = fixtureLandmarks();
+		var cands = CoverageAnalyzer.candidates(deck, List.of(), List.of(), lms);
+		var out = CoverageAnalyzer.suggest(deck, List.of(), lms, fixtureScope(), cands, CoverageAnalyzer.PSI_UNLOAD, S, 2);
+		assertThat(out).hasSize(2);
+		assertThat(out.get(0).rank()).isEqualTo(1);
+		assertThat(out.get(0).gain()).as("rank 1 removes blind cells").isPositive();
+	}
+
+	@Test
+	void suggestionsNeverGetWorse() {
+		var deck = rect(0, -12, 120, 12);
+		var lms = fixtureLandmarks();
+		var cands = CoverageAnalyzer.candidates(deck, List.of(), List.of(), lms);
+		var out = CoverageAnalyzer.suggest(deck, List.of(), lms, fixtureScope(), cands, CoverageAnalyzer.PSI_UNLOAD, S, 3);
+		for (int i = 1; i < out.size(); i++)
+			assertThat(out.get(i).blindAfter()).isLessThanOrEqualTo(out.get(i - 1).blindAfter());
+	}
+
+	@Test
+	void budgetIsClampedAndCandidatesAreNotReused() {
+		var deck = rect(0, -12, 120, 12);
+		var lms = fixtureLandmarks();
+		var cands = CoverageAnalyzer.candidates(deck, List.of(), List.of(), lms);
+		var out = CoverageAnalyzer.suggest(deck, List.of(), lms, fixtureScope(), cands, CoverageAnalyzer.PSI_UNLOAD, S, 99);
+		assertThat(out.size()).isLessThanOrEqualTo(CoverageAnalyzer.MAX_BUDGET);
+		assertThat(out.stream().map(s -> s.x() + "," + s.y()).distinct()).hasSize(out.size());
+	}
+
+	/**
+	 * The reason §3.4 exists. A face that only lights up the empty deck edge must lose to one that lights up a slot,
+	 * even though the edge has far more cells. Without the scope the greedy picks the edge.
+	 */
+	@Test
+	void suggestIgnoresCellsNobodyDrivesThrough() {
+		var deck = rect(0, -30, 40, 30);                                  // a wide deck: most of it is empty
+		var lane = new CoverageAnalyzer.Lane(new double[][] { { 0, 0, 0 }, { 40, 0, 0 } }, 3.2);
+		var scope = new CoverageAnalyzer.Scope(List.of(), List.of(lane));
+		var edgeFace = new CoverageAnalyzer.Candidate(20, 30, Math.toRadians(-90), "edge");   // lights up the far edge
+		var laneFace = new CoverageAnalyzer.Candidate(20, 2, Math.toRadians(-90), "lane");    // lights up the lane
+		var out = CoverageAnalyzer.suggest(deck, List.of(), List.of(), scope,
+			List.of(edgeFace, laneFace), CoverageAnalyzer.PSI_LOAD, S, 1);
+		assertThat(out).hasSize(1);
+		assertThat(out.get(0).mountedOn()).isEqualTo("lane");
+	}
 }

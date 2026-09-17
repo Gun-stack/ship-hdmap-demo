@@ -170,4 +170,118 @@ public final class CoverageAnalyzer {
 		for (var r : rings) if (Rings.contains(r, x, y)) return true;
 		return false;
 	}
+
+	/** A face a marker could be mounted on: midpoint plus the outward normal (the side the vehicle is on). */
+	public record Candidate(double x, double y, double phiRad, String mountedOn) {}
+	/** One greedy pick. Ratios are the state AFTER adopting this and every earlier suggestion; gain is the blind drop. */
+	public record Suggestion(int rank, double x, double y, double phiDeg, String mountedOn,
+		double blindAfter, double weakAfter, double gain) {}
+
+	public static final int MAX_BUDGET = 10;
+	/** Split long edges this often, so a 120 m bulkhead offers candidates at the same density as the pillars. */
+	static final double FACE_SPACING_M = 12.0;
+	/** Suggestions land on structure faces, which are metres apart; a finer grid buys nothing. Spec §4.2. */
+	public static final double SUGGEST_GRID_M = 2.0;
+	static final double CANDIDATE_CLEARANCE_M = 2.0;     // "the same spot" for the purpose of the rule below
+	static final double FACE_ALIGN_RAD = Math.PI / 4;    // ...and "the same direction". Both must hold to exclude a face.
+	static final double NORMAL_PROBE_M = 0.1;          // step off the face to decide which way is "outward"
+	static final double BLIND_PENALTY = 10;            // one blind cell is worse than ten weak ones: different kinds of bad
+
+	public static List<Candidate> candidates(double[][] outline, List<String> pillarIds, List<double[][]> pillars, List<Landmark> existing) {
+		var out = new java.util.ArrayList<Candidate>();
+		for (int p = 0; p < pillars.size(); p++) {
+			String id = p < pillarIds.size() ? pillarIds.get(p) : "pillar-" + p;
+			addFaces(out, pillars.get(p), id, true, existing);
+		}
+		addFaces(out, outline, "deck", false, existing);
+		return out;
+	}
+
+	/** outward = true for pillars (normal points away from the ring), false for the deck outline (normal points inward). */
+	static void addFaces(List<Candidate> out, double[][] ring, String mountedOn, boolean outward, List<Landmark> existing) {
+		for (int i = 0; i + 1 < ring.length; i++) {
+			double ax = ring[i][0], ay = ring[i][1];
+			double ex = ring[i + 1][0] - ax, ey = ring[i + 1][1] - ay, len = Math.hypot(ex, ey);
+			if (len < 1e-9) continue;
+			double nx = -ey / len, ny = ex / len;                       // one of the two perpendiculars
+			boolean probeInside = Rings.contains(ring, ax + ex / 2 + nx * NORMAL_PROBE_M, ay + ey / 2 + ny * NORMAL_PROBE_M);
+			if (probeInside == outward) { nx = -nx; ny = -ny; }          // flip when it points the wrong way
+			// wrapRad, not a bare atan2: flipping a zero component leaves -0.0, and atan2(-0.0, -1) is -pi where the
+			// (-pi, pi] convention the rest of the code uses says pi. Same direction, but the value is what callers compare.
+			double phi = ShipFrame.wrapRad(Math.atan2(ny, nx));
+			int parts = Math.max(1, (int) Math.round(len / FACE_SPACING_M));   // a pillar face stays one point
+			for (int k = 0; k < parts; k++) {
+				double t = (k + 0.5) / parts, mx = ax + ex * t, my = ay + ey * t;
+				if (alreadyCovered(mx, my, phi, existing)) continue;
+				out.add(new Candidate(mx, my, phi, mountedOn));
+			}
+		}
+	}
+
+	/**
+	 * A face is taken only when a marker is both close AND pointing the same way. Distance alone is wrong: the fixture
+	 * pillars are 0.6 m across with a marker already on one face, so a 2 m radius would swallow all four faces of all
+	 * 18 pillars and leave nothing aimed at the outer slot rows (spec §5.1.1).
+	 */
+	static boolean alreadyCovered(double x, double y, double phi, List<Landmark> existing) {
+		for (var lm : existing)
+			if (Math.hypot(lm.x() - x, lm.y() - y) < CANDIDATE_CLEARANCE_M
+				&& Math.abs(ShipFrame.wrapRad(lm.phiRad() - phi)) < FACE_ALIGN_RAD) return true;
+		return false;
+	}
+
+	/** Blind/weak counts over the in-scope cells only. The suggest path needs no heatmap, so out-of-scope cells are skipped entirely. */
+	record Tally(int nCells, int blind, int weak) {
+		double blindRatio() { return nCells == 0 ? 0 : (double) blind / nCells; }
+		double weakRatio() { return nCells == 0 ? 0 : (double) weak / nCells; }
+		double score() { return blind * BLIND_PENALTY + weak; }
+	}
+
+	static Tally tally(double[][] outline, List<double[][]> pillars, List<Landmark> lms, Scope scope,
+			double psi, double gridM, Sensor s) {
+		double[] b = Rings.bbox(outline);
+		int n = 0, blind = 0, weak = 0;
+		for (double y = b[1] + gridM / 2; y <= b[3]; y += gridM)
+			for (double x = b[0] + gridM / 2; x <= b[2]; x += gridM) {
+				if (!scope.has(x, y)) continue;                          // skipped before any geometry work
+				if (!Rings.contains(outline, x, y) || insideAny(pillars, x, y)) continue;
+				n++;
+				Double st = stability(estimate(x, y, psi, visibleFrom(x, y, psi, lms, pillars, s), s));
+				if (st == null) blind++;
+				else if (st < 1.0) weak++;
+			}
+		return new Tally(n, blind, weak);
+	}
+
+	/**
+	 * Greedy: adopt the candidate that lowers the score most, repeat. Blind cells outweigh weak ones.
+	 * ponytail: every candidate re-walks the grid. Information only accumulates, so an ok cell can never turn bad and
+	 * in principle only the currently blind/weak cells need revisiting; caching each cell's baseline A matrix would
+	 * drop the marker factor too. The 2 m grid already makes this a few hundred ms, so neither is worth it yet.
+	 */
+	public static List<Suggestion> suggest(double[][] outline, List<double[][]> pillars, List<Landmark> lms,
+			Scope scope, List<Candidate> cands, double psi, Sensor s, int budget) {
+		int n = Math.min(Math.max(budget, 0), MAX_BUDGET);
+		var chosen = new java.util.ArrayList<>(lms);
+		var pool = new java.util.ArrayList<>(cands);
+		var out = new java.util.ArrayList<Suggestion>();
+		var cur = tally(outline, pillars, chosen, scope, psi, SUGGEST_GRID_M, s);
+		for (int rank = 1; rank <= n && !pool.isEmpty(); rank++) {
+			Candidate best = null;
+			Tally bestT = null;
+			for (var c : pool) {
+				var trial = new java.util.ArrayList<>(chosen);
+				trial.add(new Landmark("CAND", c.x(), c.y(), c.phiRad()));
+				var t = tally(outline, pillars, trial, scope, psi, SUGGEST_GRID_M, s);
+				if (t.score() < (bestT == null ? cur.score() : bestT.score())) { bestT = t; best = c; }
+			}
+			if (best == null) break;                                     // nothing improves anything
+			out.add(new Suggestion(rank, best.x(), best.y(), Math.toDegrees(best.phiRad()), best.mountedOn(),
+				bestT.blindRatio(), bestT.weakRatio(), cur.blindRatio() - bestT.blindRatio()));
+			chosen.add(new Landmark("CAND-" + rank, best.x(), best.y(), best.phiRad()));
+			pool.remove(best);
+			cur = bestT;
+		}
+		return out;
+	}
 }
