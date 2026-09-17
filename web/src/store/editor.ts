@@ -123,6 +123,7 @@ export function scenarioLine(e: ScenarioEvt): string {
     case "start": return e.mode === "unload" ? "◀ 하역 시작" : "▶ 선적 시작";
     case "target": return `대상 ${e.slot_id}`;
     case "leave_lane": return `차로 이탈 · ${e.detail ?? ""}`;
+    case "frame_switch": return `프레임 전환 · ${e.detail ?? ""}`;
     case "finished": return `종료 (${e.detail ?? ""})`;
     default: return e.event;
   }

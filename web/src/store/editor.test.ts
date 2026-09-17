@@ -160,4 +160,9 @@ describe("scenario log and slot status", () => {
     expect(scenarioLine({ event: "finished", detail: "no_empty_slot" })).toBe("종료 (no_empty_slot)");
     expect(slotFilledLine({ slot_id: "PS-D3-002", status: "needs_adjust", err_lat: -0.2, err_lon: 0.05, err_heading: -2.5 })).toBe("PS-D3-002 needs_adjust  lat -0.20 lon +0.05 hdg -2.5°");
   });
+
+  it("frame_switch 를 사람이 읽는 줄로 만든다", () => {
+    expect(scenarioLine({ event: "frame_switch", detail: "est x 1.20 y -0.30 psi 0.4" })).toBe("프레임 전환 · est x 1.20 y -0.30 psi 0.4");
+    expect(scenarioLine({ event: "finished", detail: "ramp_blocked" })).toBe("종료 (ramp_blocked)");
+  });
 });

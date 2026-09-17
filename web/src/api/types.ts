@@ -15,5 +15,5 @@ export type GenerateSlotsOut = { deck: string; count: number; utilization: numbe
 export type SlotStatus = "empty" | "filled" | "needs_adjust";
 /** Unity -> React: parking judgement (load) or an emptied slot (unload: status "empty", no errors). */
 export type SlotFilledEvt = { slot_id: string; status: SlotStatus; err_lat?: number; err_lon?: number; err_heading?: number };
-export type ScenarioEvt = { event: "start" | "target" | "leave_lane" | "finished"; mode?: "load" | "unload"; slot_id?: string; detail?: string };
+export type ScenarioEvt = { event: "start" | "target" | "leave_lane" | "frame_switch" | "finished"; mode?: "load" | "unload"; slot_id?: string; detail?: string };
 export type ScenarioLine = { t: string; text: string };

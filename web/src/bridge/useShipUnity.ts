@@ -24,6 +24,7 @@ export function useShipUnity() {
     const { pose, ramp, dataset } = useEditorStore.getState();
     if (!pose) return;
     send("SetPose", { draft_fwd_m: pose.draft_fwd_m ?? 8.1, draft_aft_m: pose.draft_aft_m ?? 8.6, heel_deg: pose.heel_deg ?? 0, lpp_m: dataset?.lpp_m ?? 120,
+      tide_m: pose.tide_m ?? 0, quay_z_m: pose.quay_z_m ?? 3.5,
       ...(ramp ? { ramp: { id: ramp.id, angle_deg: ramp.angle_deg, state: ramp.state } } : {}) });
   }, [send]);
 

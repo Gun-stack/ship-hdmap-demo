@@ -8,6 +8,7 @@ const FIELDS: { key: keyof Pose; label: string; min: number; max: number; step: 
   { key: "draft_aft_m", label: "흘수 선미", min: 6, max: 10, step: 0.1, unit: "m" },
   { key: "heel_deg", label: "횡경사", min: -3, max: 3, step: 0.1, unit: "°" },
   { key: "tide_m", label: "조위", min: -1, max: 3, step: 0.1, unit: "m" },
+  { key: "quay_z_m", label: "부두 높이", min: 0, max: 8, step: 0.1, unit: "m" },
 ];
 
 export function PosePanel() {
