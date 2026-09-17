@@ -25,6 +25,7 @@ namespace ShipHdMap
 
         string _mode = "edit"; string _selected; Pose2D? _prev; LocalizerResult _lastRes; float _emitTimer; SeedData _seed;
         GameObject _overlay; string _deck = "all"; SetPoseMsg _pose;
+        string _shipSignature;
         readonly Dictionary<string, LandmarkMarker> _markers = new();
         readonly HashSet<string> _seen = new();
 
@@ -43,6 +44,7 @@ namespace ShipHdMap
 #endif
             if (!Application.isPlaying) return;
             Ship = GameObject.Find("Ship");
+            // Seed-built hull so the scene is not empty before the first Load; Load replaces it with the map's own hull.
             if (Ship == null) { _seed = ShipSeedBuilder.Build(shipParams); Ship = ShipMeshBuilder.Build(_seed, shipParams, transform); }
             AttachShip();
             Placer.decks = _seed?.decks ?? new List<Deck>();
@@ -73,6 +75,29 @@ namespace ShipHdMap
             Placer = gameObject.AddComponent<LandmarkPlacer>(); Placer.landmarksRoot = LandmarksRoot;
             Hud = gameObject.AddComponent<HudView>();
             Quay = QuayBuilder.Build();   // world space: the Quay Frame, never a child of this root
+        }
+
+        /// Rebuild only when the map's ship-defining parts actually change: a slot regeneration reloads the whole map
+        /// and rebuilding thousands of primitives every time would stall the browser.
+        /// Includes each deck's own outline extent (not just z_surface/z_clear): two ships can share deck heights
+        /// while differing only in length/beam, and the hull must still rebuild when the outline is what changed.
+        static string ShipSignature(VehicleMap m)
+        {
+            var sb = new System.Text.StringBuilder();
+            foreach (var d in m.decks ?? new List<Deck>())
+            {
+                double x0 = double.MaxValue, x1 = double.MinValue, y0 = double.MaxValue, y1 = double.MinValue;
+                foreach (var pt in d.outline ?? Array.Empty<double[]>())
+                {
+                    if (pt[0] < x0) x0 = pt[0]; if (pt[0] > x1) x1 = pt[0];
+                    if (pt[1] < y0) y0 = pt[1]; if (pt[1] > y1) y1 = pt[1];
+                }
+                if (x1 < x0) { x0 = x1 = y0 = y1 = 0; } // no outline
+                sb.Append(d.id).Append(':').Append(d.z_surface).Append(':').Append(d.z_clear).Append(':').Append(x1 - x0).Append(':').Append(y1 - y0).Append('|');
+            }
+            sb.Append('#').Append((m.facilities ?? new List<Facility>()).Count).Append('#').Append((m.lashing_points ?? new List<LashingPoint>()).Count);
+            foreach (var r in m.ramps ?? new List<Ramp>()) sb.Append('#').Append(r.id).Append(':').Append(r.length_m).Append(':').Append(r.hinge[0][2]);
+            return sb.ToString();
         }
 
         // ---- incoming (React -> Unity) ----
@@ -108,6 +133,15 @@ namespace ShipHdMap
             foreach (var d in CurrentMap.decks ?? new List<Deck>()) labels.Add(($"{d.id}  z {d.z_surface:F1} m", ShipFrame.ToUnity(4, 10, d.z_surface + 1.5)));
             Hud.SetDeckLabels(labels);
             Hud.SetContext(_deck, null);
+
+            var sig = ShipSignature(CurrentMap);
+            if (Application.isPlaying && sig != _shipSignature)
+            {
+                if (Ship) Destroy(Ship);
+                Ship = ShipMeshBuilder.Build(CurrentMap, transform);
+                _shipSignature = sig;
+                ShipMeshBuilder.SetDeckVisibility(Ship, _deck);
+            }
             ApplyPose();
         }
 

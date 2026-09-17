@@ -10,6 +10,21 @@ namespace ShipHdMap
         const float FloorThick = 0.2f, WallThick = 0.2f, MepRadius = 0.15f, LashRadius = 0.06f;
         const int MaxLashingPerDeck = 2000; // ponytail: cap for editor perf; instancing/GPU batching if the full grid is ever needed
 
+        /// Build the hull from the map instead of the generator's parameters: L and B come from each deck's own outline,
+        /// so a different ship model in the DB gives a different hull without touching ShipParams (spec M5b §3).
+        public static GameObject Build(VehicleMap map, Transform parent = null)
+        {
+            var seed = new SeedData
+            {
+                decks = map.decks ?? new List<Deck>(),
+                facilities = map.facilities ?? new List<Facility>(),
+                lashing_points = map.lashing_points ?? new List<LashingPoint>(),
+                ramps = map.ramps ?? new List<Ramp>(),
+                lanes = map.lanes ?? new List<Lane>(),
+            };
+            return Build(seed, null, parent);
+        }
+
         public static GameObject Build(SeedData seed, ShipParams p, Transform parent = null)
         {
             var ship = new GameObject("Ship"); if (parent) ship.transform.SetParent(parent, false);
@@ -18,7 +33,10 @@ namespace ShipHdMap
             foreach (var d in seed.decks)
             {
                 var deck = Child(ship, d.id);
-                float z = (float)d.z_surface, L = (float)p.lengthM, B = (float)p.beamM;
+                // Hull dimensions come from the deck's own outline; ShipParams is only a fallback for the seed path.
+                double x0 = d.outline.Min(pt => pt[0]), x1 = d.outline.Max(pt => pt[0]);
+                double y0 = d.outline.Min(pt => pt[1]), y1 = d.outline.Max(pt => pt[1]);
+                float z = (float)d.z_surface, L = (float)(x1 - x0), B = (float)(y1 - y0);
                 var floor = Prim(deck, "Floor", PrimitiveType.Cube, new Vector3(L / 2, z - FloorThick / 2, 0), new Vector3(L, FloorThick, B), Color(0.55f, 0.55f, 0.6f), layer, materials);
                 Prim(deck, "HullPort", PrimitiveType.Cube, new Vector3(L / 2, z + (float)d.z_clear / 2, -B / 2), new Vector3(L, (float)d.z_clear, WallThick), Color(0.4f, 0.45f, 0.5f), layer, materials);
                 Prim(deck, "HullStbd", PrimitiveType.Cube, new Vector3(L / 2, z + (float)d.z_clear / 2, B / 2), new Vector3(L, (float)d.z_clear, WallThick), Color(0.4f, 0.45f, 0.5f), layer, materials);
@@ -44,7 +62,7 @@ namespace ShipHdMap
                 var mep = Child(deck, "MEP");
                 foreach (float y in new[] { -8f, -3f, 8f }) // kept clear of the centreline lane (y in [-1.6, 1.6])
                 {
-                    var pipe = Prim(mep, $"Pipe_{y:+0;-0;0}", PrimitiveType.Cylinder, ShipFrame.ToUnity(p.lengthM / 2, y, d.z_surface + d.z_clear - 0.3), new Vector3(MepRadius * 2, L / 2, MepRadius * 2), Color(0.75f, 0.6f, 0.2f), layer, materials);
+                    var pipe = Prim(mep, $"Pipe_{y:+0;-0;0}", PrimitiveType.Cylinder, ShipFrame.ToUnity((x0 + x1) / 2, y, d.z_surface + d.z_clear - 0.3), new Vector3(MepRadius * 2, L / 2, MepRadius * 2), Color(0.75f, 0.6f, 0.2f), layer, materials);
                     pipe.transform.localRotation = Quaternion.Euler(0, 0, 90); // cylinder axis along Unity X
                     UnityEngine.Object.DestroyImmediate(pipe.GetComponent<Collider>());
                     pipe.AddComponent<BoxCollider>(); // structure colliders must be MeshCollider or BoxCollider, not the primitive's CapsuleCollider; auto-sizes to the mesh bounds and follows the rotation above since it's local-space

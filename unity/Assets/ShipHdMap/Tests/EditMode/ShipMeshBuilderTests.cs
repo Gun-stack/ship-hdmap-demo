@@ -53,6 +53,28 @@ namespace ShipHdMap.Tests
         }
 
         [Test]
+        public void BuildFromMapMatchesBuildFromSeed()
+        {
+            // Coarser lashing pitch than the default: BuildFromMapMatchesBuildFromSeed builds the hull twice, and the
+            // default pitch produces thousands of lashing sockets per deck -- fine for one build, slow for two.
+            var p = new ShipParams { lashingPitchM = 4 };
+            var seed = ShipSeedBuilder.Build(p);
+            var map = new VehicleMap { decks = seed.decks, facilities = seed.facilities, ramps = seed.ramps, lashing_points = seed.lashing_points };
+            var fromSeed = ShipMeshBuilder.Build(seed, p);
+            var fromMap = ShipMeshBuilder.Build(map);
+            foreach (var d in seed.decks)
+            {
+                var a = fromSeed.transform.Find($"{d.id}/Floor"); var b = fromMap.transform.Find($"{d.id}/Floor");
+                Assert.That(b, Is.Not.Null, "deck " + d.id);
+                Assert.That(b.localPosition, Is.EqualTo(a.localPosition));
+                Assert.That(b.localScale, Is.EqualTo(a.localScale));
+                Assert.That(fromMap.transform.Find($"{d.id}/Pillars").childCount, Is.EqualTo(fromSeed.transform.Find($"{d.id}/Pillars").childCount));
+            }
+            Assert.That(fromMap.transform.Find("Ramp").localPosition, Is.EqualTo(fromSeed.transform.Find("Ramp").localPosition));
+            Object.DestroyImmediate(fromSeed); Object.DestroyImmediate(fromMap);
+        }
+
+        [Test]
         public void DeckVisibilityFadesOthers()
         {
             var p = new ShipParams();
