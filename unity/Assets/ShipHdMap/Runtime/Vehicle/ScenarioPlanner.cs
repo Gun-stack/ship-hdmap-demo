@@ -30,6 +30,13 @@ namespace ShipHdMap
             new[] { hinge[0], hinge[1], hinge[2] },
         };
 
+        /// Belief-frame path from wherever the vehicle thinks it is to the ramp hinge (Ship Frame), where the deck lane starts.
+        public static double[][] RampTopPath(Pose2D est, double[] hingeShip) => new[]
+        {
+            new[] { est.x, est.y, hingeShip[2] },
+            new[] { hingeShip[0], hingeShip[1], hingeShip[2] },
+        };
+
         public static bool IsFilled(string status) => status == "filled" || status == "needs_adjust";
 
         public static ParkingSlot NextSlot(IEnumerable<ParkingSlot> slots, string mode)

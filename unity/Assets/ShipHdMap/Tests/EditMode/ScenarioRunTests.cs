@@ -41,14 +41,14 @@ namespace ShipHdMap.Tests
             return rt;
         }
 
-        /// Steps until an event with this name arrives; fails after maxSteps.
-        static string RunUntil(MapRuntime rt, List<(string name, string json)> log, string name, int maxSteps = 4000, float step = 0.05f)
+        /// Steps until an event with this name (and, if given, matching this predicate) arrives; fails after maxSteps.
+        static string RunUntil(MapRuntime rt, List<(string name, string json)> log, string name, int maxSteps = 4000, float step = 0.05f, System.Func<string, bool> where = null)
         {
             int start = log.Count;
             for (int i = 0; i < maxSteps; i++)
             {
                 rt.Step(step);
-                var hit = log.Skip(start).FirstOrDefault(e => e.name == name);
+                var hit = log.Skip(start).FirstOrDefault(e => e.name == name && (where == null || where(e.json)));
                 if (hit.name != null) return hit.json;
             }
             Assert.Fail($"no {name} within {maxSteps} steps (phase {rt.ScenarioPhase}, s {rt.Vehicle.s:F1})"); return null;
@@ -72,6 +72,29 @@ namespace ShipHdMap.Tests
             noisy.StartScenario("{\"mode\":\"load\"}");
             double offset = noisy.Vehicle.path[noisy.Vehicle.path.Length - 1][1];
             Assert.That(System.Math.Abs(offset - centred), Is.GreaterThan(0.3), "a 2 m GPS sigma must show up as a lateral miss");
+        }
+
+        [Test]
+        public void EntranceLandmarkPairSwitchesToTheShipFrame()
+        {
+            var rt = NewRuntime(Fixture());
+            rt.SetPose(PoseJson(0));
+            rt.StartScenario("{\"mode\":\"load\"}");
+            var json = RunUntil(rt, emitted, "onScenario", 4000, 0.05f, e => e.Contains("frame_switch"));
+            Assert.That(rt.ScenarioPhase, Is.EqualTo(MapRuntime.Phase.OnRamp));
+            Assert.That(rt.Vehicle.transform.parent, Is.EqualTo(rt.transform), "after the switch the vehicle rides the Map root");
+            Assert.That(json, Does.Contain("est"));
+        }
+
+        [Test]
+        public void MissingEntrancePairEndsTheRunInsteadOfDrivingOn()
+        {
+            var f = Fixture().Replace("\"transition_landmarks\": [", "\"transition_landmarks\": [\"LM-NOPE\",");
+            var rt = NewRuntime(f);
+            rt.SetPose(PoseJson(0));
+            rt.StartScenario("{\"mode\":\"load\"}");
+            RunUntil(rt, emitted, "onScenario", 4000, 0.05f, e => e.Contains("no_frame_switch"));
+            Assert.That(rt.ScenarioPhase, Is.EqualTo(MapRuntime.Phase.Idle));
         }
 
         [Test]

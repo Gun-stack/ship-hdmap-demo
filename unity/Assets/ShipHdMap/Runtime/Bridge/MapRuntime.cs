@@ -26,6 +26,7 @@ namespace ShipHdMap
         string _mode = "edit"; string _selected; Pose2D? _prev; LocalizerResult _lastRes; float _emitTimer; SeedData _seed;
         GameObject _overlay; string _deck = "all"; SetPoseMsg _pose;
         readonly Dictionary<string, LandmarkMarker> _markers = new();
+        readonly HashSet<string> _seen = new();
 
         public enum Phase { Idle, OnQuay, OnRamp, OnLane, Parking, Departing, RampDown, QuayOut }
         public Phase ScenarioPhase { get; private set; } = Phase.Idle;
@@ -254,8 +255,9 @@ namespace ShipHdMap
             if (_emitTimer >= 0.2f)
             {
                 _emitTimer = 0;
+                var truth = ShipTruth();
                 Send(BridgeMessages.OnLocalization, MapJson.Serialize(new LocalizationEvt { est_x = _lastRes.pose.x, est_y = _lastRes.pose.y, est_psi = _lastRes.pose.psiRad * R2D,
-                    true_x = Vehicle.Truth.x, true_y = Vehicle.Truth.y, true_psi = Vehicle.Truth.psiRad * R2D, residual_rms = _lastRes.residualRms, n_obs = _lastRes.nObs, frame = "SHIP_AP" }));
+                    true_x = truth.x, true_y = truth.y, true_psi = truth.psiRad * R2D, residual_rms = _lastRes.residualRms, n_obs = _lastRes.nObs, frame = "SHIP_AP" }));
             }
             StepScenario();
         }
@@ -264,16 +266,43 @@ namespace ShipHdMap
         /// re-localize without re-triggering the 0.2s onLocalization emit, which stays in Step.
         void Localize()
         {
-            var obs = Sensor.Sense(Vehicle.Truth, MapRefs, id => _markers[id].transform.position);
+            var truth = ShipTruth();
+            var obs = Sensor.Sense(truth, MapRefs, id => _markers[id].transform.position);
+            _seen.Clear(); foreach (var o in obs) _seen.Add(o.id);
             _lastRes = Localizer.Solve(obs, MapRefs, Sensor.noise.sigmaR, Sensor.noise.sigmaThetaRad, Sensor.noise.sigmaAlphaRad, _prev);
             if (_lastRes.ok && double.IsFinite(_lastRes.pose.x) && double.IsFinite(_lastRes.pose.y) && double.IsFinite(_lastRes.pose.psiRad)) _prev = _lastRes.pose;
-            Hud.Set(_lastRes, Vehicle.Truth, "SHIP_AP");
+            Hud.Set(_lastRes, truth, "SHIP_AP");
         }
 
         void StepScenario()
         {
             switch (ScenarioPhase)
             {
+                case Phase.OnQuay when SawEntrancePair():
+                {
+                    // The estimate at this instant is everything the vehicle knows about where the ship is; it decides
+                    // how squarely the car arrives at the top of the ramp. Lane keeping re-centres it after that.
+                    var est = _lastRes.ok ? _lastRes.pose : ShipTruth();
+                    var r = CurrentMap.ramps[0];
+                    var hingeShip = new[] { (r.hinge[0][0] + r.hinge[1][0]) / 2, (r.hinge[0][1] + r.hinge[1][1]) / 2, r.hinge[0][2] };
+                    // Captured BEFORE the reparent: SetParent(..., true) preserves world pose, but once the parent flips,
+                    // ShipTruth()'s shortcut (parent == transform -> return Vehicle.Truth) would return the stale
+                    // Quay-frame Truth from this frame's Advance(), not the projected Ship-frame pose.
+                    var truth = ShipTruth();
+                    Vehicle.transform.SetParent(transform, true);                       // Ship Frame, same world pose
+                    Vehicle.StartPath(ScenarioPlanner.ToTruthFrame(ScenarioPlanner.RampTopPath(est, hingeShip), est, truth), ScenarioPlanner.ParkSpeedMps);
+                    ScenarioPhase = Phase.OnRamp;
+                    Send(BridgeMessages.OnScenario, MapJson.Serialize(new ScenarioEvt { evt = "frame_switch",
+                        detail = $"est x {est.x:F2} y {est.y:F2} psi {est.psiRad * R2D:F1}" }));
+                    break;
+                }
+                case Phase.OnQuay when Vehicle.AtEnd:
+                    Finish("no_frame_switch");
+                    break;
+                case Phase.OnRamp when Vehicle.AtEnd:
+                    Vehicle.StartLane(_targetLane);
+                    ScenarioPhase = Phase.OnLane;
+                    break;
                 case Phase.OnLane when Vehicle.s >= _exitS || Vehicle.AtEnd:
                 {
                     // Plan in the belief frame at the moment of leaving the lane, then execute open-loop in the true frame:
@@ -310,6 +339,28 @@ namespace ShipHdMap
         }
 
         static LandmarkRef RefOf(Landmark lm) => new LandmarkRef { id = lm.id, mx = lm.position[0], my = lm.position[1], phiRad = Math.Atan2(lm.normal[1], lm.normal[0]) };
+
+        /// Both entrance markers of the stern ramp in one frame (spec §3.2): the trigger for the frame switch.
+        bool SawEntrancePair()
+        {
+            var ids = CurrentMap?.ramps != null && CurrentMap.ramps.Count > 0 ? CurrentMap.ramps[0].transition_landmarks : null;
+            if (ids == null || ids.Count < 2) return false;
+            foreach (var id in ids) if (!_seen.Contains(id)) return false;
+            return true;
+        }
+
+        /// The sensor and the map live in Ship Frame. While the vehicle drives in the Quay Frame its TRUE pose is
+        /// projected through the Map root's inverse so observations stay meaningful; the vehicle's own belief is GPS
+        /// until the entrance pair is seen.
+        public Pose2D ShipTruth()
+        {
+            if (Vehicle.transform.parent == transform) return Vehicle.Truth;
+            var (x, y, _) = ShipFrame.ToShip(transform.InverseTransformPoint(Vehicle.transform.position));
+            // The car's nose points along its LOCAL +X (VehicleController.Apply/the body box), not Unity's default
+            // +Z "forward" -- transform.right is the vector that matches ShipFrame.HeadingVector's convention.
+            var fwd = transform.InverseTransformDirection(Vehicle.transform.right);
+            return new Pose2D { x = x, y = y, psiRad = Math.Atan2(-fwd.z, fwd.x) };
+        }
 
         /// Ramp hinge midpoint and free-end midpoint in the Quay Frame, from the map's ramp geometry and the pose's angle.
         public (double[] hinge, double[] foot) RampEndsInQuay()
