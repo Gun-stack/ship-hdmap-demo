@@ -177,4 +177,39 @@ public class BeliefMonitorTests
         Assert.That(m.TrailM, Is.Zero);
         Assert.That(m.BacktrackTargetS, Is.Null);
     }
+
+    static PredictionGrid Grid()
+    {
+        // 2 m grid over [0,10] x [0,4]; centres at 1,3,5,7,9 and 1,3
+        var cells = new System.Collections.Generic.List<(double, double, double?)>();
+        for (double y = 1; y < 4; y += 2)
+            for (double x = 1; x < 10; x += 2)
+                cells.Add((x, y, x < 5 ? (double?)0.30 : null));    // the far half is blind
+        return new PredictionGrid(new[] { 0.0, 0.0, 10.0, 4.0 }, 2.0, cells);
+    }
+
+    [Test]
+    public void PredictionLooksUpTheNearestCell()
+    {
+        var g = Grid();
+        Assert.That(g.SigmaAt(1.1, 1.1), Is.EqualTo(0.30).Within(1e-9));
+        Assert.That(g.SigmaAt(2.4, 0.2), Is.EqualTo(0.30).Within(1e-9), "still inside the first cell");
+        Assert.That(g.SigmaAt(9.0, 3.0), Is.Null, "blind cells report null, not zero");
+    }
+
+    [Test]
+    public void PredictionOutsideTheGridIsNull()
+    {
+        var g = Grid();
+        Assert.That(g.SigmaAt(-5, 1), Is.Null);
+        Assert.That(g.SigmaAt(50, 1), Is.Null);
+    }
+
+    [Test]
+    public void AnEmptyPredictionAnswersNull()
+    {
+        var g = new PredictionGrid(new[] { 0.0, 0.0, 1.0, 1.0 }, 1.0,
+            new System.Collections.Generic.List<(double, double, double?)>());
+        Assert.That(g.SigmaAt(0.5, 0.5), Is.Null);
+    }
 }

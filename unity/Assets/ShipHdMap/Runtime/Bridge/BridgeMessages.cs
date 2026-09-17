@@ -3,7 +3,7 @@ namespace ShipHdMap
     public static class BridgeMessages
     {
         public const string Load = "Load", SetMode = "SetMode", SetDeck = "SetDeck", Select = "Select", Confirm = "Confirm",
-            SetPose = "SetPose", SetNoise = "SetNoise", StartScenario = "StartScenario", SetTimeScale = "SetTimeScale";
+            SetPose = "SetPose", SetNoise = "SetNoise", StartScenario = "StartScenario", SetTimeScale = "SetTimeScale", SetPrediction = "SetPrediction";
         public const string OnSeedReady = "onSeedReady", OnFeatureCreated = "onFeatureCreated", OnFeatureMoved = "onFeatureMoved",
             OnSelected = "onSelected", OnSlotFilled = "onSlotFilled", OnLocalization = "onLocalization", OnScenario = "onScenario";
     }
@@ -23,4 +23,6 @@ namespace ShipHdMap
     public class ScenarioEvt { [Newtonsoft.Json.JsonProperty("event")] public string evt; public string mode; public string slot_id; public string detail; }
     public class RampMsg { public string id; public double angle_deg; public string state; }
     public class SetPoseMsg { public double draft_fwd_m = 8.1, draft_aft_m = 8.6, heel_deg, lpp_m = 120, tide_m = 0, quay_z_m = 3.5; public RampMsg ramp; }
+    public class PredCellMsg { public double x, y; public double? s; }   // s null = the map says blind here
+    public class SetPredictionMsg { public double grid_m = 1; public double[] bbox; public PredCellMsg[] cells; }
 }

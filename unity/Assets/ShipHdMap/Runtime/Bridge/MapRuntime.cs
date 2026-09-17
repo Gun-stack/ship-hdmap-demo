@@ -242,6 +242,18 @@ namespace ShipHdMap
             Sensor.noise.sigmaGps = n.sigma_gps;
         }
 
+        public PredictionGrid Prediction { get; private set; }
+
+        /// The coverage map for the deck being driven. The web fetches it (Unity does not do HTTP) and pushes it
+        /// once per scenario; Ship Frame is invariant, so it only goes stale when a marker is added or occluded.
+        public void SetPrediction(string json)
+        {
+            var m = MapJson.Parse<SetPredictionMsg>(json);
+            var cells = new List<(double, double, double?)>();
+            if (m?.cells != null) foreach (var c in m.cells) cells.Add((c.x, c.y, c.s));
+            Prediction = new PredictionGrid(m?.bbox, m?.grid_m ?? 1, cells);
+        }
+
         public void StartScenario(string json)
         {
             var s = MapJson.Parse<StartScenarioMsg>(json);
