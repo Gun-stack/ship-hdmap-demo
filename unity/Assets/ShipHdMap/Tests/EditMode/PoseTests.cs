@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using NUnit.Framework;
 using UnityEngine;
@@ -7,7 +8,7 @@ namespace ShipHdMap.Tests
     public class PoseTests
     {
         GameObject go;
-        [TearDown] public void Cleanup() { if (go) Object.DestroyImmediate(go); var ship = GameObject.Find("Ship"); if (ship) Object.DestroyImmediate(ship); }
+        [TearDown] public void Cleanup() { if (go) UnityEngine.Object.DestroyImmediate(go); var ship = GameObject.Find("Ship"); if (ship) UnityEngine.Object.DestroyImmediate(ship); }
         static string Fixture() => File.ReadAllText(Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "docs", "fixtures", "vehicle-map.sample.json")));
         const string TrimOnly = "{\"draft_fwd_m\":8.1,\"draft_aft_m\":10.1,\"heel_deg\":0,\"lpp_m\":120,\"ramp\":{\"id\":\"RAMP-STERN\",\"angle_deg\":4,\"state\":\"deployed\"}}";
         const string HeelOnly = "{\"draft_fwd_m\":8.6,\"draft_aft_m\":8.6,\"heel_deg\":3,\"lpp_m\":120}";
@@ -20,13 +21,13 @@ namespace ShipHdMap.Tests
             var rt = NewRuntime();
             rt.SetPose(TrimOnly);   // trim = atan(2/120) = 0.955 deg; bow point 100 m forward rises ~1.67 m
             var bow = rt.transform.TransformPoint(ShipFrame.ToUnity(100, 0, 10));
-            Assert.That(bow.y, Is.GreaterThan(11.5f));
+            Assert.That(bow.y, Is.GreaterThan(11.5f - 10.1f));   // root also sinks by draft_aft_m (M5b)
             var ap = rt.transform.TransformPoint(ShipFrame.ToUnity(0, 0, 10));
             // rotation is about the AP origin (x=0,y=0,z=0), not about this point itself (10 m up); a rigid
             // rotation still moves a point 10 m off its own axis by the second-order term height*(1-cos(trim))
             // ~= 10*(1-cos(0.955deg)) ~= 0.0014 m, so 1e-4f is unreachable -- 0.01f leaves an order of magnitude
             // of margin while still catching a gross axis mixup (which would show a first-order ~1.7 m shift).
-            Assert.That(ap.y, Is.EqualTo(10f).Within(0.01f));
+            Assert.That(ap.y, Is.EqualTo(10f - 10.1f).Within(0.01f));   // and by that same sink
         }
 
         [Test]
@@ -35,9 +36,9 @@ namespace ShipHdMap.Tests
             var rt = NewRuntime();
             rt.SetPose(HeelOnly);   // starboard point 10 m off the centreline drops 10*sin(3deg) = 0.52 m
             var stbd = rt.transform.TransformPoint(ShipFrame.ToUnity(50, -10, 10));
-            Assert.That(stbd.y, Is.LessThan(9.6f));
+            Assert.That(stbd.y, Is.LessThan(9.6f - 8.6f));   // root also sinks by draft_aft_m (M5b)
             var port = rt.transform.TransformPoint(ShipFrame.ToUnity(50, 10, 10));
-            Assert.That(port.y, Is.GreaterThan(10.4f));
+            Assert.That(port.y, Is.GreaterThan(10.4f - 8.6f));
         }
 
         [Test]
@@ -67,7 +68,7 @@ namespace ShipHdMap.Tests
             var ramp = ship.transform.Find("Ramp");
             Assert.That(Mathf.DeltaAngle(ramp.localRotation.eulerAngles.z, -4f), Is.EqualTo(0f).Within(1e-3f)); // SetRampAngle(4) -> local z -4
             var floor = ship.transform.Find("D3/Floor");
-            Assert.That(floor.position.y, Is.GreaterThan(10.5f + 60f * Mathf.Tan(0.955f * Mathf.Deg2Rad) - 0.6f)); // floor centre (x=60) rose with the root
+            Assert.That(floor.position.y, Is.GreaterThan(10.5f + 60f * Mathf.Tan(0.955f * Mathf.Deg2Rad) - 0.6f - 10.1f)); // floor centre (x=60) rose with the root, then the root sank by draft_aft_m (M5b)
 
             var overlayLine = rt.transform.Find("Overlay/D3/A2-D3-0001").GetComponent<LineRenderer>();
             Assert.That(overlayLine.useWorldSpace, Is.False);
@@ -109,6 +110,39 @@ namespace ShipHdMap.Tests
             Assert.That(m.position[1], Is.EqualTo(0).Within(0.05));
             Assert.That(m.position[2], Is.EqualTo(10.6).Within(0.05));   // Deck 3 surface, not the world height
             Assert.That(m.deck_id, Is.EqualTo("D3"));
+        }
+
+        [Test]
+        public void PoseSinksTheRootByAftDraftAndPutsTheQuayAtQuayZPlusTide()
+        {
+            var go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>(); rt.InitForTest();
+            rt.SetPose("{\"draft_fwd_m\":8.1,\"draft_aft_m\":8.6,\"heel_deg\":0,\"lpp_m\":120,\"tide_m\":0.4,\"quay_z_m\":3.5}");
+            Assert.That(rt.transform.localPosition.y, Is.EqualTo(-8.6f).Within(1e-4f));     // waterline is world y = 0
+            Assert.That(QuayBuilder.SurfaceZ(rt.Quay), Is.EqualTo(3.9).Within(1e-4));       // quay_z + tide
+            Assert.That(rt.Quay.transform.parent, Is.Null, "the quay must not ride on the Map root");
+            Assert.That(rt.Quay.GetComponent<Collider>(), Is.Null, "the quay must not catch placement raycasts");
+            UnityEngine.Object.DestroyImmediate(rt.Quay); UnityEngine.Object.DestroyImmediate(go);
+        }
+
+        [Test]
+        public void RampFreeEndLandsOnTheQuaySurface()
+        {
+            // The identity behind the whole layout: angle = asin(((quay_z + tide) - (hinge_z - draft_aft)) / length)
+            // puts the ramp's free end exactly on the quay surface, so nothing has to be nudged to make them meet.
+            // draft_fwd_m == draft_aft_m here so trim is 0 -- otherwise the root's trim rotation couples into the
+            // ramp's own free-end offset and the identity only holds approximately (trim is covered elsewhere).
+            var go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>(); rt.InitForTest();
+            var seed = ShipSeedBuilder.Build(new ShipParams());
+            var ship = ShipMeshBuilder.Build(seed, new ShipParams(), rt.transform);
+            var r = seed.ramps[0];
+            double draftAft = 8.6, quayZ = 3.5, tide = 0.4, hingeZ = r.hinge[0][2];
+            double angle = Math.Asin(((quayZ + tide) - (hingeZ - draftAft)) / r.length_m) * 180 / Math.PI;
+            rt.SetPose($"{{\"draft_fwd_m\":{draftAft},\"draft_aft_m\":{draftAft},\"heel_deg\":0,\"lpp_m\":120,\"tide_m\":{tide},\"quay_z_m\":{quayZ},\"ramp\":{{\"id\":\"RAMP-STERN\",\"angle_deg\":{angle},\"state\":\"deployed\"}}}}");
+
+            var ramp = ship.transform.Find("Ramp");
+            float freeEndY = ramp.TransformPoint(new Vector3(-(float)r.length_m, 0, 0)).y;   // plate runs from the hinge toward -x
+            Assert.That(freeEndY, Is.EqualTo((float)QuayBuilder.SurfaceZ(rt.Quay)).Within(0.01f));
+            UnityEngine.Object.DestroyImmediate(rt.Quay); UnityEngine.Object.DestroyImmediate(go);
         }
     }
 }

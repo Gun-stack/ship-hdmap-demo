@@ -19,6 +19,5 @@ namespace ShipHdMap
     /// Scenario log line. `event`: start | target | leave_lane | finished.
     public class ScenarioEvt { [Newtonsoft.Json.JsonProperty("event")] public string evt; public string mode; public string slot_id; public string detail; }
     public class RampMsg { public string id; public double angle_deg; public string state; }
-    /// Only what the tilt needs; absolute draft / tide / quay height are M5b (quay geometry).
-    public class SetPoseMsg { public double draft_fwd_m = 8.1, draft_aft_m = 8.6, heel_deg, lpp_m = 120; public RampMsg ramp; }
+    public class SetPoseMsg { public double draft_fwd_m = 8.1, draft_aft_m = 8.6, heel_deg, lpp_m = 120, tide_m = 0, quay_z_m = 3.5; public RampMsg ramp; }
 }

@@ -20,6 +20,7 @@ namespace ShipHdMap
         public LandmarkPlacer Placer { get; private set; }
         public HudView Hud { get; private set; }
         public GameObject Ship { get; private set; }
+        public GameObject Quay { get; private set; }
         public OrbitCamera Orbit { get; set; }
 
         string _mode = "edit"; string _selected; Pose2D? _prev; LocalizerResult _lastRes; float _emitTimer; SeedData _seed;
@@ -69,6 +70,7 @@ namespace ShipHdMap
             UnityEngine.Object.DestroyImmediate(body.GetComponent<Collider>());
             Placer = gameObject.AddComponent<LandmarkPlacer>(); Placer.landmarksRoot = LandmarksRoot;
             Hud = gameObject.AddComponent<HudView>();
+            Quay = QuayBuilder.Build();   // world space: the Quay Frame, never a child of this root
         }
 
         // ---- incoming (React -> Unity) ----
@@ -143,7 +145,8 @@ namespace ShipHdMap
         }
 
         public void Confirm(string json) { var c = MapJson.Parse<ConfirmMsg>(json); if (_markers.TryGetValue(c.tempId, out var m)) { _markers.Remove(c.tempId); m.id = c.id; m.name = c.id; _markers[c.id] = m; MapRefs[c.id] = MapRefs[c.tempId]; MapRefs.Remove(c.tempId); if (_selected == c.tempId) _selected = c.id; } }
-        /// Ship Frame is the Map root's local space; pose only rotates this root (spec §4.1). Children keep their local coordinates.
+        /// Ship Frame is the Map root's local space; pose rotates this root (M5a) and drops it by the aft draft (M5b).
+        /// Children keep their local coordinates either way.
         public void SetPose(string json) { _pose = MapJson.Parse<SetPoseMsg>(json); ApplyPose(); }
 
         /// Trim > 0 (stern deeper) raises the bow (+x); heel > 0 lowers starboard (Unity +z). Rotation about the AP origin.
@@ -154,6 +157,8 @@ namespace ShipHdMap
             if (_pose == null) return;
             double trimDeg = Math.Atan2(_pose.draft_aft_m - _pose.draft_fwd_m, _pose.lpp_m <= 0 ? 120 : _pose.lpp_m) * 180 / Math.PI;
             transform.localRotation = PoseRotation(trimDeg, _pose.heel_deg);
+            transform.localPosition = new Vector3(0, (float)(-_pose.draft_aft_m), 0);   // waterline is world y = 0; the AP origin sits one aft draft below it
+            QuayBuilder.SetHeight(Quay, _pose.quay_z_m + _pose.tide_m);
             AttachShip();
             if (Ship && _pose.ramp != null) ShipMeshBuilder.SetRampAngle(Ship, _pose.ramp.angle_deg);
             Hud.SetRamp(_pose.ramp == null ? null : $"ramp {_pose.ramp.angle_deg:F1} deg  {_pose.ramp.state}");
