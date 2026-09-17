@@ -43,10 +43,10 @@ namespace ShipHdMap.Tests
             var p = new ShipParams();
             ship = ShipMeshBuilder.Build(ShipSeedBuilder.Build(p), p);
             var ramp = ship.transform.Find("Ramp");
-            ShipMeshBuilder.SetRampAngle(ship, 0);
+            ShipMeshBuilder.SetRampAngle(ship, 0, 0);
             float minX0 = ramp.Find("Plate").GetComponent<Collider>().bounds.min.x; // far end of ramp is at x = -30
             Assert.That(minX0, Is.EqualTo(-30f).Within(0.05f));
-            ShipMeshBuilder.SetRampAngle(ship, 4);
+            ShipMeshBuilder.SetRampAngle(ship, 4, 0);
             var b = ramp.Find("Plate").GetComponent<Collider>().bounds;
             Assert.That(b.min.x, Is.GreaterThan(-30f));      // shortened footprint
             Assert.That(ramp.position.y, Is.EqualTo(10.6f).Within(1e-3)); // hinge does not move

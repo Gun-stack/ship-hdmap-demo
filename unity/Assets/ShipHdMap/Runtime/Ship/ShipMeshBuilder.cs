@@ -66,7 +66,7 @@ namespace ShipHdMap
         /// hinge), but this rotation is ship-LOCAL. A positive trim (stern deeper, bow up) is itself a positive
         /// rotation about Unity Z, which pushes the free end (at ship -x) DOWN by trim -- so trimDeg must be added
         /// on top of angleDeg for the ramp to still meet the horizon-relative angle the API gave.
-        public static void SetRampAngle(GameObject ship, double angleDeg, double trimDeg = 0)
+        public static void SetRampAngle(GameObject ship, double angleDeg, double trimDeg)
         {
             var ramp = ship.transform.Find("Ramp"); if (!ramp) return;
             ramp.localRotation = Quaternion.Euler(0, 0, (float)-(angleDeg + trimDeg));

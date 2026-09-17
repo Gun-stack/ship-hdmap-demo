@@ -59,21 +59,27 @@ namespace ShipHdMap.Tests
             var vehicleBefore = ShipFrame.ToShip(rt.transform.InverseTransformPoint(rt.Vehicle.transform.position));
 
             rt.SetPose(TrimOnly);
+            // Same trim TrimOnly's drafts produce, and the same aft draft the root sinks by (M5b) -- reused below for
+            // the landmark, the vehicle, and the ramp so each check fails if either the rotation or the sink regresses.
+            double draftAft = 10.1;
+            double trimDeg = Math.Atan2(draftAft - 8.1, 120) * 180 / Math.PI;
+            double trimTan = Math.Tan(trimDeg * Math.PI / 180);
 
             var after = lm.ToModel();
             Assert.That(after.position, Is.EqualTo(before.position).Within(1e-4));
             Assert.That(after.normal, Is.EqualTo(before.normal).Within(1e-4));
-            Assert.That(lm.transform.position.y, Is.Not.EqualTo(before.position[2]).Within(0.05));   // but the world position did move
+            double lmExpectedY = before.position[2] + before.position[0] * trimTan - draftAft;   // height + x*tan(trim), then the root's sink
+            Assert.That(lm.transform.position.y, Is.EqualTo(lmExpectedY).Within(0.01));
             var vehicleAfter = ShipFrame.ToShip(rt.transform.InverseTransformPoint(rt.Vehicle.transform.position));
             Assert.That(vehicleAfter.x, Is.EqualTo(vehicleBefore.x).Within(1e-4)); Assert.That(vehicleAfter.z, Is.EqualTo(vehicleBefore.z).Within(1e-4));
-            Assert.That(rt.Vehicle.transform.position.y, Is.Not.EqualTo(11.1f).Within(0.02f));   // x = 2 rises 2*tan(0.955deg) ~= 0.033 m
+            double vehicleExpectedY = vehicleBefore.z + vehicleBefore.x * trimTan - draftAft;   // x = 2 rises 2*tan(0.955deg) ~= 0.033 m, then the sink
+            Assert.That(rt.Vehicle.transform.position.y, Is.EqualTo(vehicleExpectedY).Within(0.01));
 
             var ship = GameObject.Find("Ship");
             Assert.That(ship.transform.parent, Is.EqualTo(rt.transform));                                   // attached under the Map root
             var ramp = ship.transform.Find("Ramp");
             // angle_deg (4) is measured from the horizon; SetRampAngle adds the hull's own trim (~0.955 deg here)
             // on top so the ship-local rotation still lands the ramp at that horizon angle.
-            double trimDeg = Math.Atan2(10.1 - 8.1, 120) * 180 / Math.PI;
             Assert.That(Mathf.DeltaAngle(ramp.localRotation.eulerAngles.z, (float)-(4 + trimDeg)), Is.EqualTo(0f).Within(1e-3f));
             var floor = ship.transform.Find("D3/Floor");
             Assert.That(floor.position.y, Is.GreaterThan(10.5f + 60f * Mathf.Tan(0.955f * Mathf.Deg2Rad) - 0.6f - 10.1f)); // floor centre (x=60) rose with the root, then the root sank by draft_aft_m (M5b)
