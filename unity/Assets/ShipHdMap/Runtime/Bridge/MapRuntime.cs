@@ -228,11 +228,7 @@ namespace ShipHdMap
         {
             var s = MapJson.Parse<StartScenarioMsg>(json);
             _scenarioMode = s?.mode == "unload" ? "unload" : "load";
-            if (_pose?.ramp != null && _pose.ramp.state == "blocked")
-            {
-                Send(BridgeMessages.OnScenario, MapJson.Serialize(new ScenarioEvt { evt = "finished", mode = _scenarioMode, detail = "ramp_blocked" }));
-                return;
-            }
+            if (_pose?.ramp != null && _pose.ramp.state == "blocked") { Finish("ramp_blocked"); return; }
             SetMode("drive"); Vehicle.gameObject.SetActive(true);
             if (Orbit) { Orbit.follow = Vehicle.transform; Orbit.distance = 25f; Orbit.pitchDeg = 35f; }
             Send(BridgeMessages.OnScenario, MapJson.Serialize(new ScenarioEvt { evt = "start", mode = _scenarioMode }));
@@ -261,6 +257,9 @@ namespace ShipHdMap
             double z = _targetDeck.z_surface;
             if (_scenarioMode == "unload")
             {
+                // A previous car's QuayOut run may have left this Vehicle unparented (Quay Frame); the departure
+                // path below is in Ship Frame, so it needs to be back on the Map root first.
+                if (Vehicle.transform.parent != transform) Vehicle.transform.SetParent(transform, false);
                 MapOverlay.RemoveParked(_overlay, _target.id);
                 Vehicle.StartPath(ScenarioPlanner.DeparturePath(_target.target_pose, _targetLane, z), ScenarioPlanner.ParkSpeedMps);
                 ScenarioPhase = Phase.Departing;
@@ -391,8 +390,16 @@ namespace ShipHdMap
                     ScenarioPhase = Phase.RampDown;
                     break;
                 }
-                case Phase.RampDown when Vehicle.Z <= QuayBuilder.SurfaceZ(Quay) + 0.05:
+                // Tide and quay height decide whether the ramp climbs or descends from the hinge to the quay, so the
+                // height match has to work either way -- it is not always a descent despite the phase's name.
+                case Phase.RampDown when Math.Abs(Vehicle.Z - QuayBuilder.SurfaceZ(Quay)) <= 0.05:
                     ScenarioPhase = Phase.QuayOut;   // wheels are on the quay: GPS is what the vehicle has again
+                    break;
+                // The height match is a belief-frame cue, not the only way through: a hinge whose y is off-centre
+                // (stern_quarter ramps need not sit on the centreline) lets heel shift the foot height by
+                // hy*sin(heel) -- far past the 5 cm threshold -- so it must never be the sole gate on progress.
+                case Phase.RampDown when Vehicle.AtEnd:
+                    NextVehicle();
                     break;
                 case Phase.QuayOut when Vehicle.AtEnd:
                     NextVehicle();

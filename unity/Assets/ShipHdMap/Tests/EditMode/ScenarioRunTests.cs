@@ -138,6 +138,10 @@ namespace ShipHdMap.Tests
             Assert.That(rt.ScenarioPhase, Is.EqualTo(MapRuntime.Phase.OnQuay));
             Assert.That(rt.Vehicle.speedMps, Is.EqualTo(ScenarioPlanner.QuaySpeedMps).Within(1e-9));
 
+            for (int i = 0; i < 4000 && rt.ScenarioPhase != MapRuntime.Phase.OnLane; i++) rt.Step(0.05f);
+            Assert.That(rt.ScenarioPhase, Is.EqualTo(MapRuntime.Phase.OnLane));
+            Assert.That(rt.Vehicle.speedMps, Is.EqualTo(10 / 3.6).Within(1e-9));   // lane speed still comes from the map's speed_limit_kmh
+
             var json = RunUntil(rt, emitted, "onSlotFilled", 8000);   // crosses ~45 m of quay and ramp before the lane
             var evt = MapJson.Parse<SlotFilledEvt>(json);
             Assert.That(evt.slot_id, Is.EqualTo("PS-D3-001"));
@@ -216,6 +220,7 @@ namespace ShipHdMap.Tests
             Assert.That(rt.ScenarioPhase, Is.EqualTo(MapRuntime.Phase.RampDown));
             for (int i = 0; i < 3000 && rt.ScenarioPhase != MapRuntime.Phase.Departing; i++) rt.Step(0.05f);
             Assert.That(rt.TargetSlotId, Is.EqualTo("PS-D3-001"));
+            Assert.That(rt.Vehicle.transform.parent, Is.EqualTo(rt.transform), "the second unloaded car must be back on the Map root, not still in the Quay Frame");
         }
 
         [Test]
@@ -300,6 +305,9 @@ namespace ShipHdMap.Tests
             Assert.That(rt.ScenarioPhase, Is.EqualTo(MapRuntime.Phase.RampDown));
             for (int i = 0; i < 2000 && rt.ScenarioPhase == MapRuntime.Phase.RampDown; i++) rt.Step(0.05f);
             Assert.That(rt.ScenarioPhase, Is.EqualTo(MapRuntime.Phase.QuayOut));
+            // pins the actual descent: without it, RampDown->QuayOut could fire on the very first tick with the
+            // vehicle still at the top of the ramp (see the height-match direction fix).
+            Assert.That(rt.Vehicle.Z, Is.EqualTo(QuayBuilder.SurfaceZ(rt.Quay)).Within(0.05), "QuayOut must only start once the vehicle has actually reached quay height");
             Assert.That(rt.Vehicle.transform.parent, Is.Null, "back in the Quay Frame on the way out");
         }
 

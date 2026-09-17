@@ -40,7 +40,8 @@ namespace ShipHdMap
             new[] { hingeShip[0], hingeShip[1], hingeShip[2] },
         };
 
-        /// Quay Frame path off the ship: down from the hinge to the ramp foot, then out to the spawn point.
+        /// Quay Frame path off the ship: from the hinge to the ramp foot (may climb or descend, depending on tide and
+        /// quay height), then out to the spawn point.
         public static double[][] QuayOutPath(double[] hinge, double[] foot) => new[]
         {
             new[] { hinge[0], hinge[1], hinge[2] },
