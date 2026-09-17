@@ -91,7 +91,7 @@ ship-hdmap-demo/
 ### 3.4 Z 정의
 
 - 갑판마다 `z_surface`(차량이 밟는 면), `z_clear`(천장 유효높이)
-- 차량은 2.5D. 위치 추정은 x·y·ψ 만 풀고 z 는 `deck_id` 조회로 확정
+- 차량은 2.5D. 위치 추정은 x·y·ψ 만 풀고 z 는 갑판 위면 `deck_id` 조회로, 램프 위면 램프 기하(힌지 z 와 각도)로 확정
 - 가동 갑판: `movable`, `z_positions[]`, `z_current`. 데모는 고정 갑판만 사용
 
 ### 3.5 WGS84 파생
@@ -112,6 +112,7 @@ ship-hdmap-demo/
 - 파생: `trim_deg = atan((draft_aft − draft_fwd) / L_pp)`. 입력에서 받지 않는다. 양수면 선수가 올라간다. `heel_deg` 양수는 우현이 내려간다
 - `heading_deg`(pose·dataset)는 선수방위 — 진북 기준 시계방향(도)이다. 3.1 의 헤딩 ψ(+x 기준 반시계)와 다른 양이며, WGS84 파생과 M5 의 선체 회전에만 쓴다
 - 6자유도 강체변환 하나로 Ship Frame ↔ Quay Frame 을 오간다
+- Unity 반영: pose 는 Map 루트의 회전(trim·heel)과 위치(z = −draft_aft)로만 들어간다. 월드 z = 0 이 수면이다
 - 선내 주행 중 차량은 pose 를 몰라도 된다. 램프를 건널 때만 필요
 
 ### 4.2 램프
@@ -120,6 +121,7 @@ ship-hdmap-demo/
 - 힌지·길이·폭·허용 각도는 Ship Frame 에 고정된 지도 정보
 - `angle_deg` 는 파생: `asin(((quay_z + tide) − (hinge_z − draft_aft)) / length_m)`. 범위 밖이면 `state: "blocked"`, 안이면 `deployed`, 수납 시 `stowed`
 - 램프 위 차로는 저장하지 않고 힌지·각도로 실시간 생성
+- 횡경사에서는 힌지선이 기울어 램프 끝단 좌우가 (폭/2)·sin(heel) 만큼 어긋난다. 램프는 강체 평면으로 두고 주행 z 는 중앙선 기준으로 본다
 - `transition_landmarks`: 램프 입구 랜드마크 쌍. 프레임 전환 트리거 (M5b 에서 시드가 채운다)
 
 ### 4.3 선하역 시나리오
@@ -337,7 +339,7 @@ p ← p + δ
 | R→U | `Select` | feature id, 빈 문자열이면 해제 |
 | R→U | `Confirm` | tempId, id |
 | R→U | `Delete` | feature id (웹 트리·폼에서 삭제) |
-| R→U | `SetPose` | `{draft_fwd_m, draft_aft_m, heel_deg, lpp_m, ramp?:{id, angle_deg, state}}` — 램프 각도는 API 가 계산한 값 |
+| R→U | `SetPose` | `{draft_fwd_m, draft_aft_m, heel_deg, lpp_m, tide_m, quay_z_m, ramp?:{id, angle_deg, state}}` — 램프 각도는 API 가 계산한 값. `tide_m`·`quay_z_m` 은 부두면 높이와 램프 끝단 위치를 정한다 |
 | R→U | `SetNoise` | sigma_r, sigma_theta, sigma_alpha, sigma_gps |
 | R→U | `StartScenario` | `{mode: "load" | "unload"}` — 맵은 이미 `Load` 된 것을 쓴다 |
 | R→U | `SetTimeScale` | `{scale}` — 시나리오 시간 배율 |
@@ -346,7 +348,7 @@ p ← p + δ
 | U→R | `onFeatureMoved` | id, x, y, z, normal[3], deck, mounted_on — 드래그를 놓았을 때. 웹이 PUT 으로 확정 |
 | U→R | `onSelected` | id |
 | U→R | `onSlotFilled` | slot_id, status, err_lat?, err_lon?, err_heading? — 하역 완료는 `status:"empty"`, 오차 없음 |
-| U→R | `onScenario` | event(start/target/leave_lane/finished), mode?, slot_id?, detail? — 시나리오 로그 |
+| U→R | `onScenario` | event(start/target/frame_switch/leave_lane/finished), mode?, slot_id?, detail? — 시나리오 로그. `finished` 의 detail 에 `ramp_blocked`·`no_frame_switch` 가 올 수 있다 |
 | U→R | `onLocalization` | est_x, est_y, est_psi, true_x, true_y, true_psi, residual_rms, n_obs, frame |
 
 - 페이로드는 전부 JSON 문자열. 좌표는 Ship Frame
