@@ -81,14 +81,15 @@ docs/api-contract.md                         브리지 표 갱신
 ### 3.5 ScenarioPlanner (순수 정적)
 
 ```
+IsFilled(string status)                                    → status 가 "filled" 또는 "needs_adjust" 인지
 NextSlot(List<ParkingSlot> slots, string mode)             → ParkingSlot 또는 null
-ApproachPath(Pose2D est, TargetPose t)                     → double[][] {est, (t.x−2, t.y), (t.x, t.y)} (z 는 호출자가 갑판 z 로 채움)
+ApproachPath(Pose2D est, TargetPose t, double z)           → double[][] {est, (t.x−2, t.y), (t.x, t.y)}
 ExitS(Lane lane, TargetPose t)                             → 이탈점의 아크길이(0 이상으로 클램프)
-DeparturePath(TargetPose t, Lane lane)                     → double[][]
+DeparturePath(TargetPose t, Lane lane, double z)           → double[][]
 Judge(Pose2D truth, TargetPose t, Tolerance tol)           → (status, errLat, errLon, errHeadingDeg)
 ```
 
-`Shift(path, dx, dy)` 는 평행이동 헬퍼. 모두 EditMode 테스트 대상이다.
+`Shift(path, dx, dy)` 는 평행이동 헬퍼. `FinalRunM`(2.0)·`ParkSpeedMps`(2.0) 는 접근·출차 구간의 상수다. 모두 EditMode 테스트 대상이다.
 
 ### 3.6 시간 배율
 
@@ -192,7 +193,7 @@ api.putSlotStatus(ds, sid, status) → { id, status }   // PUT /datasets/{ds}/sl
 ## 7. 픽스처
 
 - `FixtureExporter.BuildMap` 의 래싱 창 필터(`x 94~105, y 2~4 || needed`)를 지우고 D3 래싱 전체(약 4,700 점)를 내보낸다. 슬롯 모서리 재매핑 로직은 유지
-- 픽스처는 약 28 KB → 약 400 KB. Unity 는 이미 시드로 전 갑판 래싱을 그리므로 렌더 부담은 늘지 않는다. `Load` 페이로드와 DB 시드 행 수만 는다
+- 픽스처는 약 28 KB → 약 776 KB. Unity 는 이미 시드로 전 갑판 래싱을 그리므로 렌더 부담은 늘지 않는다. `Load` 페이로드와 DB 시드 행 수만 는다
 - 메뉴 `ShipHdMap/Export vehicle-map fixture (from seed)` 로 재생성(배치 모드 가능)
 - 같은 파일에서 랜드마크 좌표의 상수(x `12+12i`, y `±6.2`, z `11.8`, 선체 y `11.9`)를 시드에서 유도한다: 기둥은 풋프린트의 중심선 쪽 면, z 는 `deck.z_surface + 1.2`, 선체 마커는 갑판 윤곽의 좌현 y − 0.1. 선박 모델(`ShipParams`)이 바뀌어도 마커가 구조물 위에 앉는다. 결과 픽스처의 좌표는 현재와 같아야 한다(회귀 확인)
 - API 테스트 3곳(`SeedImportTests`, `VehicleMapExportTests`, `GeoJsonExportTests`)은 49 대신 픽스처 JSON 의 `lashing_points` 길이를 읽어 비교한다. 다음 재생성에도 흔들리지 않는다
@@ -213,7 +214,7 @@ api.putSlotStatus(ds, sid, status) → { id, status }   // PUT /datasets/{ds}/sl
 
 ## 9. 테스트
 
-목표: api 42→42(내용만 변경), Unity EditMode 53→약 62, web 22→약 26.
+목표: api 42→42(내용만 변경), Unity EditMode 53→77, web 22→26.
 
 - **Unity EditMode**
   - `ScenarioPlanner`: `NextSlot` 이 load 에서 `empty` 중 최소 `sequence_no`, unload 에서 `filled/needs_adjust` 중 최대; `ApproachPath` 끝점 = target, 마지막 구간 heading = `target.heading_deg`; `ExitS` 45° 와 0 클램프; `Judge` 경계(각 오차를 tolerance 바로 안/밖)
@@ -241,4 +242,4 @@ api.putSlotStatus(ds, sid, status) → { id, status }   // PUT /datasets/{ds}/sl
 
 - **월드→로컬 전환 누락**: 자리 하나를 빠뜨리면 pose 0 에서는 티가 안 나고 기울일 때만 어긋난다. §4.5 표를 계획서 체크리스트로 옮기고, "pose 전후 좌표 동일" 테스트를 마커·차량·커서 셋에 건다
 - **WebGL 에서 `Time.timeScale` 과 브리지 빈도**: ×20 에서 `onLocalization` 이 초당 100회가 되어 React 렌더가 밀릴 수 있다. 밀리면 emit 타이머를 `unscaledDeltaTime` 으로 바꾼다
-- **픽스처 크기**: 400 KB JSON 을 WebGL 에서 파싱하는 시간은 M4 의 136 구획 로드에서 문제없던 규모의 15배다. 브라우저 검증 1 에서 로드 시간을 본다
+- **픽스처 크기**: 776 KB JSON 을 WebGL 에서 파싱하는 시간은 M4 의 136 구획 로드에서 문제없던 규모의 15배다. 브라우저 검증 1 에서 로드 시간을 본다

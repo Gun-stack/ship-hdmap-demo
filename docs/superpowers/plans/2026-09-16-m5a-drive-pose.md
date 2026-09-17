@@ -21,7 +21,7 @@
 - 포트: API 8081, PostGIS 5433, Vite 5173. WebGL 설정은 `WebGLBuild.cs` 안에서만. 산출물 `web/public/unity/` 는 gitignore
 - 저장소는 public. 기관·회사·과제명·이력 표현, 사용자 계정명이 든 절대경로, 실제 항구 좌표 금지. 사설 단어목록은 `SENSITIVE_TERMS_FILE` 환경변수로만 참조
 - 커밋은 각 Task 끝에. 푸시는 사용자 요청 시에만. Unity 배치 명령은 에디터 GUI 를 닫고 `unity/` 를 `-projectPath` 로, 순차 실행. `U=/Applications/Unity/Hub/Editor/6000.3.24f1/Unity.app/Contents/MacOS/Unity`
-- 테스트 목표: api 42 → 42(내용만 변경), Unity EditMode 53 → 71, web 22 → 26
+- 테스트 목표: api 42 → 42(내용만 변경), Unity EditMode 53 → 77, web 22 → 26
 
 ---
 
