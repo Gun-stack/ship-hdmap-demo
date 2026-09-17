@@ -17,6 +17,13 @@ public final class ShipFrame {
 		return a;
 	}
 
+	/** (-pi, pi]. Mirrors the C# ShipFrame.WrapRad. */
+	public static double wrapRad(double a) {
+		a %= 2 * Math.PI;
+		if (a <= -Math.PI) a += 2 * Math.PI; else if (a > Math.PI) a -= 2 * Math.PI;
+		return a;
+	}
+
 	/** Same mapping as the C# ShipFrame.ToUnity: (x, y, z) -> (x, z, -y). Kept for the shared vector file. */
 	public static double[] toUnity(double x, double y, double z) { return new double[] { x, z, -y }; }
 

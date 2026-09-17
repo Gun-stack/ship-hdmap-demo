@@ -1,5 +1,6 @@
 package com.shiphdmap.api.slots;
 
+import com.shiphdmap.api.geo.Rings;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -60,21 +61,10 @@ public final class SlotGenerator {
 
 	static double ceilTo(double v, double step) { return Math.ceil(v / step - 1e-9) * step; }
 
-	static double[] bbox(double[][] ring) {
-		double minX = Double.MAX_VALUE, minY = Double.MAX_VALUE, maxX = -Double.MAX_VALUE, maxY = -Double.MAX_VALUE;
-		for (var pt : ring) { minX = Math.min(minX, pt[0]); minY = Math.min(minY, pt[1]); maxX = Math.max(maxX, pt[0]); maxY = Math.max(maxY, pt[1]); }
-		return new double[] { minX, minY, maxX, maxY };
-	}
+	static double[] bbox(double[][] ring) { return Rings.bbox(ring); }
 
 	/** Even-odd ray casting on the x-y projection of a closed ring. */
-	public static boolean contains(double[][] ring, double x, double y) {
-		boolean in = false;
-		for (int i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-			double xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
-			if ((yi > y) != (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) in = !in;
-		}
-		return in;
-	}
+	public static boolean contains(double[][] ring, double x, double y) { return Rings.contains(ring, x, y); }
 
 	/** Shoelace area of the x-y projection, always positive. */
 	public static double ringArea(double[][] ring) {
