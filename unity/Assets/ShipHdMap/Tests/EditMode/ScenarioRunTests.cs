@@ -23,12 +23,12 @@ namespace ShipHdMap.Tests
         }
 
         /// Steps until an event with this name arrives; fails after maxSteps.
-        static string RunUntil(MapRuntime rt, List<(string name, string json)> log, string name, int maxSteps = 4000)
+        static string RunUntil(MapRuntime rt, List<(string name, string json)> log, string name, int maxSteps = 4000, float step = 0.05f)
         {
             int start = log.Count;
             for (int i = 0; i < maxSteps; i++)
             {
-                rt.Step(0.05f);
+                rt.Step(step);
                 var hit = log.Skip(start).FirstOrDefault(e => e.name == name);
                 if (hit.name != null) return hit.json;
             }
@@ -123,6 +123,19 @@ namespace ShipHdMap.Tests
             Assert.That(rt.transform.Find("Overlay/D3/PARKED-PS-D3-001").GetComponent<Renderer>().enabled, Is.False);
             rt.SetDeck("all");
             Assert.That(rt.transform.Find("Overlay/D3/PARKED-PS-D3-001").GetComponent<Renderer>().enabled, Is.True);
+        }
+
+        [Test]
+        public void CoarseStepsDoNotOvershootTheExitIntoTheParkingError()
+        {
+            // At a high time scale one Step covers several metres; without VehicleController.Rewind the plan's origin
+            // lands metres past the lane exit and that overshoot shows up directly as err_lon (needs_adjust).
+            var rt = NewRuntime(Fixture());
+            rt.StartScenario("{\"mode\":\"load\"}");
+            var json = RunUntil(rt, emitted, "onSlotFilled", step: 2f);
+            var evt = MapJson.Parse<SlotFilledEvt>(json);
+            Assert.That(evt.status, Is.EqualTo("filled"));
+            Assert.That(System.Math.Abs(evt.err_lon.Value), Is.LessThanOrEqualTo(0.30));
         }
 
         [Test]

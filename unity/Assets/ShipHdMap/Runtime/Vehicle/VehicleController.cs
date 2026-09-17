@@ -25,6 +25,9 @@ namespace ShipHdMap
             Apply();
         }
 
+        /// Puts the vehicle back on the path at exactly this arc length (used to land on the lane exit point instead of one frame past it).
+        public void Rewind(double arcLength) { s = arcLength; running = true; AtEnd = false; Apply(); }
+
         void Apply()
         {
             var (p, h, _) = LaneFollower.At(path, s);

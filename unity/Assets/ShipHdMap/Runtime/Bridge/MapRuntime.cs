@@ -22,7 +22,7 @@ namespace ShipHdMap
         public GameObject Ship { get; private set; }
         public OrbitCamera Orbit { get; set; }
 
-        string _mode = "edit"; string _selected; Pose2D? _prev; float _emitTimer; SeedData _seed;
+        string _mode = "edit"; string _selected; Pose2D? _prev; LocalizerResult _lastRes; float _emitTimer; SeedData _seed;
         GameObject _overlay; string _deck = "all"; SetPoseMsg _pose;
         readonly Dictionary<string, LandmarkMarker> _markers = new();
 
@@ -234,18 +234,25 @@ namespace ShipHdMap
         {
             if (_mode != "drive" || !Vehicle.running) return;
             Vehicle.Advance(dt);
-            var obs = Sensor.Sense(Vehicle.Truth, MapRefs, id => _markers[id].transform.position);
-            var res = Localizer.Solve(obs, MapRefs, Sensor.noise.sigmaR, Sensor.noise.sigmaThetaRad, Sensor.noise.sigmaAlphaRad, _prev);
-            if (res.ok && double.IsFinite(res.pose.x) && double.IsFinite(res.pose.y) && double.IsFinite(res.pose.psiRad)) _prev = res.pose;
-            Hud.Set(res, Vehicle.Truth, "SHIP_AP");
+            Localize();
             _emitTimer += dt;
             if (_emitTimer >= 0.2f)
             {
                 _emitTimer = 0;
-                Send(BridgeMessages.OnLocalization, MapJson.Serialize(new LocalizationEvt { est_x = res.pose.x, est_y = res.pose.y, est_psi = res.pose.psiRad * R2D,
-                    true_x = Vehicle.Truth.x, true_y = Vehicle.Truth.y, true_psi = Vehicle.Truth.psiRad * R2D, residual_rms = res.residualRms, n_obs = res.nObs, frame = "SHIP_AP" }));
+                Send(BridgeMessages.OnLocalization, MapJson.Serialize(new LocalizationEvt { est_x = _lastRes.pose.x, est_y = _lastRes.pose.y, est_psi = _lastRes.pose.psiRad * R2D,
+                    true_x = Vehicle.Truth.x, true_y = Vehicle.Truth.y, true_psi = Vehicle.Truth.psiRad * R2D, residual_rms = _lastRes.residualRms, n_obs = _lastRes.nObs, frame = "SHIP_AP" }));
             }
             StepScenario();
+        }
+
+        /// Sense → solve → HUD, factored out so a mid-frame Rewind (StepScenario's OnLane exit-overshoot correction) can
+        /// re-localize without re-triggering the 0.2s onLocalization emit, which stays in Step.
+        void Localize()
+        {
+            var obs = Sensor.Sense(Vehicle.Truth, MapRefs, id => _markers[id].transform.position);
+            _lastRes = Localizer.Solve(obs, MapRefs, Sensor.noise.sigmaR, Sensor.noise.sigmaThetaRad, Sensor.noise.sigmaAlphaRad, _prev);
+            if (_lastRes.ok && double.IsFinite(_lastRes.pose.x) && double.IsFinite(_lastRes.pose.y) && double.IsFinite(_lastRes.pose.psiRad)) _prev = _lastRes.pose;
+            Hud.Set(_lastRes, Vehicle.Truth, "SHIP_AP");
         }
 
         void StepScenario()
@@ -257,6 +264,9 @@ namespace ShipHdMap
                     // Plan in the belief frame at the moment of leaving the lane, then execute open-loop in the true frame:
                     // the estimation error at this instant becomes the parking error.
                     // ponytail: open-loop from one estimate; closed-loop pure pursuit on every frame's estimate is the upgrade path.
+                    // Land exactly on the exit point: one frame of travel at a high time scale would otherwise
+                    // put the plan's origin metres past it, and that offset lands straight in the parking error.
+                    if (!Vehicle.AtEnd && Vehicle.s > _exitS) { Vehicle.Rewind(_exitS); Localize(); }
                     var est = _prev ?? Vehicle.Truth;
                     double z = _targetDeck.z_surface;
                     var path = ScenarioPlanner.Shift(ScenarioPlanner.ApproachPath(est, _target.target_pose, z), Vehicle.Truth.x - est.x, Vehicle.Truth.y - est.y);
