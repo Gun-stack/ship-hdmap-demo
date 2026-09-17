@@ -35,9 +35,15 @@ export function DrivePanel({ send }: { send: Send }) {
     clearLog();
     const deck = pickDeck(decks, deckFilter)?.id;
     if (deck) {
-      const cov = await api.coverage(datasetId, deck, { mode, grid_m: 1.0, omit: occluded });
-      // trim to what the vehicle needs: 2880 cells of {x, y, s} instead of the full response
-      send("SetPrediction", { grid_m: cov.grid_m, bbox: cov.bbox, cells: cov.cells.map((c) => ({ x: c.x, y: c.y, s: c.sigma_xy ?? null })) });
+      try {
+        const cov = await api.coverage(datasetId, deck, { mode, grid_m: 1.0, omit: occluded });
+        // trim to what the vehicle needs: 2880 cells of {x, y, s} instead of the full response
+        send("SetPrediction", { grid_m: cov.grid_m, bbox: cov.bbox, cells: cov.cells.map((c) => ({ x: c.x, y: c.y, s: c.sigma_xy ?? null })) });
+      } catch (e) {
+        // no prediction is still a valid drive: BeliefMonitor skips the Degraded check when predictedSigmaXy
+        // is null and Lost/backtracking/stopped still work off observation count alone — start anyway
+        useEditorStore.setState({ error: "coverage prediction unavailable: " + (e as Error).message });
+      }
     }
     send("SetOccluded", { ids: occluded });
     send("SetBeliefParams", bp);
