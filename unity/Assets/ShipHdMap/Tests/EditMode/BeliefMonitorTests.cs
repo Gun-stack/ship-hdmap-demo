@@ -193,6 +193,18 @@ public class BeliefMonitorTests
         Assert.That(m.TrailM, Is.GreaterThan(1.0), "a degraded stretch still lays trail");
     }
 
+    /// Entries land wherever a frame overshoots trailStepM, not exactly on it -- a cap in entry count only
+    /// equals trailM metres when spacing happens to be exact. Coarser spacing must still respect the cap.
+    [Test]
+    public void TheTrailCapHoldsWhenEntriesAreSpacedCoarserThanTheStep()
+    {
+        var p = P(); p.trailM = 2.0;
+        var m = new BeliefMonitor(p);
+        double s = 0;
+        for (int i = 0; i < 20; i++) { m.Step(0.30, 0.30, s, 0.6); s += 0.6; }   // 0.6 m > trailStepM (0.25 m)
+        Assert.That(m.TrailM, Is.LessThanOrEqualTo(p.trailM + 1e-9));
+    }
+
     [Test]
     public void ResetClearsEverything()
     {
@@ -219,7 +231,7 @@ public class BeliefMonitorTests
     {
         var g = Grid();
         Assert.That(g.SigmaAt(1.1, 1.1), Is.EqualTo(0.30).Within(1e-9));
-        Assert.That(g.SigmaAt(2.4, 0.2), Is.EqualTo(0.30).Within(1e-9), "still inside the first cell");
+        Assert.That(g.SigmaAt(2.4, 0.2), Is.EqualTo(0.30).Within(1e-9), "still inside the second cell (x in [2,4))");
         Assert.That(g.SigmaAt(9.0, 3.0), Is.Null, "blind cells report null, not zero");
     }
 

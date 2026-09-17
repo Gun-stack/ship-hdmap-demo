@@ -91,8 +91,9 @@ namespace ShipHdMap
             if (_trail.Count > 0 && _sinceRecord < _p.trailStepM) return;
             _sinceRecord = 0;
             _trail.Add(pathS);
-            int cap = Math.Max(2, (int)Math.Round(_p.trailM / _p.trailStepM) + 1);
-            while (_trail.Count > cap) _trail.RemoveAt(0);
+            // Cap by distance, not entry count: entries land wherever a frame overshoots trailStepM, so a count
+            // cap only equals trailM metres when spacing happens to be exact. It rarely is (§ review M5d-A).
+            while (_trail.Count > 2 && TrailM > _p.trailM) _trail.RemoveAt(0);
         }
     }
 }
