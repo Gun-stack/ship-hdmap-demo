@@ -76,7 +76,7 @@ web/src/components/LayerTree.tsx          LM 항목에 가림 토글
 docs/api-contract.md                      status 값 추가
 ```
 
-`BeliefMonitor` 는 `SlotGenerator`·`CoverageAnalyzer` 와 같은 자리에 선다 — Unity 도 씬도 모르는 순수 정적 클래스여서 EditMode 테스트가 프레임 없이 돈다.
+`BeliefMonitor` 는 `SlotGenerator`·`CoverageAnalyzer` 와 같은 자리에 선다 — UnityEngine 을 모르는 순수 C# 클래스(상태 기계라 인스턴스 상태를 갖는다)여서 EditMode 테스트가 프레임 없이 돈다.
 
 ---
 
@@ -165,7 +165,7 @@ Deck 3, 선적, 기본 센서, 지도 완벽:
 
 ### 3.6 역추적
 
-`OK` 였던 동안의 자세를 링버퍼에 넣는다. 기록 간격 0.25 m, 길이 `trail_m` 20 m (기본).
+`OK` 였던 동안의 호길이 `s` 를 링버퍼에 넣는다 — `VehicleController` 가 이미 `s` 로 매개화돼 있고 `Rewind(s)` 를 갖고 있다. 기록 간격 0.25 m, 길이 `trail_m` 20 m (기본).
 
 ```
 역추적 시작 → 자취를 역순으로 후진 (전진 속도의 1/2)
