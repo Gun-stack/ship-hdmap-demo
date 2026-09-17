@@ -9,6 +9,7 @@ import { LayerTree } from "./components/LayerTree";
 import { MiniMap } from "./components/MiniMap";
 import { LoadPanel } from "./components/LoadPanel";
 import { PropertyForm } from "./components/PropertyForm";
+import { CoveragePanel } from "./components/CoveragePanel";
 import { PosePanel } from "./components/PosePanel";
 import { DrivePanel } from "./components/DrivePanel";
 import "./App.css";
@@ -32,7 +33,7 @@ export default function App() {
         <Unity unityProvider={unityProvider} style={{ width: "100%", height: "100%" }} />
       </main>
       <aside className="right">
-        {mode === "edit" ? (<><LoadPanel reloadScene={reloadScene} /><PropertyForm send={send} /></>) : <DrivePanel send={send} />}
+        {mode === "edit" ? (<><LoadPanel reloadScene={reloadScene} /><CoveragePanel /><PropertyForm send={send} /></>) : <DrivePanel send={send} />}
         <PosePanel />
       </aside>
       <StatusBar unityLoaded={isLoaded} />
