@@ -210,6 +210,7 @@ namespace ShipHdMap
         void NextVehicle()
         {
             _prev = null;   // a fresh vehicle must not seed Gauss-Newton with the previous car's pose
+            _seen.Clear();  // stated, not accidental: the next car must not inherit the previous car's entrance-pair sighting
             var candidates = new List<ParkingSlot>();
             if (CurrentMap != null)
                 foreach (var s in CurrentMap.parking_slots ?? new List<ParkingSlot>())
@@ -295,15 +296,19 @@ namespace ShipHdMap
                 {
                     // The estimate at this instant is everything the vehicle knows about where the ship is; it decides
                     // how squarely the car arrives at the top of the ramp. Lane keeping re-centres it after that.
-                    var est = _lastRes.ok ? _lastRes.pose : ShipTruth();
+                    // _prev is only ever set from a FINITE Gauss-Newton solve (Localize() guards on IsFinite; _lastRes.ok
+                    // alone does not -- it is true even on a diverging solve), and falling back to ShipTruth() here
+                    // would leak ground truth into the vehicle's belief at the one moment this demo is about estimation error.
+                    var est = _prev ?? ShipTruth();
                     var r = CurrentMap.ramps[0];
                     var hingeShip = new[] { (r.hinge[0][0] + r.hinge[1][0]) / 2, (r.hinge[0][1] + r.hinge[1][1]) / 2, r.hinge[0][2] };
                     // Captured BEFORE the reparent: SetParent(..., true) preserves world pose, but once the parent flips,
                     // ShipTruth()'s shortcut (parent == transform -> return Vehicle.Truth) would return the stale
-                    // Quay-frame Truth from this frame's Advance(), not the projected Ship-frame pose.
-                    var truth = ShipTruth();
+                    // Quay-frame Truth from this frame's Advance(), not the projected Ship-frame pose. Also carries the
+                    // vehicle's actual current height, so the ramp path climbs from where it really is (see RampTopPath).
+                    var (truth, truthZ) = ShipTruthPose();
                     Vehicle.transform.SetParent(transform, true);                       // Ship Frame, same world pose
-                    Vehicle.StartPath(ScenarioPlanner.ToTruthFrame(ScenarioPlanner.RampTopPath(est, hingeShip), est, truth), ScenarioPlanner.ParkSpeedMps);
+                    Vehicle.StartPath(ScenarioPlanner.ToTruthFrame(ScenarioPlanner.RampTopPath(est, truthZ, hingeShip), est, truth), ScenarioPlanner.ParkSpeedMps);
                     ScenarioPhase = Phase.OnRamp;
                     Send(BridgeMessages.OnScenario, MapJson.Serialize(new ScenarioEvt { evt = "frame_switch",
                         detail = $"est x {est.x:F2} y {est.y:F2} psi {est.psiRad * R2D:F1}" }));
@@ -375,14 +380,22 @@ namespace ShipHdMap
         /// The sensor and the map live in Ship Frame. While the vehicle drives in the Quay Frame its TRUE pose is
         /// projected through the Map root's inverse so observations stay meaningful; the vehicle's own belief is GPS
         /// until the entrance pair is seen.
-        public Pose2D ShipTruth()
+        public Pose2D ShipTruth() => ShipTruthPose().pose;
+
+        /// Same projection as ShipTruth(), plus the height (dropped from Pose2D) -- used at the frame switch, which
+        /// needs both to carry the vehicle onto the ramp at its real current position AND height (see RampTopPath).
+        (Pose2D pose, double z) ShipTruthPose()
         {
-            if (Vehicle.transform.parent == transform) return Vehicle.Truth;
-            var (x, y, _) = ShipFrame.ToShip(transform.InverseTransformPoint(Vehicle.transform.position));
+            if (Vehicle.transform.parent == transform) return (Vehicle.Truth, Vehicle.Z);
+            // VehicleController.Apply() rides the body RideHeightM above the path point along WORLD up while the
+            // vehicle is unparented (Quay Frame, no relation to the Map root's own tilt); subtract that lever arm
+            // before projecting, or heel rotates part of it into ship y (and trim into ship z) as a spurious offset.
+            var worldPos = Vehicle.transform.position - Vector3.up * (float)VehicleController.RideHeightM;
+            var (x, y, z) = ShipFrame.ToShip(transform.InverseTransformPoint(worldPos));
             // The car's nose points along its LOCAL +X (VehicleController.Apply/the body box), not Unity's default
             // +Z "forward" -- transform.right is the vector that matches ShipFrame.HeadingVector's convention.
             var fwd = transform.InverseTransformDirection(Vehicle.transform.right);
-            return new Pose2D { x = x, y = y, psiRad = Math.Atan2(-fwd.z, fwd.x) };
+            return (new Pose2D { x = x, y = y, psiRad = Math.Atan2(-fwd.z, fwd.x) }, z);
         }
 
         /// Ramp hinge midpoint and free-end midpoint in the Quay Frame, from the map's ramp geometry and the pose's angle.

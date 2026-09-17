@@ -31,9 +31,12 @@ namespace ShipHdMap
         };
 
         /// Belief-frame path from wherever the vehicle thinks it is to the ramp hinge (Ship Frame), where the deck lane starts.
-        public static double[][] RampTopPath(Pose2D est, double[] hingeShip) => new[]
+        /// The first point carries the vehicle's actual CURRENT height (estZ), not the hinge's -- the ramp is a slope,
+        /// so starting at hinge height here would drop/teleport the vehicle to that height on the first Apply() and
+        /// then drive it flat (zero pitch) instead of climbing the remaining slope.
+        public static double[][] RampTopPath(Pose2D est, double estZ, double[] hingeShip) => new[]
         {
-            new[] { est.x, est.y, hingeShip[2] },
+            new[] { est.x, est.y, estZ },
             new[] { hingeShip[0], hingeShip[1], hingeShip[2] },
         };
 

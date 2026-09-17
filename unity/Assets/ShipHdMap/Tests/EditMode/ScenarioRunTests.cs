@@ -100,6 +100,18 @@ namespace ShipHdMap.Tests
             Assert.That(rt.ScenarioPhase, Is.EqualTo(MapRuntime.Phase.OnRamp));
             Assert.That(rt.Vehicle.transform.parent, Is.EqualTo(rt.transform), "after the switch the vehicle rides the Map root");
             Assert.That(json, Does.Contain("est"));
+
+            // The post-switch path must climb from the vehicle's actual current height to the hinge, not start flat
+            // at the hinge's own height -- a flat first point would drop the vehicle onto the ramp surface and then
+            // drive it with zero pitch instead of following the slope (spec: the demo's signature shot).
+            var r = rt.CurrentMap.ramps[0];
+            double hingeZ = r.hinge[0][2], hingeX = (r.hinge[0][0] + r.hinge[1][0]) / 2;
+            double trimDeg = System.Math.Atan2(8.6 - 8.1, 120) * 180 / System.Math.PI;   // same formula as ApplyPose, for PoseJson's draft/lpp
+            double rampAngleRad = (2.87 + trimDeg) * System.Math.PI / 180;               // same formula as RampEndsInQuay, for PoseJson's ramp.angle_deg
+            var p0 = rt.Vehicle.path[0];
+            double expectedZ = hingeZ + (hingeX - p0[0]) * System.Math.Sin(rampAngleRad);
+            Assert.That(p0[2], Is.EqualTo(expectedZ).Within(0.01), "the path's first point must sit on the ramp slope at the vehicle's own position, not at hinge height");
+            Assert.That(p0[2], Is.GreaterThan(hingeZ + 0.5), "the switch fires well aft of the hinge, so the vehicle should still be well above hinge height");
         }
 
         [Test]

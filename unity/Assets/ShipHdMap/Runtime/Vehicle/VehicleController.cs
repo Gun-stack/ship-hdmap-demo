@@ -6,6 +6,8 @@ namespace ShipHdMap
     /// No Update of its own — MapRuntime.Step advances it so sensing and motion happen in a fixed order.
     public class VehicleController : MonoBehaviour
     {
+        public const double RideHeightM = 0.5;   // how far the body rides above the path point (also used when projecting Truth back off it)
+
         public double speedMps = 2.0;
         public double[][] path; public double s;
         public bool running;
@@ -33,7 +35,7 @@ namespace ShipHdMap
             var p = LaneFollower.At(path, s);
             Truth = new Pose2D { x = p.x, y = p.y, psiRad = p.headingRad };
             Z = p.z;
-            transform.localPosition = ShipFrame.ToUnity(p.x, p.y, p.z + 0.5);
+            transform.localPosition = ShipFrame.ToUnity(p.x, p.y, p.z + RideHeightM);
             // Yaw first, then pitch about the yawed local Z: a positive Z rotation takes local +X (the nose) toward +Y.
             transform.localRotation = Quaternion.Euler(0, ShipFrame.UnityYawDeg(p.headingRad * 180 / System.Math.PI), 0)
                                     * Quaternion.Euler(0, 0, (float)(p.pitchRad * 180 / System.Math.PI));
