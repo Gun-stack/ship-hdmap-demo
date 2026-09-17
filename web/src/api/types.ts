@@ -17,3 +17,23 @@ export type SlotStatus = "empty" | "filled" | "needs_adjust";
 export type SlotFilledEvt = { slot_id: string; status: SlotStatus; err_lat?: number; err_lon?: number; err_heading?: number };
 export type ScenarioEvt = { event: "start" | "target" | "leave_lane" | "frame_switch" | "finished"; mode?: "load" | "unload"; slot_id?: string; detail?: string };
 export type ScenarioLine = { t: string; text: string };
+/** in_scope is absent for in-scope cells: the API only writes it when false. */
+export type CoverageCell = { x: number; y: number; n: number; sigma_xy?: number; sigma_psi?: number; stability?: number; in_scope?: boolean };
+export type CoverageMode = "load" | "unload";
+export type CoverageSensor = { fov_deg: number; max_dist_m: number; max_view_angle_deg: number; sigma_r: number; sigma_theta: number; sigma_alpha: number };
+export type Candidate = { x: number; y: number; phi_deg: number; mounted_on?: string };
+export type CoverageIn = Partial<CoverageSensor> & { mode?: CoverageMode; grid_m?: number; extra_landmarks?: Candidate[]; omit?: string[]; budget?: number };
+export type CoverageOut = {
+  deck: string; mode: CoverageMode; grid_m: number; bbox: number[];
+  n_cells: number;        // in-scope cells; the denominator of both ratios
+  n_drawn: number;        // cells.length, the whole deck
+  blind_ratio: number; weak_ratio: number; worst?: CoverageCell;
+  other_mode: { mode: CoverageMode; blind_ratio: number; weak_ratio: number };
+  cells: CoverageCell[];
+};
+export type Suggestion = { rank: number; x: number; y: number; phi_deg: number; mounted_on: string; blind_after: number; weak_after: number; gain: number };
+export type SuggestOut = {
+  deck: string; mode: CoverageMode; budget: number; grid_m: number;
+  before: { blind_ratio: number; weak_ratio: number }; after: { blind_ratio: number; weak_ratio: number };
+  suggestions: Suggestion[];
+};

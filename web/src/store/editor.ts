@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { api } from "../api/client";
-import type { Dataset, Deck, Feature, FeatureCreatedEvt, FeatureIn, FeatureMovedEvt, GenerateSlotsIn, GenerateSlotsOut, Geometry, Layer, LocalizationEvt, Pose, RampState, ScenarioEvt, ScenarioLine, SlotFilledEvt } from "../api/types";
+import type { Candidate, CoverageMode, CoverageOut, CoverageSensor, Dataset, Deck, Feature, FeatureCreatedEvt, FeatureIn, FeatureMovedEvt, GenerateSlotsIn, GenerateSlotsOut, Geometry, Layer, LocalizationEvt, Pose, RampState, ScenarioEvt, ScenarioLine, SlotFilledEvt, Suggestion } from "../api/types";
+import { SENSOR_DEFAULTS } from "../geo/coverage";
 
 export type Draft = { tempId: string; layer: Layer; deck_id: string; geometry: Geometry; props: Record<string, unknown> };
 export type Mode = "edit" | "drive";
@@ -28,6 +29,23 @@ export type EditorState = {
   bumpVersion: (v: number) => void;
   unsavedCount: () => number;
   generateSlots: (deck: string, body: GenerateSlotsIn) => Promise<GenerateSlotsOut>;
+  coverage: CoverageOut | null;
+  coverageMode: CoverageMode;
+  coverageParams: CoverageSensor & { grid_m: number };
+  candidates: Candidate[];
+  suggestions: Suggestion[];
+  coverageBusy: boolean;
+  // Every coverage action takes the deck id instead of picking one: MiniMap.pickDeck owns that rule and
+  // importing it here would be a cycle. Two rules would diverge -- all three decks have the same area, so
+  // with deckFilter "all" the store and the plan view would land on different decks.
+  setCoverageMode: (m: CoverageMode, deck: string) => void;
+  setCoverageParams: (p: Partial<CoverageSensor & { grid_m: number }>) => void;
+  runCoverage: (deck: string) => Promise<void>;
+  addCandidate: (c: Candidate, deck: string) => void;
+  removeCandidate: (i: number, deck: string) => void;
+  clearCandidates: (deck: string) => void;
+  runSuggest: (deck: string, budget: number) => Promise<void>;
+  commitCandidates: (deck: string) => Promise<number>;
 };
 
 const RAMP_ID = "RAMP-STERN";
@@ -40,6 +58,11 @@ async function refreshVersion(get: () => EditorState) {
 export const useEditorStore = create<EditorState>()((set, get) => ({
   datasetId: "roro-demo-01", dataset: null, decks: [], features: {}, drafts: {}, selectedId: null, deckFilter: "all", mode: "edit",
   pose: null, ramp: null, localization: null, error: null, slotGen: {}, scenarioLog: [],
+  coverage: null, coverageMode: "load",
+  // seeded with the API defaults: an empty object would leave the sliders at their minimum while the server
+  // silently computed with something else
+  coverageParams: { ...SENSOR_DEFAULTS, grid_m: 1.0 },
+  candidates: [], suggestions: [], coverageBusy: false,
 
   async load(datasetId) {
     try {
@@ -102,6 +125,52 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       selectedId: s.selectedId && !list.some((f) => f.id === s.selectedId) ? null : s.selectedId }));
     get().bumpVersion(out.version);
     return out;
+  },
+
+  setCoverageMode: (coverageMode, deck) => { set({ coverageMode }); void get().runCoverage(deck); },
+  setCoverageParams: (p) => set((s) => ({ coverageParams: { ...s.coverageParams, ...p } })),
+  async runCoverage(deck) {
+    if (!deck) return;
+    const s = get();
+    set({ coverageBusy: true });
+    try {
+      const out = await api.coverage(s.datasetId, deck, { ...s.coverageParams, mode: s.coverageMode, extra_landmarks: s.candidates });
+      set({ coverage: out, error: null });
+    } catch (e) { set({ error: (e as Error).message }); }
+    finally { set({ coverageBusy: false }); }
+  },
+  addCandidate: (c, deck) => { set((s) => ({ candidates: [...s.candidates, c] })); void get().runCoverage(deck); },
+  removeCandidate: (i, deck) => { set((s) => ({ candidates: s.candidates.filter((_, k) => k !== i) })); void get().runCoverage(deck); },
+  clearCandidates: (deck) => { set({ candidates: [], suggestions: [] }); void get().runCoverage(deck); },
+  async runSuggest(deck, budget) {
+    if (!deck) return;
+    const s = get();
+    set({ coverageBusy: true });
+    try {
+      const out = await api.suggestCoverage(s.datasetId, deck, { ...s.coverageParams, mode: s.coverageMode, extra_landmarks: s.candidates, budget });
+      set({ suggestions: out.suggestions, error: null });
+    } catch (e) { set({ error: (e as Error).message }); }
+    finally { set({ coverageBusy: false }); }
+  },
+  /** Persist every candidate as a real landmark. Returns how many were written. */
+  async commitCandidates(deck) {
+    const s = get();
+    if (!deck || s.candidates.length === 0) return 0;
+    const z = (s.decks.find((d) => d.id === deck)?.z_surface ?? 0) + 1.2;
+    let code = Math.max(0, ...Object.values(s.features).filter((f) => f.layer === "LM").map((f) => Number(f.props.code) || 0));
+    for (const c of s.candidates) {
+      const phi = (c.phi_deg * Math.PI) / 180;
+      await api.createFeature(s.datasetId, {
+        layer: "LM", deck_id: deck, kind: "apriltag",
+        geometry: { type: "Point", coordinates: [c.x, c.y, z] },
+        props: { family: "apriltag-36h11", code: ++code, normal: [Math.cos(phi), Math.sin(phi), 0], size_m: 0.3, mounted_on: c.mounted_on ?? "" },
+      });
+    }
+    const n = s.candidates.length;
+    set({ candidates: [], suggestions: [] });
+    await get().load(s.datasetId);
+    await get().runCoverage(deck);
+    return n;
   },
 }));
 
