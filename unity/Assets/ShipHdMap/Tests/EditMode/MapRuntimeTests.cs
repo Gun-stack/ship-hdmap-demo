@@ -12,6 +12,26 @@ namespace ShipHdMap.Tests
         static string Fixture() => File.ReadAllText(Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "docs", "fixtures", "vehicle-map.sample.json")));
 
         [Test]
+        public void DestroyShipMaterialsDestroysEveryReferencedMaterialIncludingDeckFilterClones()
+        {
+            // isPlaying is false here, so DestroyShipMaterials takes its DestroyImmediate branch -- the only branch
+            // an EditMode test can observe synchronously (Destroy() defers to end of frame and is refused outright
+            // in edit mode), but it is the same collect-then-destroy sweep the play-mode branch runs.
+            var p = new ShipParams { lashingPitchM = 4 };
+            var ship = ShipMeshBuilder.Build(ShipSeedBuilder.Build(p), p);
+            ShipMeshBuilder.SetDeckVisibility(ship, "D1"); // clones every renderer's material to its own "~inst" instance
+            var mats = new System.Collections.Generic.List<Material>();
+            foreach (var r in ship.GetComponentsInChildren<Renderer>(true)) if (r.sharedMaterial) mats.Add(r.sharedMaterial);
+            Assert.That(mats.Count, Is.GreaterThan(0));
+
+            MapRuntime.DestroyShipMaterials(ship);
+
+            // Unity overloads == so a destroyed Object compares equal to null even though the C# reference is not.
+            foreach (var m in mats) Assert.That(m == null, Is.True, "material should have been destroyed");
+            Object.DestroyImmediate(ship);
+        }
+
+        [Test]
         public void LoadSpawnsLandmarksAndBuildsMap()
         {
             go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>();

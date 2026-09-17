@@ -100,6 +100,21 @@ namespace ShipHdMap
             return sb.ToString();
         }
 
+        /// ShipMeshBuilder.Prim keeps its per-colour Materials only in a build-local dictionary, and SetDeckVisibility
+        /// (called right after every rebuild) clones one more per renderer ("~inst") -- so after a rebuild every
+        /// renderer under Ship, not just the ones on a filtered deck, owns its own Material instance. None of that
+        /// is reachable once Ship is destroyed, and Materials are not reclaimed by GC until a domain reload -- costly
+        /// on the WebGL target, where a single deck can carry thousands of lashing-socket renderers. Nothing outside
+        /// the hull shares these: the quay, overlay fills, parked-car boxes and landmark markers each own their own
+        /// Materials (QuayBuilder._mat, MapOverlay.LineMats/FillMats/_parkedMat, LandmarkMarker's own), and every
+        /// ShipMeshBuilder.Build call starts a fresh dictionary, so no two builds ever share a Material instance.
+        public static void DestroyShipMaterials(GameObject ship)
+        {
+            var mats = new HashSet<Material>();
+            foreach (var r in ship.GetComponentsInChildren<Renderer>(true)) if (r.sharedMaterial) mats.Add(r.sharedMaterial);
+            foreach (var m in mats) { if (Application.isPlaying) Destroy(m); else DestroyImmediate(m); }
+        }
+
         // ---- incoming (React -> Unity) ----
         public void Load(string json)
         {
@@ -137,7 +152,7 @@ namespace ShipHdMap
             var sig = ShipSignature(CurrentMap);
             if (Application.isPlaying && sig != _shipSignature)
             {
-                if (Ship) Destroy(Ship);
+                if (Ship) { DestroyShipMaterials(Ship); Destroy(Ship); }
                 Ship = ShipMeshBuilder.Build(CurrentMap, transform);
                 _shipSignature = sig;
                 ShipMeshBuilder.SetDeckVisibility(Ship, _deck);
