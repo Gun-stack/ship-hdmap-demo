@@ -111,19 +111,21 @@ public class CoverageController {
 			in == null || in.sigmaAlpha() == null ? def.sigmaAlpha() : Math.toRadians(in.sigmaAlpha()));
 		if (sensor.maxDistM() <= 0 || sensor.fovRad() <= 0) throw new ApiErrors.BadRequest("fov_deg and max_dist_m must be > 0", "fov_deg");
 
+		// ORDER BY id on every one of these: candidate faces are generated in pillar order, and suggest() breaks a
+		// tie by taking the first candidate, so an unordered scan would recommend a different face from run to run.
 		var pillars = new ArrayList<double[][]>();
 		var pillarIds = new ArrayList<String>();
-		for (var r : rows(ds, deck, "SELECT id, ST_AsGeoJSON(geom)::text AS g FROM feature WHERE dataset_id = :ds AND deck_id = :deck AND layer = 'C' AND kind = 'pillar'")) {
+		for (var r : rows(ds, deck, "SELECT id, ST_AsGeoJSON(geom)::text AS g FROM feature WHERE dataset_id = :ds AND deck_id = :deck AND layer = 'C' AND kind = 'pillar' ORDER BY id")) {
 			pillarIds.add((String) r.get("id"));
 			pillars.add(Wkt.coords((String) r.get("g")));
 		}
 
 		// Spec §3.4: where a vehicle can actually be. Same queries SlotController already uses.
 		var slots = new ArrayList<double[][]>();
-		for (var r : rows(ds, deck, "SELECT ST_AsGeoJSON(geom)::text AS g FROM feature WHERE dataset_id = :ds AND deck_id = :deck AND layer = 'B2'"))
+		for (var r : rows(ds, deck, "SELECT ST_AsGeoJSON(geom)::text AS g FROM feature WHERE dataset_id = :ds AND deck_id = :deck AND layer = 'B2' ORDER BY id"))
 			slots.add(Wkt.coords((String) r.get("g")));
 		var lanes = new ArrayList<CoverageAnalyzer.Lane>();
-		for (var r : rows(ds, deck, "SELECT ST_AsGeoJSON(geom)::text AS g, (props->>'width_m')::float8 AS w FROM feature WHERE dataset_id = :ds AND deck_id = :deck AND layer = 'A2'"))
+		for (var r : rows(ds, deck, "SELECT ST_AsGeoJSON(geom)::text AS g, (props->>'width_m')::float8 AS w FROM feature WHERE dataset_id = :ds AND deck_id = :deck AND layer = 'A2' ORDER BY id"))
 			lanes.add(new CoverageAnalyzer.Lane(Wkt.coords((String) r.get("g")),
 				r.get("w") == null ? 3.2 : ((Number) r.get("w")).doubleValue()));
 
