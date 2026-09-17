@@ -214,7 +214,7 @@ api.putSlotStatus(ds, sid, status) → { id, status }   // PUT /datasets/{ds}/sl
 
 ## 9. 테스트
 
-목표: api 42→42(내용만 변경), Unity EditMode 53→77, web 22→26.
+목표: api 42→42(내용만 변경), Unity EditMode 53→78, web 22→26.
 
 - **Unity EditMode**
   - `ScenarioPlanner`: `NextSlot` 이 load 에서 `empty` 중 최소 `sequence_no`, unload 에서 `filled/needs_adjust` 중 최대; `ApproachPath` 끝점 = target, 마지막 구간 heading = `target.heading_deg`; `ExitS` 45° 와 0 클램프; `Judge` 경계(각 오차를 tolerance 바로 안/밖)
