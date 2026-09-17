@@ -21,6 +21,14 @@ namespace ShipHdMap.Tests
         }
 
         [Test]
+        public void UnreachableSlotsAreNotOfferedAgain()
+        {
+            Assert.That(ScenarioPlanner.IsFilled("unreachable"), Is.True);
+            var slots = new List<ParkingSlot> { Slot("a", 1, "unreachable"), Slot("b", 2, "empty") };
+            Assert.That(ScenarioPlanner.NextSlot(slots, "load").id, Is.EqualTo("b"));
+        }
+
+        [Test]
         public void ExitPointIsFortyFiveDegreesBeforeTheSlotAndClampsAtLaneStart()
         {
             var t = new TargetPose { x = 102.4, y = 2.925, heading_deg = 0 };

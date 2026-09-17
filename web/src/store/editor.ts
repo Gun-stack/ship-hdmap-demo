@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { api } from "../api/client";
-import type { Candidate, CoverageMode, CoverageOut, CoverageSensor, Dataset, Deck, Feature, FeatureCreatedEvt, FeatureIn, FeatureMovedEvt, GenerateSlotsIn, GenerateSlotsOut, Geometry, Layer, LocalizationEvt, Pose, RampState, ScenarioEvt, ScenarioLine, SlotFilledEvt, Suggestion } from "../api/types";
+import type { BeliefEvt, BeliefParamsIn, Candidate, CoverageMode, CoverageOut, CoverageSensor, Dataset, Deck, Feature, FeatureCreatedEvt, FeatureIn, FeatureMovedEvt, GenerateSlotsIn, GenerateSlotsOut, Geometry, Layer, LocalizationEvt, Pose, RampState, ScenarioEvt, ScenarioLine, SlotFilledEvt, Suggestion } from "../api/types";
 import { SENSOR_DEFAULTS } from "../geo/coverage";
 
 export type Draft = { tempId: string; layer: Layer; deck_id: string; geometry: Geometry; props: Record<string, unknown> };
@@ -46,6 +46,13 @@ export type EditorState = {
   clearCandidates: (deck: string) => void;
   runSuggest: (deck: string, budget: number) => Promise<void>;
   commitCandidates: (deck: string) => Promise<number>;
+  belief: BeliefEvt | null;
+  beliefParams: BeliefParamsIn;
+  occluded: string[];
+  setBelief: (e: BeliefEvt | null) => void;
+  toggleOccluded: (id: string) => void;
+  setBeliefParams: (p: Partial<BeliefParamsIn>) => void;
+  setError: (error: string | null) => void;
 };
 
 const RAMP_ID = "RAMP-STERN";
@@ -63,6 +70,14 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   // silently computed with something else
   coverageParams: { ...SENSOR_DEFAULTS, grid_m: 1.0 },
   candidates: [], suggestions: [], coverageBusy: false,
+  belief: null, occluded: [],
+  // must match BeliefParams in BeliefMonitor.cs -- the panel showing one number while Unity uses another is the
+  // same trap the coverage sliders hit in M5c
+  beliefParams: { k: 2.0, frames: 5, drift_rate: 0.05, budget_m: 1.0, max_lost_m: 5.0, trail_m: 20.0 },
+  setBelief: (belief) => set({ belief }),
+  setBeliefParams: (p) => set((s) => ({ beliefParams: { ...s.beliefParams, ...p } })),
+  setError: (error) => set({ error }),
+  toggleOccluded: (id) => set((s) => ({ occluded: s.occluded.includes(id) ? s.occluded.filter((x) => x !== id) : [...s.occluded, id] })),
 
   async load(datasetId) {
     try {

@@ -66,4 +66,13 @@ class SlotGenerateTests {
 		mvc.perform(post("/api/datasets/" + DS + "/decks/D3/slots/generate").contentType(MediaType.APPLICATION_JSON).content("{\"vehicle_class\":\"truck\"}"))
 			.andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("vehicle_class"));
 	}
+
+	@Test
+	void unreachableIsAStorableStatus() throws Exception {
+		mvc.perform(post("/api/datasets/" + DS + "/decks/D3/slots/generate").contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isOk());
+		mvc.perform(put("/api/datasets/" + DS + "/slots/PS-D3-001/status").contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"unreachable\"}"))
+			.andExpect(status().isOk()).andExpect(jsonPath("$.status").value("unreachable"));
+		assertThat(db.sql("SELECT status FROM parking_slot WHERE dataset_id = :ds AND feature_id = 'PS-D3-001'").param("ds", DS).query(String.class).single())
+			.isEqualTo("unreachable");
+	}
 }

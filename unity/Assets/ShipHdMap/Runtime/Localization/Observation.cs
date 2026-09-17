@@ -9,5 +9,11 @@ namespace ShipHdMap
     /// Map entry for a marker: position and normal angle phi = atan2(ny, nx).
     public struct LandmarkRef { public string id; public double mx; public double my; public double phiRad; }
 
-    public class LocalizerResult { public bool ok; public Pose2D pose; public int nObs; public double residualRms; public int iterations; }
+    /// sigmaXy/sigmaPsiDeg are the achievable precision at this solve: the diagonal of (J^T W J)^-1, the same
+    /// quantity the API's CoverageAnalyzer predicts for every deck cell. Null when nothing was seen or A is singular.
+    public class LocalizerResult
+    {
+        public bool ok; public Pose2D pose; public int nObs; public double residualRms; public int iterations;
+        public double? sigmaXy, sigmaPsiDeg;
+    }
 }

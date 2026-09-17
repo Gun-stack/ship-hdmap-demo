@@ -12,7 +12,7 @@ export type FeatureMovedEvt = { id: string; x: number; y: number; z: number; nor
 export type LocalizationEvt = { est_x: number; est_y: number; est_psi: number; true_x: number; true_y: number; true_psi: number; residual_rms: number; n_obs: number; frame: string };
 export type GenerateSlotsIn = { vehicle_class?: string; gap_lat_m?: number; gap_lon_m?: number; lashing_pitch_m?: number };
 export type GenerateSlotsOut = { deck: string; count: number; utilization: number; lashing_coverage: number; version: number; slots: unknown[] };
-export type SlotStatus = "empty" | "filled" | "needs_adjust";
+export type SlotStatus = "empty" | "filled" | "needs_adjust" | "unreachable";
 /** Unity -> React: parking judgement (load) or an emptied slot (unload: status "empty", no errors). */
 export type SlotFilledEvt = { slot_id: string; status: SlotStatus; err_lat?: number; err_lon?: number; err_heading?: number };
 export type ScenarioEvt = { event: "start" | "target" | "leave_lane" | "frame_switch" | "finished"; mode?: "load" | "unload"; slot_id?: string; detail?: string };
@@ -37,3 +37,10 @@ export type SuggestOut = {
   before: { blind_ratio: number; weak_ratio: number }; after: { blind_ratio: number; weak_ratio: number };
   suggestions: Suggestion[];
 };
+export type BeliefState = "ok" | "degraded" | "lost" | "backtracking" | "stopped";
+export type BeliefEvt = {
+  state: BeliefState; n_obs: number;
+  sigma_xy?: number; sigma_psi?: number; predicted_sigma_xy?: number;
+  lost_m: number; sigma_odo: number; trail_m: number;
+};
+export type BeliefParamsIn = { k: number; frames: number; drift_rate: number; budget_m: number; max_lost_m: number; trail_m: number };

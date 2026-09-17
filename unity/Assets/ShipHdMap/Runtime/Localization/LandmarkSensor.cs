@@ -14,6 +14,9 @@ namespace ShipHdMap
         public SensorNoise noise = new();
         public LayerMask occluders;
         public float eyeHeight = 1.2f;
+        /// Markers the sensor must pretend not to see: damage, or a parked car in the way. The map still has them,
+        /// which is the point -- the coverage prediction keeps promising them and the belief monitor notices.
+        public HashSet<string> occluded = new();
         System.Random _rng;
 
         void Awake() { _rng = new System.Random(noise.seed); }
@@ -50,6 +53,7 @@ namespace ShipHdMap
             Vector3 eye = transform.position + Vector3.up * eyeHeight;
             foreach (var lm in map.Values)
             {
+                if (occluded.Contains(lm.id)) continue;
                 if (!IsVisibleGeometric(truth, lm, fov, maxDist, mva)) continue;
                 Vector3 target = unityPosOf(lm.id);
                 if (Physics.Linecast(eye, target - (target - eye).normalized * 0.05f, occluders)) continue;

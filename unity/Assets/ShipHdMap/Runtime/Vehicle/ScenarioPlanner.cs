@@ -69,7 +69,8 @@ namespace ShipHdMap
             new[] { QuaySpawn[0], QuaySpawn[1], foot[2] },
         };
 
-        public static bool IsFilled(string status) => status == "filled" || status == "needs_adjust";
+        /// A slot the planner must not offer again: parked in it, parked badly in it, or could not get to it.
+        public static bool IsFilled(string status) => status == "filled" || status == "needs_adjust" || status == "unreachable";
 
         public static ParkingSlot NextSlot(IEnumerable<ParkingSlot> slots, string mode)
         {
