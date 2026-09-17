@@ -7,21 +7,21 @@ namespace ShipHdMap
     public class VehicleController : MonoBehaviour
     {
         public double speedMps = 2.0;
-        public double[][] path; public double deckZ; public double s;
+        public double[][] path; public double s;
         public bool running;
         public bool AtEnd { get; private set; }
+        public double Z { get; private set; }          // current path height, Ship Frame or Quay Frame depending on the parent
         public Pose2D Truth;
 
-        public void StartLane(Lane lane, double z) => StartPath(lane.centerline, z, lane.speed_limit_kmh > 0 ? lane.speed_limit_kmh / 3.6 : ScenarioPlanner.ParkSpeedMps);
+        public void StartLane(Lane lane) => StartPath(lane.centerline, lane.speed_limit_kmh > 0 ? lane.speed_limit_kmh / 3.6 : ScenarioPlanner.ParkSpeedMps);
 
-        public void StartPath(double[][] line, double z, double speed) { path = line; deckZ = z; s = 0; speedMps = speed; running = true; AtEnd = false; Apply(); }
+        public void StartPath(double[][] line, double speed) { path = line; s = 0; speedMps = speed; running = true; AtEnd = false; Apply(); }
 
         public void Advance(double dt)
         {
             if (!running || path == null) return;
             s += speedMps * dt;
-            var (_, _, end) = LaneFollower.At(path, s);
-            if (end) { running = false; AtEnd = true; }
+            if (LaneFollower.At(path, s).end) { running = false; AtEnd = true; }
             Apply();
         }
 
@@ -30,10 +30,13 @@ namespace ShipHdMap
 
         void Apply()
         {
-            var (p, h, _) = LaneFollower.At(path, s);
-            Truth = new Pose2D { x = p.x, y = p.y, psiRad = h };
-            transform.localPosition = ShipFrame.ToUnity(p.x, p.y, deckZ + 0.5);
-            transform.localRotation = Quaternion.Euler(0, ShipFrame.UnityYawDeg(h * 180 / System.Math.PI), 0);
+            var p = LaneFollower.At(path, s);
+            Truth = new Pose2D { x = p.x, y = p.y, psiRad = p.headingRad };
+            Z = p.z;
+            transform.localPosition = ShipFrame.ToUnity(p.x, p.y, p.z + 0.5);
+            // Yaw first, then pitch about the yawed local Z: a positive Z rotation takes local +X (the nose) toward +Y.
+            transform.localRotation = Quaternion.Euler(0, ShipFrame.UnityYawDeg(p.headingRad * 180 / System.Math.PI), 0)
+                                    * Quaternion.Euler(0, 0, (float)(p.pitchRad * 180 / System.Math.PI));
         }
     }
 }

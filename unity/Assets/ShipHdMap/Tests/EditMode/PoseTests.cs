@@ -55,7 +55,7 @@ namespace ShipHdMap.Tests
             var lm = rt.LandmarksRoot.Find("LM-0001").GetComponent<LandmarkMarker>();
             var before = lm.ToModel();
             var lane = rt.CurrentMap.lanes.Find(l => l.id == "A2-D3-0001");
-            rt.Vehicle.StartLane(lane, 10.6);
+            rt.Vehicle.StartLane(lane);
             var vehicleBefore = ShipFrame.ToShip(rt.transform.InverseTransformPoint(rt.Vehicle.transform.position));
 
             rt.SetPose(TrimOnly);

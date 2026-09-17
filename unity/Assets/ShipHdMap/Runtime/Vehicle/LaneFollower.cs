@@ -1,27 +1,30 @@
 using System;
-using UnityEngine;
 
 namespace ShipHdMap
 {
+    /// Pose on a [x,y,z] polyline. Arc length s is measured on the horizontal projection, so speed is ground speed
+    /// and a slope does not slow the vehicle down.
+    public struct PathPose { public double x, y, z, headingRad, pitchRad; public bool end; }
+
     public static class LaneFollower
     {
-        /// Position (ship x,y) and heading at arc length s along a [x,y,z] polyline. end=true once s exceeds the total length.
-        public static (Vector2 pos, double headingRad, bool end) At(double[][] line, double s)
+        public static PathPose At(double[][] line, double s)
         {
             double acc = 0;
             for (int i = 0; i + 1 < line.Length; i++)
             {
-                double dx = line[i + 1][0] - line[i][0], dy = line[i + 1][1] - line[i][1], len = Math.Sqrt(dx * dx + dy * dy);
-                double heading = Math.Atan2(dy, dx);
+                double dx = line[i + 1][0] - line[i][0], dy = line[i + 1][1] - line[i][1], dz = line[i + 1][2] - line[i][2];
+                double len = Math.Sqrt(dx * dx + dy * dy);
+                double heading = Math.Atan2(dy, dx), pitch = Math.Atan2(dz, len < 1e-9 ? 1e-9 : len);
                 if (s <= acc + len || i + 2 == line.Length)
                 {
                     double t = len < 1e-9 ? 0 : Math.Min(1, Math.Max(0, (s - acc) / len));
-                    var p = new Vector2((float)(line[i][0] + dx * t), (float)(line[i][1] + dy * t));
-                    return (p, heading, s > acc + len);
+                    return new PathPose { x = line[i][0] + dx * t, y = line[i][1] + dy * t, z = line[i][2] + dz * t,
+                        headingRad = heading, pitchRad = pitch, end = s > acc + len };
                 }
                 acc += len;
             }
-            return (new Vector2((float)line[0][0], (float)line[0][1]), 0, true);
+            return new PathPose { x = line[0][0], y = line[0][1], z = line[0][2], end = true };
         }
     }
 }

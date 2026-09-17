@@ -41,13 +41,27 @@ namespace ShipHdMap.Tests
         public void LaneFollowerWalksPolyline()
         {
             var line = new[] { new double[] { 0, 0, 10 }, new double[] { 10, 0, 10 }, new double[] { 10, 5, 10 } };
-            var (p0, h0, e0) = LaneFollower.At(line, 0);
-            Assert.That(p0, Is.EqualTo(new Vector2(0, 0))); Assert.That(h0, Is.EqualTo(0).Within(1e-9)); Assert.That(e0, Is.False);
-            var (p1, h1, _) = LaneFollower.At(line, 12);
+            var p0 = LaneFollower.At(line, 0);
+            Assert.That(p0.x, Is.EqualTo(0)); Assert.That(p0.y, Is.EqualTo(0)); Assert.That(p0.headingRad, Is.EqualTo(0).Within(1e-9)); Assert.That(p0.end, Is.False);
+            var p1 = LaneFollower.At(line, 12);
             Assert.That(p1.x, Is.EqualTo(10).Within(1e-6)); Assert.That(p1.y, Is.EqualTo(2).Within(1e-6));
-            Assert.That(h1, Is.EqualTo(Math.PI / 2).Within(1e-9));   // heading +y after the corner
-            var (p2, _, e2) = LaneFollower.At(line, 99);
-            Assert.That(p2.y, Is.EqualTo(5).Within(1e-6)); Assert.That(e2, Is.True);
+            Assert.That(p1.headingRad, Is.EqualTo(Math.PI / 2).Within(1e-9));   // heading +y after the corner
+            var p2 = LaneFollower.At(line, 99);
+            Assert.That(p2.y, Is.EqualTo(5).Within(1e-6)); Assert.That(p2.end, Is.True);
+        }
+
+        [Test]
+        public void ClimbingPathGivesPerPointHeightAndNoseUpPitch()
+        {
+            var go = new GameObject("V"); var v = go.AddComponent<VehicleController>();
+            // 10 m horizontal, 1 m up: pitch = atan(1/10) = 5.71 deg
+            v.StartPath(new[] { new double[] { 0, 0, 5 }, new double[] { 10, 0, 6 } }, 1.0);
+            v.Advance(5);
+            Assert.That(v.Z, Is.EqualTo(5.5).Within(1e-9));
+            Assert.That(v.transform.localPosition.y, Is.EqualTo(6.0f).Within(1e-4f));   // z + 0.5 ride height
+            // the ship-frame nose is Unity local +X (ShipFrame: "x fwd"), not Unity's own +Z "forward"
+            Assert.That(v.transform.right.y, Is.EqualTo(Mathf.Sin(5.7106f * Mathf.Deg2Rad)).Within(1e-3f), "nose up on a climb");
+            UnityEngine.Object.DestroyImmediate(go);
         }
     }
 }

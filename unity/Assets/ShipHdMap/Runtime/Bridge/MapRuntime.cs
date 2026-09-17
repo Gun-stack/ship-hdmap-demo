@@ -217,13 +217,13 @@ namespace ShipHdMap
             if (_scenarioMode == "unload")
             {
                 MapOverlay.RemoveParked(_overlay, _target.id);
-                Vehicle.StartPath(ScenarioPlanner.DeparturePath(_target.target_pose, _targetLane, z), z, ScenarioPlanner.ParkSpeedMps);
+                Vehicle.StartPath(ScenarioPlanner.DeparturePath(_target.target_pose, _targetLane, z), ScenarioPlanner.ParkSpeedMps);
                 ScenarioPhase = Phase.Departing;
             }
             else
             {
                 _exitS = ScenarioPlanner.ExitS(_targetLane, _target.target_pose);
-                Vehicle.StartLane(_targetLane, z);
+                Vehicle.StartLane(_targetLane);
                 ScenarioPhase = Phase.OnLane;
             }
         }
@@ -279,7 +279,7 @@ namespace ShipHdMap
                     double z = _targetDeck.z_surface;
                     var path = ScenarioPlanner.ToTruthFrame(ScenarioPlanner.ApproachPath(est, _target.target_pose, z), est, Vehicle.Truth);
                     Send(BridgeMessages.OnScenario, MapJson.Serialize(new ScenarioEvt { evt = "leave_lane", slot_id = _target.id, detail = $"est x {est.x:F2} y {est.y:F2} psi {est.psiRad * R2D:F1}" }));
-                    Vehicle.StartPath(path, z, ScenarioPlanner.ParkSpeedMps);
+                    Vehicle.StartPath(path, ScenarioPlanner.ParkSpeedMps);
                     ScenarioPhase = Phase.Parking;
                     break;
                 }
