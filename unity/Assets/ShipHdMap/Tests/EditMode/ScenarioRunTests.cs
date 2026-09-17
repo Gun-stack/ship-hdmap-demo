@@ -64,6 +64,21 @@ namespace ShipHdMap.Tests
         }
 
         [Test]
+        public void HeadingEstimationErrorReachesTheParkingResult()
+        {
+            // LandmarkSensor noise is seeded (SensorNoise.seed), so this run is deterministic. The point of this test is
+            // that a nonzero heading estimation error at the lane-exit moment must show up in err_heading -- before the
+            // ToTruthFrame fix, StepScenario only translated the planned path, so the vehicle always finished on the
+            // target heading and err_heading was structurally 0 no matter how noisy the estimate was.
+            var rt = NewRuntime(Fixture());
+            rt.SetNoise("{\"sigma_r\":0.5,\"sigma_theta\":3,\"sigma_alpha\":6,\"sigma_gps\":0}");
+            rt.StartScenario("{\"mode\":\"load\"}");
+            var json = RunUntil(rt, emitted, "onSlotFilled");
+            var evt = MapJson.Parse<SlotFilledEvt>(json);
+            Assert.That(System.Math.Abs(evt.err_heading.Value), Is.GreaterThan(0.05));
+        }
+
+        [Test]
         public void LoadFinishesWhenNoEmptySlotRemains()
         {
             var rt = NewRuntime(FilledFixture());

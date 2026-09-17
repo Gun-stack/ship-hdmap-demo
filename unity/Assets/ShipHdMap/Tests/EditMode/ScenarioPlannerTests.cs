@@ -59,11 +59,28 @@ namespace ShipHdMap.Tests
         }
 
         [Test]
-        public void ShiftTranslatesEveryPoint()
+        public void ToTruthFrameAppliesTheFullRigidTransformNotJustATranslation()
         {
-            var shifted = ScenarioPlanner.Shift(new[] { new double[] { 1, 2, 3 }, new double[] { 4, 5, 3 } }, 0.5, -0.25);
-            Assert.That(shifted[0], Is.EqualTo(new[] { 1.5, 1.75, 3.0 }).Within(1e-12));
-            Assert.That(shifted[1], Is.EqualTo(new[] { 4.5, 4.75, 3.0 }).Within(1e-12));
+            // est and truth differ only in heading (10 deg): the belief-frame path must be rotated, not merely shifted,
+            // so a heading estimation error reaches the parking result instead of being silently dropped.
+            var est = new Pose2D { x = 5, y = 3, psiRad = 0 };
+            var truth = new Pose2D { x = 50, y = -20, psiRad = 10 * Math.PI / 180 };
+            var path = new[] { new double[] { 5, 3, 9 }, new double[] { 15, 3, 9 } };   // est itself, then a point 10 m ahead of est along +x
+            var result = ScenarioPlanner.ToTruthFrame(path, est, truth);
+            Assert.That(result[0], Is.EqualTo(new[] { 50.0, -20.0, 9.0 }).Within(1e-9));   // the exit point always lands exactly on truth
+            double c = Math.Cos(10 * Math.PI / 180), s = Math.Sin(10 * Math.PI / 180);     // computed independently of the implementation
+            Assert.That(result[1], Is.EqualTo(new[] { 50 + 10 * c, -20 + 10 * s, 9.0 }).Within(1e-9));
+        }
+
+        [Test]
+        public void ToTruthFrameReducesToATranslationWhenHeadingsMatch()
+        {
+            var est = new Pose2D { x = 1, y = 2, psiRad = 30 * Math.PI / 180 };
+            var truth = new Pose2D { x = 4, y = -1, psiRad = 30 * Math.PI / 180 };   // same heading, different position
+            var path = new[] { new double[] { 1, 2, 5 }, new double[] { 6, 9, 5 } };
+            var result = ScenarioPlanner.ToTruthFrame(path, est, truth);
+            Assert.That(result[0], Is.EqualTo(new[] { 4.0, -1.0, 5.0 }).Within(1e-9));
+            Assert.That(result[1], Is.EqualTo(new[] { 9.0, 6.0, 5.0 }).Within(1e-9));   // dx=3, dy=-3, same as a plain translation
         }
 
         [Test]

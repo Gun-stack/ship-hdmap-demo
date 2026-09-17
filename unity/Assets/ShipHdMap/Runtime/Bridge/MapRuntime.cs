@@ -272,7 +272,7 @@ namespace ShipHdMap
                     if (!Vehicle.AtEnd && Vehicle.s > _exitS) { Vehicle.Rewind(_exitS); Localize(); }
                     var est = _prev ?? Vehicle.Truth;
                     double z = _targetDeck.z_surface;
-                    var path = ScenarioPlanner.Shift(ScenarioPlanner.ApproachPath(est, _target.target_pose, z), Vehicle.Truth.x - est.x, Vehicle.Truth.y - est.y);
+                    var path = ScenarioPlanner.ToTruthFrame(ScenarioPlanner.ApproachPath(est, _target.target_pose, z), est, Vehicle.Truth);
                     Send(BridgeMessages.OnScenario, MapJson.Serialize(new ScenarioEvt { evt = "leave_lane", slot_id = _target.id, detail = $"est x {est.x:F2} y {est.y:F2} psi {est.psiRad * R2D:F1}" }));
                     Vehicle.StartPath(path, z, ScenarioPlanner.ParkSpeedMps);
                     ScenarioPhase = Phase.Parking;

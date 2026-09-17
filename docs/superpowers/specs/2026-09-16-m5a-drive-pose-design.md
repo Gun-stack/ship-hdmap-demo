@@ -62,7 +62,7 @@ docs/api-contract.md                         브리지 표 갱신
 1. `StartScenario{mode:"load"}` → `onScenario{event:"start", mode}`. 대상 = `CurrentMap.parking_slots` 중 `status == "empty"` 이고 `access_lane_id` 가 해석되는 구획 가운데 `sequence_no` 최소. 없으면 `onScenario{event:"finished", reason:"no_empty_slot"}` 후 `Idle`
 2. `onScenario{event:"target", slot_id}`. 차량을 그 차로의 시작점에 스폰(`StartPath(centerline, speed)`), 속도 = `speed_limit_kmh / 3.6`. 기존 로컬라이제이션과 `onLocalization` 은 그대로 돈다
 3. **이탈점**: 차로 위 `x_exit = target.x − 2 − |target.y − y_lane|` 인 점. 45° 사선을 만든다. 차로 시작점보다 뒤면 시작점으로 클램프. 실제 아크길이가 이탈점에 닿으면 그 순간의 추정 pose(`_prev`; 없으면 실제 pose)로 접근 경로를 짠다. `onScenario{event:"leave_lane", detail:"est x y ψ"}`
-4. **접근 경로**: `[est, (target.x − 2, target.y), target]`. 마지막 2 m 구간이 `target.heading_deg` 를 만든다(현재 구획은 모두 0°이며 함수는 일반형). 실행은 개루프: 경로를 `(truth − est)` 만큼 평행이동한 폴리라인을 `LaneFollower` 로 2 m/s 로 달린다. 그래서 이탈 순간의 추정 오차가 그대로 주차 오차가 된다. 코드에 `ponytail:` 주석(업그레이드 경로: 매 프레임 추정으로 pure pursuit)
+4. **접근 경로**: `[est, (target.x − 2, target.y), target]`. 마지막 2 m 구간이 `target.heading_deg` 를 만든다(현재 구획은 모두 0°이며 함수는 일반형). 실행은 개루프: 차량은 자기가 `est` 의 위치와 방향에 있다고 믿으므로, 계획 경로 전체를 믿음 좌표계에서 실제 좌표계로 옮기는 **강체변환**(이탈 지점 중심 `truth.psi − est.psi` 회전 + `truth − est` 이동)을 적용한 폴리라인을 `LaneFollower` 로 2 m/s 로 달린다. 그래서 이탈 순간의 추정 오차가 위치 2축과 방향까지 그대로 주차 오차가 된다. 평행이동만 적용하면 차량이 언제나 목표 heading 에 정렬해 끝나 방향 오차가 구조적으로 0 이 되고 허용값의 heading 축이 죽는다(2026-09-17 사용자가 큰 노이즈로 직접 돌려 발견한 결함). 코드에 `ponytail:` 주석(업그레이드 경로: 매 프레임 추정으로 pure pursuit)
 5. 경로 끝에서 정차 → `Judge`: 실제 pose 를 `target_pose` 프레임으로 회전해 `err_lon`(진행 방향, m), `err_lat`(옆, m), `err_heading`(도, wrap). `|err_lat| ≤ tolerance.lat_m && |err_lon| ≤ tolerance.lon_m && |err_heading| ≤ tolerance.heading_deg` 면 `filled`, 아니면 `needs_adjust`
 6. `onSlotFilled{slot_id, status, err_lat, err_lon, err_heading}` 송신. Unity 는 `CurrentMap` 의 status 와 채움면 색을 즉시 바꾸고(`MapOverlay.SetStatus`), 정차한 실제 pose 에 주차 차량 박스(정적 큐브 4.8 × 1.5 × 1.85, 이름 `PARKED-{slot_id}`)를 Overlay 의 갑판 그룹 아래 남긴다. 웹은 재로드하지 않는다
 7. 1 로 돌아가 다음 차량
@@ -84,12 +84,13 @@ docs/api-contract.md                         브리지 표 갱신
 IsFilled(string status)                                    → status 가 "filled" 또는 "needs_adjust" 인지
 NextSlot(List<ParkingSlot> slots, string mode)             → ParkingSlot 또는 null
 ApproachPath(Pose2D est, TargetPose t, double z)           → double[][] {est, (t.x−2, t.y), (t.x, t.y)}
+ToTruthFrame(double[][] path, Pose2D est, Pose2D truth)    → double[][] 믿음 좌표계 → 실제 좌표계 강체변환
 ExitS(Lane lane, TargetPose t)                             → 이탈점의 아크길이(0 이상으로 클램프)
 DeparturePath(TargetPose t, Lane lane, double z)           → double[][]
 Judge(Pose2D truth, TargetPose t, Tolerance tol)           → (status, errLat, errLon, errHeadingDeg)
 ```
 
-`Shift(path, dx, dy)` 는 평행이동 헬퍼. `FinalRunM`(2.0)·`ParkSpeedMps`(2.0) 는 접근·출차 구간의 상수다. 모두 EditMode 테스트 대상이다.
+`ToTruthFrame(path, est, truth)` 는 믿음 좌표계의 경로를 실제 좌표계로 옮기는 강체변환 헬퍼다(이탈 지점을 중심으로 `truth.psi − est.psi` 만큼 회전한 뒤 `truth − est` 만큼 이동). 평행이동만 하면 차량이 항상 목표 heading 에 정렬해 끝나 방향 오차가 구조적으로 0 이 된다. `FinalRunM`(2.0)·`ParkSpeedMps`(2.0) 는 접근·출차 구간의 상수다. 모두 EditMode 테스트 대상이다.
 
 ### 3.6 시간 배율
 

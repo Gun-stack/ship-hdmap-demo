@@ -58,7 +58,21 @@ namespace ShipHdMap
             return new[] { new[] { t.x, t.y, z }, new[] { t.x - FinalRunM, t.y, z }, new[] { t.x - FinalRunM - Math.Abs(t.y - laneY), laneY, z }, new[] { lane.centerline[0][0], lane.centerline[0][1], z } };
         }
 
-        public static double[][] Shift(double[][] path, double dx, double dy) => path.Select(p => new[] { p[0] + dx, p[1] + dy, p[2] }).ToArray();
+        /// Rigid transform from the vehicle's belief frame to the true frame, centred on the point where it left the lane
+        /// (est in the belief frame, truth in the true frame): rotate each point's offset from est by
+        /// truth.psi - est.psi, then place it relative to truth. A translation alone would leave the path's own
+        /// heading unchanged, so the vehicle would always finish on the target heading and err_heading would be
+        /// structurally 0 regardless of the estimate (2026-09-17: found by the user driving the demo with heavy noise).
+        public static double[][] ToTruthFrame(double[][] path, Pose2D est, Pose2D truth)
+        {
+            double dPsi = ShipFrame.WrapRad(truth.psiRad - est.psiRad);
+            double c = Math.Cos(dPsi), s = Math.Sin(dPsi);
+            return path.Select(p =>
+            {
+                double ox = p[0] - est.x, oy = p[1] - est.y;
+                return new[] { truth.x + ox * c - oy * s, truth.y + ox * s + oy * c, p[2] };
+            }).ToArray();
+        }
 
         /// Errors of the true pose in the target's frame: lon along the target heading, lat to its left (+y side), heading wrapped.
         public static (string status, double errLat, double errLon, double errHeadingDeg) Judge(Pose2D truth, TargetPose t, Tolerance tol)
