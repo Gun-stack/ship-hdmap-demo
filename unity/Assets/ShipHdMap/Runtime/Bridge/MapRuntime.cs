@@ -160,7 +160,7 @@ namespace ShipHdMap
             transform.localPosition = new Vector3(0, (float)(-_pose.draft_aft_m), 0);   // waterline is world y = 0; the AP origin sits one aft draft below it
             QuayBuilder.SetHeight(Quay, _pose.quay_z_m + _pose.tide_m);
             AttachShip();
-            if (Ship && _pose.ramp != null) ShipMeshBuilder.SetRampAngle(Ship, _pose.ramp.angle_deg);
+            if (Ship && _pose.ramp != null) ShipMeshBuilder.SetRampAngle(Ship, _pose.ramp.angle_deg, trimDeg);
             Hud.SetRamp(_pose.ramp == null ? null : $"ramp {_pose.ramp.angle_deg:F1} deg  {_pose.ramp.state}");
             Physics.SyncTransforms();   // autoSyncTransforms is off; placement/drag raycasts must see the tilted colliders
         }

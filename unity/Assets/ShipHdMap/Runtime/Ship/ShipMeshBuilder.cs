@@ -62,10 +62,14 @@ namespace ShipHdMap
         }
 
         /// Positive angle lifts the free (stern, -x) end. Hinge line is along Unity Z, so rotate about Z.
-        public static void SetRampAngle(GameObject ship, double angleDeg)
+        /// angleDeg is measured from the API against the horizon (it comes from two heights: quay surface and
+        /// hinge), but this rotation is ship-LOCAL. A positive trim (stern deeper, bow up) is itself a positive
+        /// rotation about Unity Z, which pushes the free end (at ship -x) DOWN by trim -- so trimDeg must be added
+        /// on top of angleDeg for the ramp to still meet the horizon-relative angle the API gave.
+        public static void SetRampAngle(GameObject ship, double angleDeg, double trimDeg = 0)
         {
             var ramp = ship.transform.Find("Ramp"); if (!ramp) return;
-            ramp.localRotation = Quaternion.Euler(0, 0, (float)-angleDeg);
+            ramp.localRotation = Quaternion.Euler(0, 0, (float)-(angleDeg + trimDeg));
             // Flushes ALL pending transforms scene-wide (autoSyncTransforms is off in this project). Call this on
             // pose changes only (e.g. an operator moving the ramp), not every frame.
             Physics.SyncTransforms();

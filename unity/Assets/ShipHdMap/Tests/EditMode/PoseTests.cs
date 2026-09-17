@@ -8,7 +8,12 @@ namespace ShipHdMap.Tests
     public class PoseTests
     {
         GameObject go;
-        [TearDown] public void Cleanup() { if (go) UnityEngine.Object.DestroyImmediate(go); var ship = GameObject.Find("Ship"); if (ship) UnityEngine.Object.DestroyImmediate(ship); }
+        [TearDown] public void Cleanup()
+        {
+            if (go) UnityEngine.Object.DestroyImmediate(go);
+            var ship = GameObject.Find("Ship"); if (ship) UnityEngine.Object.DestroyImmediate(ship);
+            var quay = GameObject.Find("Quay"); if (quay) UnityEngine.Object.DestroyImmediate(quay);   // InitForTest builds one per NewRuntime() call
+        }
         static string Fixture() => File.ReadAllText(Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "docs", "fixtures", "vehicle-map.sample.json")));
         const string TrimOnly = "{\"draft_fwd_m\":8.1,\"draft_aft_m\":10.1,\"heel_deg\":0,\"lpp_m\":120,\"ramp\":{\"id\":\"RAMP-STERN\",\"angle_deg\":4,\"state\":\"deployed\"}}";
         const string HeelOnly = "{\"draft_fwd_m\":8.6,\"draft_aft_m\":8.6,\"heel_deg\":3,\"lpp_m\":120}";
@@ -66,7 +71,10 @@ namespace ShipHdMap.Tests
             var ship = GameObject.Find("Ship");
             Assert.That(ship.transform.parent, Is.EqualTo(rt.transform));                                   // attached under the Map root
             var ramp = ship.transform.Find("Ramp");
-            Assert.That(Mathf.DeltaAngle(ramp.localRotation.eulerAngles.z, -4f), Is.EqualTo(0f).Within(1e-3f)); // SetRampAngle(4) -> local z -4
+            // angle_deg (4) is measured from the horizon; SetRampAngle adds the hull's own trim (~0.955 deg here)
+            // on top so the ship-local rotation still lands the ramp at that horizon angle.
+            double trimDeg = Math.Atan2(10.1 - 8.1, 120) * 180 / Math.PI;
+            Assert.That(Mathf.DeltaAngle(ramp.localRotation.eulerAngles.z, (float)-(4 + trimDeg)), Is.EqualTo(0f).Within(1e-3f));
             var floor = ship.transform.Find("D3/Floor");
             Assert.That(floor.position.y, Is.GreaterThan(10.5f + 60f * Mathf.Tan(0.955f * Mathf.Deg2Rad) - 0.6f - 10.1f)); // floor centre (x=60) rose with the root, then the root sank by draft_aft_m (M5b)
 
@@ -128,21 +136,27 @@ namespace ShipHdMap.Tests
         public void RampFreeEndLandsOnTheQuaySurface()
         {
             // The identity behind the whole layout: angle = asin(((quay_z + tide) - (hinge_z - draft_aft)) / length)
-            // puts the ramp's free end exactly on the quay surface, so nothing has to be nudged to make them meet.
-            // draft_fwd_m == draft_aft_m here so trim is 0 -- otherwise the root's trim rotation couples into the
-            // ramp's own free-end offset and the identity only holds approximately (trim is covered elsewhere).
-            var go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>(); rt.InitForTest();
-            var seed = ShipSeedBuilder.Build(new ShipParams());
-            var ship = ShipMeshBuilder.Build(seed, new ShipParams(), rt.transform);
-            var r = seed.ramps[0];
-            double draftAft = 8.6, quayZ = 3.5, tide = 0.4, hingeZ = r.hinge[0][2];
-            double angle = Math.Asin(((quayZ + tide) - (hingeZ - draftAft)) / r.length_m) * 180 / Math.PI;
-            rt.SetPose($"{{\"draft_fwd_m\":{draftAft},\"draft_aft_m\":{draftAft},\"heel_deg\":0,\"lpp_m\":120,\"tide_m\":{tide},\"quay_z_m\":{quayZ},\"ramp\":{{\"id\":\"RAMP-STERN\",\"angle_deg\":{angle},\"state\":\"deployed\"}}}}");
+            // puts the ramp's free end exactly on the quay surface. That angle is measured from the horizon (it
+            // comes from two heights above the waterline), but SetRampAngle's rotation is ship-LOCAL -- so it only
+            // lands there because SetRampAngle adds the hull's own trim back on top. Covers both a flat hull and
+            // a trimmed one (drafts 8.1/10.1, trim ~0.955 deg), which is the regression case for that compensation:
+            // without it the free end misses the quay by length*sin(trim), about half a metre here.
+            double quayZ = 3.5, tide = 0.4;
+            foreach (var (draftFwd, draftAft) in new (double, double)[] { (8.1, 8.6), (8.1, 10.1) })
+            {
+                var go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>(); rt.InitForTest();
+                var seed = ShipSeedBuilder.Build(new ShipParams());
+                var ship = ShipMeshBuilder.Build(seed, new ShipParams(), rt.transform);
+                var r = seed.ramps[0];
+                double hingeZ = r.hinge[0][2];
+                double angle = Math.Asin(((quayZ + tide) - (hingeZ - draftAft)) / r.length_m) * 180 / Math.PI;
+                rt.SetPose($"{{\"draft_fwd_m\":{draftFwd},\"draft_aft_m\":{draftAft},\"heel_deg\":0,\"lpp_m\":120,\"tide_m\":{tide},\"quay_z_m\":{quayZ},\"ramp\":{{\"id\":\"RAMP-STERN\",\"angle_deg\":{angle},\"state\":\"deployed\"}}}}");
 
-            var ramp = ship.transform.Find("Ramp");
-            float freeEndY = ramp.TransformPoint(new Vector3(-(float)r.length_m, 0, 0)).y;   // plate runs from the hinge toward -x
-            Assert.That(freeEndY, Is.EqualTo((float)QuayBuilder.SurfaceZ(rt.Quay)).Within(0.01f));
-            UnityEngine.Object.DestroyImmediate(rt.Quay); UnityEngine.Object.DestroyImmediate(go);
+                var ramp = ship.transform.Find("Ramp");
+                float freeEndY = ramp.TransformPoint(new Vector3(-(float)r.length_m, 0, 0)).y;   // plate runs from the hinge toward -x
+                Assert.That(freeEndY, Is.EqualTo((float)QuayBuilder.SurfaceZ(rt.Quay)).Within(0.01f), $"drafts {draftFwd}/{draftAft}");
+                UnityEngine.Object.DestroyImmediate(rt.Quay); UnityEngine.Object.DestroyImmediate(go);
+            }
         }
     }
 }
