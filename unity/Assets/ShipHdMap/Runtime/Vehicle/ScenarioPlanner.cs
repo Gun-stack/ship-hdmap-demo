@@ -19,7 +19,7 @@ namespace ShipHdMap
         public static readonly double[] QuaySpawn = { -45, 6 };
         public const double QuaySpeedMps = 5.0, LeadInM = 6.0;
 
-        /// Belief-frame path on the quay: from the GPS fix, in behind the ramp, then up the ramp centreline to the hinge.
+        /// Belief-frame path on the quay: from the GPS fix, in behind the ramp, then along the ramp centreline to the hinge.
         /// foot/hinge are the ramp's real ends expressed in the Quay Frame — berth infrastructure the vehicle is told about.
         /// Executed through ToTruthFrame, so the GPS error becomes the lateral miss at the ramp.
         public static double[][] QuayPath(Pose2D est, double[] foot, double[] hinge) => new[]

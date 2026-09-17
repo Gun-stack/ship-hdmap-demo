@@ -21,7 +21,6 @@ namespace ShipHdMap.Tests
         static string Fixture() => File.ReadAllText(Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "docs", "fixtures", "vehicle-map.sample.json")));
 
         [Test]
-        [Ignore("M5b Task 5 까지 보류")]   // load now starts on the quay (ScenarioRunTests.cs), not the lane; see task-3-report.md
         public void VehicleAtLaneStartSeesAtLeastOneLandmark()
         {
             var seed = ShipSeedBuilder.Build(new ShipParams());
@@ -31,8 +30,9 @@ namespace ShipHdMap.Tests
             go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>();
             rt.InitForTest();
             rt.Load(Fixture());
-            rt.StartScenario("{\"mode\":\"load\"}");
-            Assert.That(rt.ScenarioPhase, Is.EqualTo(MapRuntime.Phase.OnLane));
+            // Load now starts on the quay (see ScenarioRunTests.cs); this test only cares about sensing
+            // from the lane start, so it puts the vehicle there directly instead of driving the phase machine.
+            rt.Vehicle.StartLane(rt.CurrentMap.lanes.First(l => l.id == "A2-D3-0001"));
             Assert.That(rt.Vehicle.Truth.x, Is.EqualTo(2).Within(1e-6));   // lane A2-D3-0001 starts at (2, 0)
 
             var obs = rt.Sensor.Sense(rt.Vehicle.Truth, rt.MapRefs, id => rt.Markers.First(m => m.id == id).transform.position);

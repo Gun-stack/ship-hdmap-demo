@@ -227,8 +227,13 @@ namespace ShipHdMap
             {
                 _exitS = ScenarioPlanner.ExitS(_targetLane, _target.target_pose);
                 var (hinge, foot) = RampEndsInQuay();
-                if (hinge == null) { Vehicle.StartLane(_targetLane); ScenarioPhase = Phase.OnLane; return; }   // no ramp in the map: start on the lane as in M5a
+                // no ramp in the map: start on the lane as in M5a. Reparent first -- a *previous* vehicle's quay run
+                // may have left this Vehicle unparented (Quay Frame), and a Ship-Frame lane path needs it back on the Map root.
+                if (hinge == null) { Vehicle.transform.SetParent(transform, false); Vehicle.StartLane(_targetLane); ScenarioPhase = Phase.OnLane; return; }
                 Vehicle.transform.SetParent(null, true);                                   // Quay Frame
+                // psiRad 0 is a placeholder, not a claim about which way the car actually faces at spawn: Gps() copies
+                // the heading exactly, so dPsi = truth.psi - est.psi is 0 regardless of this value and it never reaches
+                // the executed path. It would matter the moment heading noise is added to the GPS fix.
                 var truth = new Pose2D { x = ScenarioPlanner.QuaySpawn[0], y = ScenarioPlanner.QuaySpawn[1], psiRad = 0 };
                 var est = Sensor.Gps(truth);
                 Vehicle.StartPath(ScenarioPlanner.ToTruthFrame(ScenarioPlanner.QuayPath(est, foot, hinge), est, truth), ScenarioPlanner.QuaySpeedMps);

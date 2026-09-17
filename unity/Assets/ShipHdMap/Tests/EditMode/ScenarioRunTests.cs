@@ -12,7 +12,11 @@ namespace ShipHdMap.Tests
         [TearDown] public void Cleanup()
         {
             Time.timeScale = 1f;
-            foreach (var rt in Object.FindObjectsByType<MapRuntime>(FindObjectsSortMode.None)) if (rt.Quay) Object.DestroyImmediate(rt.Quay);
+            foreach (var rt in Object.FindObjectsByType<MapRuntime>(FindObjectsSortMode.None))
+            {
+                if (rt.Quay) Object.DestroyImmediate(rt.Quay);
+                if (rt.Vehicle) Object.DestroyImmediate(rt.Vehicle.gameObject);   // an OnQuay run unparents it, so destroying "go" alone misses it
+            }
             if (go) Object.DestroyImmediate(go);
             if (go2) Object.DestroyImmediate(go2);
             var ship = GameObject.Find("Ship"); if (ship) Object.DestroyImmediate(ship);
@@ -60,6 +64,9 @@ namespace ShipHdMap.Tests
             // The vehicle is told where the berth's ramp is; GPS is what makes it miss. sigma_gps 0 enters dead centre.
             var rt = NewRuntime(Fixture());
             rt.SetPose(PoseJson(0));
+            // Pins RampEndsInQuay's trim correction: it must land the ramp's free end on the quay surface
+            // (quay_z_m + tide_m). Without the "+ trimDeg" on the local angle this comes out ~12 cm short.
+            Assert.That(rt.RampEndsInQuay().foot[2], Is.EqualTo(3.5).Within(0.05));
             rt.StartScenario("{\"mode\":\"load\"}");
             Assert.That(rt.ScenarioPhase, Is.EqualTo(MapRuntime.Phase.OnQuay));
             Assert.That(rt.Vehicle.transform.parent, Is.Null, "on the quay the vehicle drives in the Quay Frame");
@@ -72,6 +79,15 @@ namespace ShipHdMap.Tests
             noisy.StartScenario("{\"mode\":\"load\"}");
             double offset = noisy.Vehicle.path[noisy.Vehicle.path.Length - 1][1];
             Assert.That(System.Math.Abs(offset - centred), Is.GreaterThan(0.3), "a 2 m GPS sigma must show up as a lateral miss");
+        }
+
+        [Test]
+        public void RampFootStillLandsOnTheQuaySurfaceWhenTheHullIsHeeled()
+        {
+            // A heeled hull is where a wrong transform chain (heel/trim/draft composed in the wrong order) shows up next.
+            var rt = NewRuntime(Fixture());
+            rt.SetPose(PoseJson(3));
+            Assert.That(rt.RampEndsInQuay().foot[2], Is.EqualTo(3.5).Within(0.05));
         }
 
         [Test]
