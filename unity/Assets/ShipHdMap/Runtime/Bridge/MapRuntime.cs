@@ -123,7 +123,7 @@ namespace ShipHdMap
         // ---- incoming (React -> Unity) ----
         public void Load(string json)
         {
-            ScenarioPhase = Phase.Idle; Vehicle.running = false; _target = null; Vehicle.gameObject.SetActive(false);
+            ScenarioPhase = Phase.Idle; Vehicle.running = false; _target = null; _retriedSlot = null; Vehicle.gameObject.SetActive(false);
             if (Vehicle.transform.parent != transform) Vehicle.transform.SetParent(transform, false);
             CurrentMap = MapJson.Parse<VehicleMap>(json);
             foreach (var m in _markers.Values) if (m) DestroyImmediate(m.gameObject);
