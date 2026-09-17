@@ -39,24 +39,28 @@ namespace ShipHdMap.Tests
             Assert.That(stbd.position[1], Is.EqualTo(-3.0).Within(1e-9));
 
             // the reason they exist: from every lane exit point the bow pair is inside the 90 deg FOV (spec 9.4),
-            // which the pillar markers (x <= 108, y = +-6.2) are not past x = 101.8
+            // which the pillar markers (x <= 108, y = +-6.2) are not past x = 101.8.
+            // The three xExit values are lane exit points from the 136-slot Deck 3 layout that slot generation
+            // produces (spec 9.4 exercises them); this 2-slot fixture does not itself contain those exit points.
             foreach (double xExit in new[] { 101.58, 106.08, 111.65 })
             {
-                double bearingDeg = Math.Atan2(3.0, 119.7 - xExit) * 180 / Math.PI;
+                double bearingDeg = Math.Atan2(port.position[1], port.position[0] - xExit) * 180 / Math.PI;
                 Assert.That(bearingDeg, Is.LessThan(45), $"bow marker outside the FOV half-angle at x {xExit}");
-                Assert.That(119.7 - xExit, Is.LessThan(25), $"bow marker beyond the sensor range at x {xExit}");
+                Assert.That(port.position[0] - xExit, Is.LessThan(25), $"bow marker beyond the sensor range at x {xExit}");
             }
         }
 
         [Test]
         public void SeedLandmarksFollowAChangedShip()
         {
-            var p = new ShipParams { beamM = 30, firstDeckZ = 6.0 };  // D3 at 11.2, pillars at y = ±(15 − 5.5)
+            var p = new ShipParams { beamM = 30, firstDeckZ = 6.0, lengthM = 150 };  // D3 at 11.2, pillars at y = ±(15 − 5.5)
             var lms = FixtureExporter.SeedLandmarks(ShipSeedBuilder.Build(p));
             var lm1 = lms.First(l => l.id == "LM-0001");
             Assert.That(lm1.position[1], Is.EqualTo(-9.2).Within(1e-9));
             Assert.That(lm1.position[2], Is.EqualTo(11.2 + 1.2).Within(1e-9));
             Assert.That(lms.First(l => l.id == "LM-0019").position[1], Is.EqualTo(14.9).Within(1e-9));
+            Assert.That(lms.First(l => l.id == "LM-0020").position[0], Is.EqualTo(149.7).Within(1e-9));   // bow pair follows a changed length
+            Assert.That(lms.First(l => l.id == "LM-0021").position[0], Is.EqualTo(149.7).Within(1e-9));
         }
 
         [Test]

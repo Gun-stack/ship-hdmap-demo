@@ -42,6 +42,8 @@ namespace ShipHdMap.Tests
             rt.StartScenario("{\"mode\":\"load\"}");
             Assert.That(emitted.Any(e => e.name == "onScenario" && e.json.Contains("\"start\"") && e.json.Contains("\"load\"")));
             Assert.That(emitted.Any(e => e.name == "onScenario" && e.json.Contains("\"target\"") && e.json.Contains("PS-D3-001")));
+            Assert.That(emitted.First(e => e.name == "onScenario").json, Does.Contain("\"event\":"));   // pins the wire key ScenarioEvt.evt maps to
+
             Assert.That(rt.ScenarioPhase, Is.EqualTo(MapRuntime.Phase.OnLane));
             Assert.That(rt.Vehicle.speedMps, Is.EqualTo(10 / 3.6).Within(1e-9));
 
@@ -68,6 +70,22 @@ namespace ShipHdMap.Tests
             rt.StartScenario("{\"mode\":\"load\"}");
             Assert.That(rt.ScenarioPhase, Is.EqualTo(MapRuntime.Phase.Idle));
             Assert.That(emitted.Any(e => e.name == "onScenario" && e.json.Contains("\"finished\"") && e.json.Contains("no_empty_slot")));
+        }
+
+        [Test]
+        public void FinishHidesTheVehicleAfterAllSlotsGetFilled()
+        {
+            var rt = NewRuntime(Fixture());   // both slots empty
+            rt.StartScenario("{\"mode\":\"load\"}");
+            RunUntil(rt, emitted, "onSlotFilled");   // PS-D3-001 filled, next vehicle spawned
+            RunUntil(rt, emitted, "onSlotFilled");   // PS-D3-002 filled, no empty slot left -> Finish
+            Assert.That(emitted.Any(e => e.name == "onScenario" && e.json.Contains("\"finished\"") && e.json.Contains("no_empty_slot")));
+            Assert.That(rt.ScenarioPhase, Is.EqualTo(MapRuntime.Phase.Idle));
+            Assert.That(rt.Vehicle.gameObject.activeSelf, Is.False);
+
+            rt.StartScenario("{\"mode\":\"unload\"}");   // starting a new scenario after a finish still works
+            Assert.That(rt.Vehicle.gameObject.activeSelf, Is.True);
+            Assert.That(rt.ScenarioPhase, Is.EqualTo(MapRuntime.Phase.Departing));
         }
 
         [Test]

@@ -69,7 +69,7 @@ export function useShipUnity() {
 
   useEffect(() => { if (loadedOnce.current) send("SetDeck", deckFilter); }, [deckFilter, send]);
   useEffect(() => { if (loadedOnce.current) sendPose(); }, [pose, ramp, dataset?.lpp_m, sendPose]);
-  useEffect(() => { if (loadedOnce.current) { send("SetMode", mode); if (mode === "edit") send("SetTimeScale", { scale: 1 }); } }, [mode, send]);
+  useEffect(() => { if (loadedOnce.current) send("SetMode", mode); }, [mode, send]);
   useEffect(() => {
     if (!loadedOnce.current) return;
     if (!selectedId) { fromScene.current = null; send("Select", ""); return; }

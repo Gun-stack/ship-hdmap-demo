@@ -12,7 +12,7 @@ namespace ShipHdMap
         public bool AtEnd { get; private set; }
         public Pose2D Truth;
 
-        public void StartLane(Lane lane, double z) => StartPath(lane.centerline, z, lane.speed_limit_kmh > 0 ? lane.speed_limit_kmh / 3.6 : speedMps);
+        public void StartLane(Lane lane, double z) => StartPath(lane.centerline, z, lane.speed_limit_kmh > 0 ? lane.speed_limit_kmh / 3.6 : ScenarioPlanner.ParkSpeedMps);
 
         public void StartPath(double[][] line, double z, double speed) { path = line; deckZ = z; s = 0; speedMps = speed; running = true; AtEnd = false; Apply(); }
 

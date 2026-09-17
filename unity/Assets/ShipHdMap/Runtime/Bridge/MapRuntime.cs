@@ -74,7 +74,7 @@ namespace ShipHdMap
         // ---- incoming (React -> Unity) ----
         public void Load(string json)
         {
-            ScenarioPhase = Phase.Idle; Vehicle.running = false; _target = null;
+            ScenarioPhase = Phase.Idle; Vehicle.running = false; _target = null; Vehicle.gameObject.SetActive(false);
             CurrentMap = MapJson.Parse<VehicleMap>(json);
             foreach (var m in _markers.Values) if (m) DestroyImmediate(m.gameObject);
             _selected = null; _markers.Clear(); MapRefs.Clear(); Placer.All.Clear();
@@ -184,7 +184,7 @@ namespace ShipHdMap
         {
             var s = MapJson.Parse<StartScenarioMsg>(json);
             _scenarioMode = s?.mode == "unload" ? "unload" : "load";
-            _prev = null; SetMode("drive"); Vehicle.gameObject.SetActive(true);
+            SetMode("drive"); Vehicle.gameObject.SetActive(true);
             if (Orbit) { Orbit.follow = Vehicle.transform; Orbit.distance = 25f; Orbit.pitchDeg = 35f; }
             Send(BridgeMessages.OnScenario, MapJson.Serialize(new ScenarioEvt { evt = "start", mode = _scenarioMode }));
             NextVehicle();
@@ -198,8 +198,11 @@ namespace ShipHdMap
             var candidates = new List<ParkingSlot>();
             if (CurrentMap != null)
                 foreach (var s in CurrentMap.parking_slots ?? new List<ParkingSlot>())
-                    if (CurrentMap.lanes?.Find(l => l.id == s.access_lane_id) != null && CurrentMap.decks?.Find(d => d.id == s.deck_id) != null)
+                {
+                    var lane = CurrentMap.lanes?.Find(l => l.id == s.access_lane_id);
+                    if (lane != null && lane.centerline != null && lane.centerline.Length >= 2 && CurrentMap.decks?.Find(d => d.id == s.deck_id) != null)
                         candidates.Add(s);
+                }
             _target = ScenarioPlanner.NextSlot(candidates, _scenarioMode);
             _targetLane = _target == null ? null : CurrentMap.lanes.Find(l => l.id == _target.access_lane_id);
             _targetDeck = _target == null ? null : CurrentMap.decks.Find(d => d.id == _target.deck_id);
@@ -222,7 +225,7 @@ namespace ShipHdMap
 
         void Finish(string reason)
         {
-            ScenarioPhase = Phase.Idle; _target = null; Vehicle.running = false;
+            ScenarioPhase = Phase.Idle; _target = null; Vehicle.running = false; Vehicle.gameObject.SetActive(false);
             Send(BridgeMessages.OnScenario, MapJson.Serialize(new ScenarioEvt { evt = "finished", mode = _scenarioMode, detail = reason }));
         }
 

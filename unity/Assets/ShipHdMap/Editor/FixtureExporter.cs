@@ -40,7 +40,8 @@ namespace ShipHdMap.Editor
 
         /// Landmarks derived from seed geometry, so a changed ShipParams (beam, deck pitch, pillar layout) still puts every tag
         /// on a structure: one pair per pillar station on the ramp deck (tag on the pillar's centreline-side face, 1.2 m above
-        /// the deck), plus one on the port hull. Ids/codes stay LM-0001.. so the fixture's slots and ramp keep resolving.
+        /// the deck), one on the port hull, and one bow pair. Ids/codes stay LM-0001.. so the fixture's slots and ramp keep
+        /// resolving. 21 landmarks total. The ramp deck itself is chosen by ShipParams.rampDeckIndex, not derived from the seed.
         public static List<Landmark> SeedLandmarks(SeedData seed)
         {
             var deck = seed.decks[Math.Min(new ShipParams().rampDeckIndex, seed.decks.Count - 1)];
@@ -59,7 +60,7 @@ namespace ShipHdMap.Editor
             landmarks.Add(Lm("LM-0019", 19, 40, deck.outline.Max(pt => pt[1]) - 0.1, zTag, 0, -1, 0, "HULL-PORT", deck.id));
             // Bow pair: the pillar rows stop at x = 108 and sit 6.2 m off the centreline, so past x ~ 101.8 nothing is
             // inside the 90 deg FOV from the lane. These two keep every lane exit point observable (spec 9.4).
-            double bowX = new ShipParams().lengthM - 0.3;
+            double bowX = deck.outline.Max(pt => pt[0]) - 0.3;
             landmarks.Add(Lm("LM-0020", 20 % 20, bowX, -3, zTag, -1, 0, 0, "BOW-" + deck.id, deck.id));
             landmarks.Add(Lm("LM-0021", 21 % 20, bowX, 3, zTag, -1, 0, 0, "BOW-" + deck.id, deck.id));
             return landmarks;
