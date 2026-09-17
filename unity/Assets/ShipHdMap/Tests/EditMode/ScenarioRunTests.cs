@@ -114,19 +114,19 @@ namespace ShipHdMap.Tests
         }
 
         [Test]
-        [Ignore("M5b Task 5 까지 보류")]
         public void LoadScenarioParksFirstSlotEmitsAndSpawnsNextVehicle()
         {
             var rt = NewRuntime(Fixture());
+            rt.SetPose(PoseJson(0));
             rt.StartScenario("{\"mode\":\"load\"}");
             Assert.That(emitted.Any(e => e.name == "onScenario" && e.json.Contains("\"start\"") && e.json.Contains("\"load\"")));
             Assert.That(emitted.Any(e => e.name == "onScenario" && e.json.Contains("\"target\"") && e.json.Contains("PS-D3-001")));
             Assert.That(emitted.First(e => e.name == "onScenario").json, Does.Contain("\"event\":"));   // pins the wire key ScenarioEvt.evt maps to
 
             Assert.That(rt.ScenarioPhase, Is.EqualTo(MapRuntime.Phase.OnQuay));
-            Assert.That(rt.Vehicle.speedMps, Is.EqualTo(10 / 3.6).Within(1e-9));
+            Assert.That(rt.Vehicle.speedMps, Is.EqualTo(ScenarioPlanner.QuaySpeedMps).Within(1e-9));
 
-            var json = RunUntil(rt, emitted, "onSlotFilled");
+            var json = RunUntil(rt, emitted, "onSlotFilled", 8000);   // crosses ~45 m of quay and ramp before the lane
             var evt = MapJson.Parse<SlotFilledEvt>(json);
             Assert.That(evt.slot_id, Is.EqualTo("PS-D3-001"));
             Assert.That(evt.status, Is.EqualTo("filled"));                       // zero noise → the estimate equals the truth
@@ -136,14 +136,13 @@ namespace ShipHdMap.Tests
             Assert.That(rt.transform.Find("Overlay/D3/PARKED-PS-D3-001"), Is.Not.Null);
             var fill = rt.transform.Find("Overlay/D3/PS-D3-001/Fill").GetComponent<MeshRenderer>().sharedMaterial.color;
             Assert.That(fill.b, Is.EqualTo(1f).Within(1e-3));                    // "filled" blue
-            // next vehicle already on the lane, heading for PS-D3-002
-            Assert.That(rt.ScenarioPhase, Is.EqualTo(MapRuntime.Phase.OnLane));
+            // next vehicle spawned back on the quay, heading for PS-D3-002 (M5b: every load run starts at the ramp)
+            Assert.That(rt.ScenarioPhase, Is.EqualTo(MapRuntime.Phase.OnQuay));
             Assert.That(rt.TargetSlotId, Is.EqualTo("PS-D3-002"));
             Assert.That(rt.Vehicle.s, Is.LessThan(1.0));
         }
 
         [Test]
-        [Ignore("M5b Task 5 까지 보류")]
         public void HeadingEstimationErrorReachesTheParkingResult()
         {
             // LandmarkSensor noise is seeded (SensorNoise.seed), so this run is deterministic. The point of this test is
@@ -151,9 +150,10 @@ namespace ShipHdMap.Tests
             // ToTruthFrame fix, StepScenario only translated the planned path, so the vehicle always finished on the
             // target heading and err_heading was structurally 0 no matter how noisy the estimate was.
             var rt = NewRuntime(Fixture());
+            rt.SetPose(PoseJson(0));
             rt.SetNoise("{\"sigma_r\":0.5,\"sigma_theta\":3,\"sigma_alpha\":6,\"sigma_gps\":0}");
             rt.StartScenario("{\"mode\":\"load\"}");
-            var json = RunUntil(rt, emitted, "onSlotFilled");
+            var json = RunUntil(rt, emitted, "onSlotFilled", 8000);   // crosses ~45 m of quay and ramp before the lane
             var evt = MapJson.Parse<SlotFilledEvt>(json);
             Assert.That(System.Math.Abs(evt.err_heading.Value), Is.GreaterThan(0.05));
         }
@@ -168,13 +168,13 @@ namespace ShipHdMap.Tests
         }
 
         [Test]
-        [Ignore("M5b Task 5 까지 보류")]
         public void FinishHidesTheVehicleAfterAllSlotsGetFilled()
         {
             var rt = NewRuntime(Fixture());   // both slots empty
+            rt.SetPose(PoseJson(0));
             rt.StartScenario("{\"mode\":\"load\"}");
-            RunUntil(rt, emitted, "onSlotFilled");   // PS-D3-001 filled, next vehicle spawned
-            RunUntil(rt, emitted, "onSlotFilled");   // PS-D3-002 filled, no empty slot left -> Finish
+            RunUntil(rt, emitted, "onSlotFilled", 8000);   // PS-D3-001 filled, next vehicle spawned back on the quay
+            RunUntil(rt, emitted, "onSlotFilled", 8000);   // PS-D3-002 filled, no empty slot left -> Finish
             Assert.That(emitted.Any(e => e.name == "onScenario" && e.json.Contains("\"finished\"") && e.json.Contains("no_empty_slot")));
             Assert.That(rt.ScenarioPhase, Is.EqualTo(MapRuntime.Phase.Idle));
             Assert.That(rt.Vehicle.gameObject.activeSelf, Is.False);
@@ -188,6 +188,7 @@ namespace ShipHdMap.Tests
         public void LoadRestoresParkedCarsAndUnloadEmptiesInReverse()
         {
             var rt = NewRuntime(FilledFixture());
+            rt.SetPose(PoseJson(0));
             Assert.That(rt.transform.Find("Overlay/D3/PARKED-PS-D3-001"), Is.Not.Null);
             Assert.That(rt.transform.Find("Overlay/D3/PARKED-PS-D3-002"), Is.Not.Null);
             rt.StartScenario("{\"mode\":\"unload\"}");
@@ -199,6 +200,9 @@ namespace ShipHdMap.Tests
             Assert.That(evt.slot_id, Is.EqualTo("PS-D3-002")); Assert.That(evt.status, Is.EqualTo("empty")); Assert.That(evt.err_lat, Is.Null);
             Assert.That(json, Does.Not.Contain("err_lat"));
             Assert.That(rt.CurrentMap.parking_slots.First(s => s.id == "PS-D3-002").status, Is.EqualTo("empty"));
+            // M5b: the emptied car drives back down the ramp and off the quay before the next slot's vehicle spawns
+            Assert.That(rt.ScenarioPhase, Is.EqualTo(MapRuntime.Phase.RampDown));
+            for (int i = 0; i < 3000 && rt.ScenarioPhase != MapRuntime.Phase.Departing; i++) rt.Step(0.05f);
             Assert.That(rt.TargetSlotId, Is.EqualTo("PS-D3-001"));
         }
 
@@ -240,12 +244,12 @@ namespace ShipHdMap.Tests
         }
 
         [Test]
-        [Ignore("M5b Task 5 까지 보류")]
         public void CoarseStepsDoNotOvershootTheExitIntoTheParkingError()
         {
             // At a high time scale one Step covers several metres; without VehicleController.Rewind the plan's origin
             // lands metres past the lane exit and that overshoot shows up directly as err_lon (needs_adjust).
             var rt = NewRuntime(Fixture());
+            rt.SetPose(PoseJson(0));
             rt.StartScenario("{\"mode\":\"load\"}");
             var json = RunUntil(rt, emitted, "onSlotFilled", step: 2f);
             var evt = MapJson.Parse<SlotFilledEvt>(json);
@@ -262,6 +266,41 @@ namespace ShipHdMap.Tests
             rt.StartScenario("{\"mode\":\"load\"}");
             Assert.That(rt.TargetSlotId, Is.EqualTo("PS-D3-002"));
             Assert.That(rt.ScenarioPhase, Is.EqualTo(MapRuntime.Phase.OnQuay));   // a ramp is in the map, so load starts on the quay (M5b)
+        }
+
+        [Test]
+        public void BlockedRampRefusesToStart()
+        {
+            var rt = NewRuntime(Fixture());
+            rt.SetPose("{\"draft_fwd_m\":8.1,\"draft_aft_m\":8.6,\"heel_deg\":0,\"lpp_m\":120,\"tide_m\":0,\"quay_z_m\":3.5,\"ramp\":{\"id\":\"RAMP-STERN\",\"angle_deg\":31,\"state\":\"blocked\"}}");
+            rt.StartScenario("{\"mode\":\"load\"}");
+            Assert.That(rt.ScenarioPhase, Is.EqualTo(MapRuntime.Phase.Idle));
+            Assert.That(emitted.Any(e => e.name == "onScenario" && e.json.Contains("ramp_blocked")));
+        }
+
+        [Test]
+        public void UnloadDrivesDownTheRampAndLeavesOnTheQuay()
+        {
+            var rt = NewRuntime(FilledFixture());
+            rt.SetPose(PoseJson(0));
+            rt.StartScenario("{\"mode\":\"unload\"}");
+            RunUntil(rt, emitted, "onSlotFilled");                 // PS-D3-002 emptied at the lane start
+            Assert.That(rt.ScenarioPhase, Is.EqualTo(MapRuntime.Phase.RampDown));
+            for (int i = 0; i < 2000 && rt.ScenarioPhase == MapRuntime.Phase.RampDown; i++) rt.Step(0.05f);
+            Assert.That(rt.ScenarioPhase, Is.EqualTo(MapRuntime.Phase.QuayOut));
+            Assert.That(rt.Vehicle.transform.parent, Is.Null, "back in the Quay Frame on the way out");
+        }
+
+        [Test]
+        public void LoadRunsQuayToSlot()
+        {
+            var rt = NewRuntime(Fixture());
+            rt.SetPose(PoseJson(0));
+            rt.StartScenario("{\"mode\":\"load\"}");
+            var json = RunUntil(rt, emitted, "onSlotFilled", 8000);
+            var evt = MapJson.Parse<SlotFilledEvt>(json);
+            Assert.That(evt.slot_id, Is.EqualTo("PS-D3-001"));
+            Assert.That(evt.status, Is.EqualTo("filled"));          // zero noise all the way through
         }
     }
 }

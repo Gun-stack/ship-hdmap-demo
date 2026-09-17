@@ -79,6 +79,7 @@ namespace ShipHdMap
         public void Load(string json)
         {
             ScenarioPhase = Phase.Idle; Vehicle.running = false; _target = null; Vehicle.gameObject.SetActive(false);
+            if (Vehicle.transform.parent != transform) Vehicle.transform.SetParent(transform, false);
             CurrentMap = MapJson.Parse<VehicleMap>(json);
             foreach (var m in _markers.Values) if (m) DestroyImmediate(m.gameObject);
             _selected = null; _markers.Clear(); MapRefs.Clear(); Placer.All.Clear();
@@ -116,6 +117,7 @@ namespace ShipHdMap
             if (mode == "edit")
             {
                 ScenarioPhase = Phase.Idle; _target = null; Vehicle.running = false; Vehicle.gameObject.SetActive(false);
+                if (Vehicle.transform.parent != transform) Vehicle.transform.SetParent(transform, false);
                 Time.timeScale = 1f; if (Orbit) Orbit.follow = null;
             }
         }
@@ -192,6 +194,11 @@ namespace ShipHdMap
         {
             var s = MapJson.Parse<StartScenarioMsg>(json);
             _scenarioMode = s?.mode == "unload" ? "unload" : "load";
+            if (_pose?.ramp != null && _pose.ramp.state == "blocked")
+            {
+                Send(BridgeMessages.OnScenario, MapJson.Serialize(new ScenarioEvt { evt = "finished", mode = _scenarioMode, detail = "ramp_blocked" }));
+                return;
+            }
             SetMode("drive"); Vehicle.gameObject.SetActive(true);
             if (Orbit) { Orbit.follow = Vehicle.transform; Orbit.distance = 25f; Orbit.pitchDeg = 35f; }
             Send(BridgeMessages.OnScenario, MapJson.Serialize(new ScenarioEvt { evt = "start", mode = _scenarioMode }));
@@ -244,6 +251,7 @@ namespace ShipHdMap
         void Finish(string reason)
         {
             ScenarioPhase = Phase.Idle; _target = null; Vehicle.running = false; Vehicle.gameObject.SetActive(false);
+            if (Vehicle.transform.parent != transform) Vehicle.transform.SetParent(transform, false);
             Send(BridgeMessages.OnScenario, MapJson.Serialize(new ScenarioEvt { evt = "finished", mode = _scenarioMode, detail = reason }));
         }
 
@@ -337,9 +345,19 @@ namespace ShipHdMap
                 {
                     _target.status = "empty"; MapOverlay.SetStatus(_overlay, _target.id, "empty");
                     Send(BridgeMessages.OnSlotFilled, MapJson.Serialize(new SlotFilledEvt { slot_id = _target.id, status = "empty" }));
-                    NextVehicle();
+                    var (hingeQ, footQ) = RampEndsInQuay();
+                    if (hingeQ == null) { NextVehicle(); break; }
+                    Vehicle.transform.SetParent(null, true);
+                    Vehicle.StartPath(ScenarioPlanner.QuayOutPath(hingeQ, footQ), ScenarioPlanner.ParkSpeedMps);
+                    ScenarioPhase = Phase.RampDown;
                     break;
                 }
+                case Phase.RampDown when Vehicle.Z <= QuayBuilder.SurfaceZ(Quay) + 0.05:
+                    ScenarioPhase = Phase.QuayOut;   // wheels are on the quay: GPS is what the vehicle has again
+                    break;
+                case Phase.QuayOut when Vehicle.AtEnd:
+                    NextVehicle();
+                    break;
             }
         }
 
