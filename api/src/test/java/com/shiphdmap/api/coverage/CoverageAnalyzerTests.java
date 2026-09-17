@@ -259,7 +259,7 @@ class CoverageAnalyzerTests {
 	@Test
 	void aMarkerOnOneFaceDoesNotBlockTheOppositeFace() {
 		var deck = rect(0, -12, 120, 12);
-		var pillar = rect(11.6, -6.86, 12.2, -6.26);                        // the fixture's shape and place
+		var pillar = rect(11.7, -6.8, 12.3, -6.2);                          // the fixture's pillar P3, exactly
 		var lm = List.of(new CoverageAnalyzer.Landmark("LM-0001", 12.0, -6.2, Math.toRadians(90)));
 		var onPillar = CoverageAnalyzer.candidates(deck, List.of("P"), List.<double[][]>of(pillar), lm).stream()
 			.filter(c -> c.mountedOn().equals("P")).toList();

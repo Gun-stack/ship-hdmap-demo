@@ -276,7 +276,9 @@ public final class CoverageAnalyzer {
 				if (t.score() < (bestT == null ? cur.score() : bestT.score())) { bestT = t; best = c; }
 			}
 			if (best == null) break;                                     // nothing improves anything
-			out.add(new Suggestion(rank, best.x(), best.y(), Math.toDegrees(best.phiRad()), best.mountedOn(),
+			// + 0.0 turns -0.0 into 0.0: a face whose normal is exactly +x comes out of atan2 as -0.0, and the panel
+			// would render the perfectly ordinary "forward" as "-0.0 deg".
+			out.add(new Suggestion(rank, best.x(), best.y(), Math.toDegrees(best.phiRad()) + 0.0, best.mountedOn(),
 				bestT.blindRatio(), bestT.weakRatio(), cur.blindRatio() - bestT.blindRatio()));
 			chosen.add(new Landmark("CAND-" + rank, best.x(), best.y(), best.phiRad()));
 			pool.remove(best);
