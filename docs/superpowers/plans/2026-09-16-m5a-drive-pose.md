@@ -1362,3 +1362,102 @@ curl -s -X POST localhost:8081/api/datasets/roro-demo-01/decks/D3/slots/generate
 - 이름 일관성: `SetPoseMsg/RampMsg`(T2 ↔ T5 `sendPose` 키), `ScenarioPlanner.NextSlot/ExitS/ApproachPath/DeparturePath/Shift/Judge/IsFilled/ParkSpeedMps`(T3 ↔ T4), `MapRuntime.Phase/ScenarioPhase/Step/TargetSlotId/SetTimeScale`(T4 ↔ 테스트), `VehicleController.StartPath/Advance/AtEnd/path/speedMps`(T4), `MapOverlay.SetStatus/SpawnParked/RemoveParked`(T4), `SlotFilledEvt.slot_id/status/err_*`·`ScenarioEvt.event`(C# `evt` + JsonProperty ↔ TS `event`), `api.putSlotStatus`·`onSlotFilled`·`appendLog`·`clearLog`·`scenarioLine`·`slotFilledLine`(T5 ↔ 테스트)
 - 테스트 수: Unity 53 → 55(T1) → 60(T2) → 66(T3) → 71(T4); web 22 → 26(T5); api 42 → 42
 - 위험: (1) `Quaternion.Euler` 축 부호 — `PoseRotationSigns` 가 잡고 Step 4 가 뒤집는 법을 적었다. (2) `ScenarioRunTests` 의 첫 테스트가 EditMode 에서 수백 번 `Physics.Linecast` 를 돈다 — 선체가 없으므로 차폐 대상이 없어 빠르다. (3) 웹 `useShipUnity` 는 훅 테스트가 없다 — 브라우저 항목 2·3 이 `SetPose` 경로를 덮는다. (4) 픽스처 재시드가 upsert 라 옛 49개 id 가 새 격자 id 와 같은지 T6 Step 3 에서 LP 수로 확인한다(다르면 중복이 아니라 합집합으로 늘어난다 — 그때는 `DELETE FROM feature WHERE layer='LP'` 뒤 재시드)
+
+---
+
+### Task 7: 선수 격벽과 랜드마크 쌍 — 선수 구역 관측 공백 제거
+
+브라우저 검증에서 드러난 구조적 공백을 메운다. 랜드마크가 기둥에만 있어 `x ≤ 108`, `y = ±6.2` 이고, 차로 중앙에서 FOV 90°(반각 45°)로 그 마커를 보려면 전방 거리가 `|y|` 이상이어야 하므로 `x > 101.8` 구간은 관측이 끊긴다. 이탈점은 101.58~111.65 이라 선수 쪽 구획은 낡은 추정으로 경로를 짜고 10 m 넘게 빗나간다. 감지 모델(스펙 §9.4)은 그대로 두고 지도 쪽을 고친다.
+
+**Files:**
+- Modify: `unity/Assets/ShipHdMap/Runtime/Ship/ShipMeshBuilder.cs`(선수 격벽), `unity/Assets/ShipHdMap/Editor/FixtureExporter.cs`(`SeedLandmarks`)
+- Modify: `unity/Assets/ShipHdMap/Tests/EditMode/FixtureExporterTests.cs`, `Tests/EditMode/MapRuntimeTests.cs`, `Tests/EditMode/ShipMeshBuilderTests.cs`
+- Modify: `api/src/test/java/com/shiphdmap/api/dataset/SeedImportTests.java`, `api/src/test/java/com/shiphdmap/api/export/GeoJsonExportTests.java`
+- Regenerate: `docs/fixtures/vehicle-map.sample.json`
+
+**Interfaces:**
+- `ShipMeshBuilder.Build` 이 갑판마다 `"{deck}/Bow"` Cube 를 만든다: 중심 Ship `(lengthM − WallThick/2, 0, z_surface + z_clear/2)`, 크기 `(WallThick, z_clear, beamM)`, 색은 측벽과 같은 `Color(0.4f, 0.45f, 0.5f)`, `ShipStructure` 레이어
+- `FixtureExporter.SeedLandmarks` 가 21개를 돌려준다: 기존 19개 + `LM-0020`(`x = lengthM − 0.3`, `y = −3`, `normal (−1,0,0)`) 과 `LM-0021`(같은 x, `y = +3`, 같은 normal), 둘 다 `z = deck.z_surface + 1.2`, `mounted_on = "BOW-{deck.id}"`, 코드는 `20 % 20 = 0`·`21 % 20 = 1`
+- 픽스처 랜드마크 19 → 21
+
+- [ ] **Step 1: 실패하는 테스트** — `FixtureExporterTests.cs` 의 `SeedLandmarksSitOnPillarInnerFacesAndHull` 에 이어 붙인다
+
+```csharp
+        [Test]
+        public void SeedLandmarksCoverTheBowApproach()
+        {
+            var seed = ShipSeedBuilder.Build(new ShipParams());
+            var lms = FixtureExporter.SeedLandmarks(seed);
+            Assert.That(lms.Count, Is.EqualTo(21));
+            var port = lms.First(l => l.id == "LM-0021");
+            Assert.That(port.position, Is.EqualTo(new[] { 119.7, 3.0, 11.8 }).Within(1e-9));
+            Assert.That(port.normal, Is.EqualTo(new[] { -1.0, 0.0, 0.0 }));
+            Assert.That(port.mounted_on, Is.EqualTo("BOW-D3"));
+            var stbd = lms.First(l => l.id == "LM-0020");
+            Assert.That(stbd.position[1], Is.EqualTo(-3.0).Within(1e-9));
+
+            // the reason they exist: from every lane exit point the bow pair is inside the 90 deg FOV (spec 9.4),
+            // which the pillar markers (x <= 108, y = +-6.2) are not past x = 101.8
+            foreach (double xExit in new[] { 101.58, 106.08, 111.65 })
+            {
+                double bearingDeg = Math.Atan2(3.0, 119.7 - xExit) * 180 / Math.PI;
+                Assert.That(bearingDeg, Is.LessThan(45), $"bow marker outside the FOV half-angle at x {xExit}");
+                Assert.That(119.7 - xExit, Is.LessThan(25), $"bow marker beyond the sensor range at x {xExit}");
+            }
+        }
+```
+
+`ShipMeshBuilderTests.BuildsDeckHierarchyInUnityCoordinates` 의 마지막 단언 앞에 한 줄 더한다:
+
+```csharp
+            var bow = ship.transform.Find("D3/Bow");
+            Assert.That(bow, Is.Not.Null);
+            Assert.That(bow.GetComponent<Collider>().bounds.center.x, Is.EqualTo(119.9f).Within(0.05f)); // inner face at x = 120
+```
+
+- [ ] **Step 2: 실패 확인** — 에디터 GUI 닫고
+
+```bash
+U=/Applications/Unity/Hub/Editor/6000.3.24f1/Unity.app/Contents/MacOS/Unity
+cd unity && "$U" -batchmode -nographics -projectPath "$PWD" -runTests -testPlatform EditMode -testResults "$PWD/Logs/editmode-results.xml" -logFile "$PWD/Logs/editmode.log"; grep -o 'total="[0-9]*" passed="[0-9]*" failed="[0-9]*"' Logs/editmode-results.xml | head -1
+```
+Expected: failed ≥ 2 (`Bow` 없음, 랜드마크 19개).
+
+- [ ] **Step 3: 선수 격벽** — `ShipMeshBuilder.Build` 의 `HullStbd` 줄 다음에
+
+```csharp
+                // Bow bulkhead: closes the deck at the forward end so landmarks placed there sit on structure and occlude like the hull.
+                Prim(deck, "Bow", PrimitiveType.Cube, new Vector3(L - WallThick / 2, z + (float)d.z_clear / 2, 0), new Vector3(WallThick, (float)d.z_clear, B), Color(0.4f, 0.45f, 0.5f), layer, materials);
+```
+
+- [ ] **Step 4: 선수 랜드마크 쌍** — `SeedLandmarks` 의 `landmarks.Add(Lm("LM-0019", …));` 다음에
+
+```csharp
+            // Bow pair: the pillar rows stop at x = 108 and sit 6.2 m off the centreline, so past x ~ 101.8 nothing is
+            // inside the 90 deg FOV from the lane. These two keep every lane exit point observable (spec 9.4).
+            double bowX = new ShipParams().lengthM - 0.3;
+            landmarks.Add(Lm("LM-0020", 20 % 20, bowX, -3, zTag, -1, 0, 0, "BOW-" + deck.id, deck.id));
+            landmarks.Add(Lm("LM-0021", 21 % 20, bowX, 3, zTag, -1, 0, 0, "BOW-" + deck.id, deck.id));
+```
+
+- [ ] **Step 5: 통과 확인과 픽스처 재생성** — Step 2 명령으로 77/77 을 확인한 뒤
+
+```bash
+cd unity && "$U" -batchmode -nographics -projectPath "$PWD" -executeMethod ShipHdMap.Editor.FixtureExporter.ExportFromSeed -quit -logFile "$PWD/Logs/fixture.log"; grep "Fixture written" Logs/fixture.log
+cd .. && python3 -c "
+import json; m=json.load(open('docs/fixtures/vehicle-map.sample.json'))
+print('LM', len(m['landmarks']), 'LP', len(m['lashing_points']), 'slots', len(m['parking_slots']))
+print([l['position'] for l in m['landmarks'] if l['id'] in ('LM-0020','LM-0021')])"
+```
+Expected: LM 21, LP 4722, slots 2, 좌표 `[119.7, -3.0, 11.8]`·`[119.7, 3.0, 11.8]`.
+
+- [ ] **Step 6: 랜드마크 수를 쓰는 테스트 갱신** — `MapRuntimeTests` 의 `Is.EqualTo(19)` 두 곳(`LoadSpawnsLandmarksAndBuildsMap`, `LoadTwiceReplacesLandmarks`)을 21 로. `SeedImportTests` 의 `layer = 'LM'` 건수 19 → 21 과 총합 `19 + 18 + 1 + 3 + lp + 2` 의 19 → 21. `GeoJsonExportTests` 의 `3 + 19 + …` 의 19 → 21. `VehicleMapExportTests` 에 랜드마크 수 단언이 있으면 같이.
+
+- [ ] **Step 7: 전체 확인** — Unity 77/77, `cd api && JAVA_HOME=/opt/homebrew/opt/openjdk ./gradlew test` 42/42.
+
+- [ ] **Step 8: 커밋**
+
+```bash
+git add unity/Assets/ShipHdMap api/src/test docs/fixtures/vehicle-map.sample.json
+git commit -m "unity: bow bulkhead and its landmark pair so the lane exit points stay observable"
+```
