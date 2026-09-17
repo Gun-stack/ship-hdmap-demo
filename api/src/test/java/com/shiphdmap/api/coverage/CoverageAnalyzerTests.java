@@ -74,4 +74,156 @@ class CoverageAnalyzerTests {
 		var e = new CoverageAnalyzer.Estimate(2, 0.30, 1.0);   // 0.15/0.30 = 0.5 ; 2.0/1.0 = 2.0
 		assertThat(CoverageAnalyzer.stability(e)).isCloseTo(0.5, within(1e-9));
 	}
+
+	static double[][] rect(double x0, double y0, double x1, double y1) {
+		return new double[][] { { x0, y0, 0 }, { x1, y0, 0 }, { x1, y1, 0 }, { x0, y1, 0 }, { x0, y0, 0 } };
+	}
+
+	/** The fixture's Deck 3 markers: 18 side markers facing the lane, 4 end markers all facing astern, plus LM-0019. */
+	static List<CoverageAnalyzer.Landmark> fixtureLandmarks() {
+		var out = new java.util.ArrayList<CoverageAnalyzer.Landmark>();
+		int n = 0;
+		for (double x = 12; x <= 108 + 1e-9; x += 12) {
+			out.add(new CoverageAnalyzer.Landmark(String.format("LM-%04d", ++n), x, -6.2, Math.toRadians(90)));
+			out.add(new CoverageAnalyzer.Landmark(String.format("LM-%04d", ++n), x, 6.2, Math.toRadians(-90)));
+		}
+		out.add(new CoverageAnalyzer.Landmark("LM-0019", 40, 11.9, Math.toRadians(-90)));
+		for (double[] p : new double[][] { { 119.7, -3 }, { 119.7, 3 }, { 0.3, -5.5 }, { 0.3, 5.5 } })
+			out.add(new CoverageAnalyzer.Landmark(String.format("LM-%04d", ++n + 1), p[0], p[1], Math.PI));
+		return out;
+	}
+
+	/**
+	 * Where a vehicle can be on the fixture's Deck 3: one lane down the middle and four rows of slots either side.
+	 * The real deck has 136 slot polygons; four strips per side reproduce the |y| bands the rows occupy, which is
+	 * what the regressions below actually assert on.
+	 */
+	static CoverageAnalyzer.Scope fixtureScope() {
+		var slots = new java.util.ArrayList<double[][]>();
+		for (double[] band : new double[][] { { 2.4, 4.4 }, { 4.6, 6.6 }, { 6.9, 8.9 }, { 9.1, 11.1 } }) {
+			slots.add(rect(0, band[0], 120, band[1]));
+			slots.add(rect(0, -band[1], 120, -band[0]));
+		}
+		var lane = new CoverageAnalyzer.Lane(new double[][] { { 2, 0, 0 }, { 60, 0, 0 }, { 118, 0, 0 } }, 3.2);
+		return new CoverageAnalyzer.Scope(slots, List.of(lane));
+	}
+
+	static double blindIn(CoverageAnalyzer.Result r, double loY, double hiY) {
+		var band = r.cells().stream().filter(c -> c.inScope() && Math.abs(c.y()) >= loY && Math.abs(c.y()) < hiY).toList();
+		assertThat(band).isNotEmpty();
+		return (double) band.stream().filter(c -> c.sigmaXy() == null).count() / band.size();
+	}
+
+	@Test
+	void gridCoversTheDeckOutlineOnly() {
+		var r = CoverageAnalyzer.analyze(rect(0, -12, 120, 12), List.of(), fixtureLandmarks(),
+			CoverageAnalyzer.Scope.ALL, CoverageAnalyzer.PSI_LOAD, 2.0, S);
+		assertThat(r.nDrawn()).isEqualTo(r.cells().size()).isGreaterThan(500);
+		assertThat(r.cells()).allSatisfy(c -> {
+			assertThat(c.x()).isBetween(0.0, 120.0);
+			assertThat(c.y()).isBetween(-12.0, 12.0);
+		});
+		assertThat(r.blindRatio()).isBetween(0.0, 1.0);
+	}
+
+	@Test
+	void cellsInsidePillarsAreNotEvaluated() {
+		var pillars = List.<double[][]>of(rect(58, -1, 62, 1));
+		var r = CoverageAnalyzer.analyze(rect(0, -12, 120, 12), pillars, fixtureLandmarks(),
+			CoverageAnalyzer.Scope.ALL, CoverageAnalyzer.PSI_LOAD, 1.0, S);
+		assertThat(r.cells()).noneMatch(c -> c.x() > 58 && c.x() < 62 && c.y() > -1 && c.y() < 1);
+	}
+
+	@Test
+	void aPillarOnTheSightLineHidesTheMarker() {
+		var lm = List.of(at("A", 10, 0));
+		var wall = List.<double[][]>of(rect(4, -1, 6, 1));                        // straddles the line from (0,0) to (10,0)
+		var open = CoverageAnalyzer.analyze(rect(-1, -2, 1, 2), List.of(), lm, CoverageAnalyzer.Scope.ALL, 0, 1.0, S);
+		var blocked = CoverageAnalyzer.analyze(rect(-1, -2, 1, 2), wall, lm, CoverageAnalyzer.Scope.ALL, 0, 1.0, S);
+		assertThat(open.cells()).anyMatch(c -> c.n() == 1);
+		assertThat(blocked.cells()).allMatch(c -> c.n() == 0);
+	}
+
+	@Test
+	void aMarkerIsNotHiddenByThePillarItIsMountedOn() {
+		var lm = List.of(at("A", 10, 0));                              // marker at (10, 0)
+		var ownPillar = List.<double[][]>of(rect(10, -0.3, 10.6, 0.3));            // the face it sits on
+		var r = CoverageAnalyzer.analyze(rect(-1, -2, 1, 2), ownPillar, lm, CoverageAnalyzer.Scope.ALL, 0, 1.0, S);
+		assertThat(r.cells()).anyMatch(c -> c.n() == 1);
+	}
+
+	/** An empty scope means "no slots or lanes mapped yet": count every cell rather than divide by zero. */
+	@Test
+	void emptyScopeCountsEveryCell() {
+		var r = CoverageAnalyzer.analyze(rect(0, -12, 120, 12), List.of(), fixtureLandmarks(),
+			CoverageAnalyzer.Scope.ALL, CoverageAnalyzer.PSI_LOAD, 2.0, S);
+		assertThat(r.nCells()).isEqualTo(r.nDrawn());
+		assertThat(r.cells()).allMatch(CoverageAnalyzer.Cell::inScope);
+	}
+
+	/** The whole point of §3.4: the deck edges are drawn but must not be in the denominator. */
+	@Test
+	void scopeNarrowsTheDenominatorWithoutShrinkingTheHeatmap() {
+		var deck = rect(0, -12, 120, 12);
+		var lms = fixtureLandmarks();
+		var all = CoverageAnalyzer.analyze(deck, List.of(), lms, CoverageAnalyzer.Scope.ALL, CoverageAnalyzer.PSI_LOAD, 2.0, S);
+		var scoped = CoverageAnalyzer.analyze(deck, List.of(), lms, fixtureScope(), CoverageAnalyzer.PSI_LOAD, 2.0, S);
+		assertThat(scoped.nDrawn()).isEqualTo(all.nDrawn());              // the heatmap is unchanged
+		assertThat(scoped.nCells()).isLessThan(all.nCells());             // the denominator is not
+		assertThat(scoped.cells()).anyMatch(c -> !c.inScope());
+		assertThat(scoped.blindRatio()).isLessThan(all.blindRatio());     // the edges were inflating it
+	}
+
+	@Test
+	void worstIsTheWeakestNonBlindInScopeCell() {
+		var r = CoverageAnalyzer.analyze(rect(0, -12, 120, 12), List.of(), fixtureLandmarks(),
+			fixtureScope(), CoverageAnalyzer.PSI_LOAD, 2.0, S);
+		assertThat(r.worst()).isNotNull();
+		assertThat(r.worst().inScope()).isTrue();
+		assertThat(r.worst().stability()).isNotNull();
+		double min = r.cells().stream().filter(c -> c.inScope() && c.stability() != null)
+			.mapToDouble(CoverageAnalyzer.Cell::stability).min().orElseThrow();
+		assertThat(r.worst().stability()).isCloseTo(min, within(1e-9));
+	}
+
+	/**
+	 * Regression 1 (spec §7.2-1): the outer slot rows are blind even when loading, because every side marker sits on
+	 * the single line y = +/-6.2 and the outer rows fall outside the 90 deg FOV. Flip this when markers are added.
+	 */
+	@Test
+	void theOuterSlotRowIsBlindEvenWhenLoading() {
+		var r = CoverageAnalyzer.analyze(rect(0, -12, 120, 12), List.of(), fixtureLandmarks(),
+			fixtureScope(), CoverageAnalyzer.PSI_LOAD, 1.0, S);
+		assertThat(blindIn(r, 9.0, 12.0)).as("outer row, loading").isGreaterThan(0.5);
+		assertThat(blindIn(r, 0.0, 2.0)).as("the lane is fine").isLessThan(0.05);
+	}
+
+	/**
+	 * Regression 2 (spec §7.2-2): driving astern there is nothing ahead near the stern - the two stern end markers
+	 * face -x and are invisible from anywhere on the deck (spec §3.5).
+	 */
+	@Test
+	void unloadIsBlindNearTheStern() {
+		var deck = rect(0, -12, 120, 12);
+		var lms = fixtureLandmarks();
+		var load = CoverageAnalyzer.analyze(deck, List.of(), lms, fixtureScope(), CoverageAnalyzer.PSI_LOAD, 1.0, S);
+		var unload = CoverageAnalyzer.analyze(deck, List.of(), lms, fixtureScope(), CoverageAnalyzer.PSI_UNLOAD, 1.0, S);
+		java.util.function.ToLongFunction<CoverageAnalyzer.Result> sternBlind = r -> r.cells().stream()
+			.filter(c -> c.inScope() && c.x() < 20 && c.sigmaXy() == null).count();
+		assertThat(sternBlind.applyAsLong(unload)).as("unload is blind astern").isGreaterThan(sternBlind.applyAsLong(load));
+		assertThat(unload.blindRatio()).isGreaterThan(load.blindRatio());
+	}
+
+	/** The stern end markers are dead weight in both modes: their normal faces off the deck. */
+	@Test
+	void theSternEndMarkersAreVisibleFromNowhere() {
+		var stern = new CoverageAnalyzer.Landmark("LM-0022", 0.3, -5.5, Math.PI);
+		var bow = new CoverageAnalyzer.Landmark("LM-0020", 119.7, -3, Math.PI);
+		var deck = rect(0, -12, 120, 12);
+		for (double psi : new double[] { CoverageAnalyzer.PSI_LOAD, CoverageAnalyzer.PSI_UNLOAD })
+			assertThat(CoverageAnalyzer.analyze(deck, List.of(), List.of(stern), CoverageAnalyzer.Scope.ALL, psi, 1.0, S)
+				.cells()).allMatch(c -> c.n() == 0);
+		assertThat(CoverageAnalyzer.analyze(deck, List.of(), List.of(bow), CoverageAnalyzer.Scope.ALL,
+			CoverageAnalyzer.PSI_LOAD, 1.0, S).cells()).anyMatch(c -> c.n() == 1);
+	}
 }

@@ -1,5 +1,6 @@
 package com.shiphdmap.api.coverage;
 
+import com.shiphdmap.api.geo.Rings;
 import com.shiphdmap.api.geo.ShipFrame;
 import java.util.List;
 
@@ -84,5 +85,89 @@ public final class CoverageAnalyzer {
 				out[j][i] = ((i + j) % 2 == 0 ? minor : -minor) / det;   // transposed cofactor = adjugate
 			}
 		return out;
+	}
+
+	/** A drivable lane: centreline plus width. The corridor is everything within width/2 of it. */
+	public record Lane(double[][] centerline, double widthM) {}
+
+	/**
+	 * Where a vehicle can actually be (spec §3.4): inside a slot polygon, or inside a lane corridor.
+	 * An empty scope means "nothing mapped": every cell counts, so the unit tests can use a bare rectangle.
+	 */
+	public record Scope(List<double[][]> slots, List<Lane> lanes) {
+		public static final Scope ALL = new Scope(List.of(), List.of());
+		boolean isEmpty() { return slots.isEmpty() && lanes.isEmpty(); }
+		boolean has(double x, double y) {
+			if (isEmpty()) return true;
+			for (var l : lanes) if (Rings.distToPolyline(l.centerline(), x, y) <= l.widthM() / 2) return true;
+			for (var s : slots) if (Rings.contains(s, x, y)) return true;
+			return false;
+		}
+	}
+
+	/** One evaluated grid point. sigma/stability are null when blind. inScope false means "drawn but not counted". */
+	public record Cell(double x, double y, int n, Double sigmaXy, Double sigmaPsiDeg, Double stability, boolean inScope) {}
+	/** nCells is the in-scope count AND the denominator of both ratios; nDrawn is cells.size(). They differ. */
+	public record Result(List<Cell> cells, int nCells, int nDrawn, double blindRatio, double weakRatio, Cell worst) {}
+
+	public static final double PSI_LOAD = 0.0, PSI_UNLOAD = Math.PI;
+	static final double MOUNT_CLEARANCE_M = 0.05;   // shorten the sight line at the marker end so its own pillar never blocks it
+
+	public static Result analyze(double[][] outline, List<double[][]> pillars, List<Landmark> lms, Scope scope,
+			double psi, double gridM, Sensor s) {
+		double[] b = Rings.bbox(outline);
+		var cells = new java.util.ArrayList<Cell>();
+		int inScope = 0, blind = 0, weak = 0;
+		Cell worst = null;
+		for (double y = b[1] + gridM / 2; y <= b[3]; y += gridM)
+			for (double x = b[0] + gridM / 2; x <= b[2]; x += gridM) {
+				if (!Rings.contains(outline, x, y)) continue;
+				if (insideAny(pillars, x, y)) continue;
+				boolean in = scope.has(x, y);
+				var e = estimate(x, y, psi, visibleFrom(x, y, psi, lms, pillars, s), s);
+				Double st = stability(e);
+				var c = new Cell(x, y, e.n(), e.sigmaXy(), e.sigmaPsiDeg(), st, in);
+				cells.add(c);
+				if (!in) continue;
+				inScope++;
+				if (st == null) { blind++; continue; }   // n = 0 or singular: both are "cannot localise here"
+				if (st < 1.0) weak++;
+				if (worst == null || st < worst.stability()) worst = c;
+			}
+		return new Result(cells, inScope, cells.size(),
+			inScope == 0 ? 0 : (double) blind / inScope, inScope == 0 ? 0 : (double) weak / inScope, worst);
+	}
+
+	/** The landmarks actually usable from (x, y): visible by geometry and not hidden by a pillar. */
+	static List<Landmark> visibleFrom(double x, double y, double psi, List<Landmark> lms, List<double[][]> pillars, Sensor s) {
+		var out = new java.util.ArrayList<Landmark>();
+		for (var lm : lms) if (visible(x, y, psi, lm, s) && !occluded(x, y, lm, pillars)) out.add(lm);
+		return out;
+	}
+
+	/** 2D segment test: pillars run floor to ceiling, so the plan view is exact rather than an approximation. */
+	static boolean occluded(double x, double y, Landmark lm, List<double[][]> pillars) {
+		double dx = lm.x() - x, dy = lm.y() - y, len = Math.hypot(dx, dy);
+		if (len < 1e-9) return false;
+		double tx = lm.x() - dx / len * MOUNT_CLEARANCE_M, ty = lm.y() - dy / len * MOUNT_CLEARANCE_M;
+		for (var p : pillars)
+			for (int i = 0; i + 1 < p.length; i++)
+				if (segmentsCross(x, y, tx, ty, p[i][0], p[i][1], p[i + 1][0], p[i + 1][1])) return true;
+		return false;
+	}
+
+	static boolean segmentsCross(double ax, double ay, double bx, double by, double cx, double cy, double dx, double dy) {
+		double d1 = cross(cx, cy, dx, dy, ax, ay), d2 = cross(cx, cy, dx, dy, bx, by);
+		double d3 = cross(ax, ay, bx, by, cx, cy), d4 = cross(ax, ay, bx, by, dx, dy);
+		return ((d1 > 0) != (d2 > 0)) && ((d3 > 0) != (d4 > 0));   // proper crossings only; touching a corner does not occlude
+	}
+
+	static double cross(double ax, double ay, double bx, double by, double px, double py) {
+		return (bx - ax) * (py - ay) - (by - ay) * (px - ax);
+	}
+
+	static boolean insideAny(List<double[][]> rings, double x, double y) {
+		for (var r : rings) if (Rings.contains(r, x, y)) return true;
+		return false;
 	}
 }
