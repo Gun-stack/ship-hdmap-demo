@@ -36,6 +36,6 @@ RORO(자동차운반선) 선박 내부 정밀지도 편집기와 자율차 로�
 - M3a 웹 편집기 완료 (브라우저 편집 → DB 반영, Vitest 15)
 - M3b Unity 씬 UX 완료 (궤도 카메라, 클릭 선택·드래그 이동 → DB, 차로·구획 라인, UI Toolkit HUD; EditMode 49, Vitest 19)
 - M4 적재 계획 완료 (갑판별 구획 자동생성 API, 적재 계획 패널 KPI, 3D 구획 채움면; api 42, EditMode 53, Vitest 22)
-- M5a 갑판 주행·pose 완료 (연속 선적·하역 시나리오, 추정 기반 주차 판정 → DB status, pose 로 선체 기울임·램프 각도, 시나리오 로그, 선수 격벽 랜드마크; api 42, EditMode 78, Vitest 26)
+- M5a 갑판 주행·pose 완료 (연속 선적·하역 시나리오, 추정 기반 주차 판정 → DB status, pose 로 선체 기울임·램프 각도, 시나리오 로그, 선수 격벽 랜드마크; api 42, EditMode 81, Vitest 26)
 - 다음: M5b 부두·프레임 전환
 - 상세: `docs/superpowers/specs/2026-09-15-ship-hdmap-demo-design.md`
