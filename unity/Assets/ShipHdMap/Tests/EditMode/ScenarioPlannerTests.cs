@@ -84,6 +84,23 @@ namespace ShipHdMap.Tests
         }
 
         [Test]
+        public void ToTruthFrameRotatesAnOffAxisOffsetWithBothComponentsNonZero()
+        {
+            // dPsi = atan2(3, 4), the 3-4-5 triangle angle, so cos(dPsi) = 0.8 and sin(dPsi) = 0.6 exactly -- chosen so
+            // the expected coordinates below can be hand-checked without a calculator. The probe point's offset from
+            // est is (3, -4): both components nonzero and of opposite sign, so a sign error in either rotation-matrix
+            // cross term (ox * s or oy * c) would change the result, unlike an on-axis or dPsi=0 probe.
+            var est = new Pose2D { x = 2, y = 5, psiRad = 0 };
+            var truth = new Pose2D { x = 10, y = -3, psiRad = Math.Atan2(3, 4) };
+            var path = new[] { new double[] { 2, 5, 9 }, new double[] { 5, 1, 9 } };   // second point's offset from est is (3, -4)
+            var result = ScenarioPlanner.ToTruthFrame(path, est, truth);
+            Assert.That(result[0], Is.EqualTo(new[] { 10.0, -3.0, 9.0 }).Within(1e-9));
+            // x' = truth.x + ox*c - oy*s = 10 + 3*0.8 - (-4)*0.6 = 10 + 2.4 + 2.4 = 14.8
+            // y' = truth.y + ox*s + oy*c = -3 + 3*0.6 + (-4)*0.8 = -3 + 1.8 - 3.2 = -4.4
+            Assert.That(result[1], Is.EqualTo(new[] { 14.8, -4.4, 9.0 }).Within(1e-9));
+        }
+
+        [Test]
         public void JudgeUsesTargetFrameAndTolerance()
         {
             var t = new TargetPose { x = 100, y = 2, heading_deg = 0 };
