@@ -37,15 +37,19 @@ namespace ShipHdMap
             if (used.Count == 0)
                 return new LocalizerResult { ok = false, pose = previous ?? default, nObs = 0 };
 
+            double wr = Weight(sigmaR), wt = Weight(sigmaTheta), wa = Weight(sigmaAlpha);   // moved up: every exit needs it
+
             // Initial guess: closed form from the nearest marker (or the caller's previous estimate when given).
             Pose2D p;
             if (previous.HasValue) p = previous.Value;
             else { var nearest = used[0]; foreach (var u in used) if (u.o.r < nearest.o.r) nearest = u; p = ClosedForm(nearest.o, nearest.lm); }
 
             if (used.Count == 1 && !previous.HasValue)
-                return new LocalizerResult { ok = true, pose = p, nObs = 1, residualRms = 0, iterations = 0 };
+            {
+                var (sxy0, sps0) = Sigma(p, used, wr, wt, wa);
+                return new LocalizerResult { ok = true, pose = p, nObs = 1, residualRms = 0, iterations = 0, sigmaXy = sxy0, sigmaPsiDeg = sps0 };
+            }
 
-            double wr = Weight(sigmaR), wt = Weight(sigmaTheta), wa = Weight(sigmaAlpha);
             int iter = 0;
             for (iter = 1; iter <= MaxIterations; iter++)
             {
@@ -66,7 +70,9 @@ namespace ShipHdMap
             }
             // Final residual after the last update
             double rms = ResidualRms(p, used);
-            return new LocalizerResult { ok = true, pose = p, nObs = used.Count, residualRms = rms, iterations = Math.Min(iter, MaxIterations) };
+            var (sxy, sps) = Sigma(p, used, wr, wt, wa);
+            return new LocalizerResult { ok = true, pose = p, nObs = used.Count, residualRms = rms,
+                iterations = Math.Min(iter, MaxIterations), sigmaXy = sxy, sigmaPsiDeg = sps };
         }
 
         /// Per-marker prediction error at pose p: dx/dy/rh (for the Jacobian) plus range/bearing/normal residuals.
@@ -98,6 +104,50 @@ namespace ShipHdMap
         static void Accumulate(double[,] A, double[] b, double[] j, double w, double e)
         {
             for (int i = 0; i < 3; i++) { b[i] += w * j[i] * e; for (int k = 0; k < 3; k++) A[i, k] += w * j[i] * j[k]; }
+        }
+
+        /// A = J^T W J at pose p. Same Jacobians as the solve loop and as CoverageAnalyzer.estimate; no residuals,
+        /// because precision does not depend on how wrong we currently are.
+        static double[,] Information(Pose2D p, List<(Observation o, LandmarkRef lm)> used, double wr, double wt, double wa)
+        {
+            double[,] A = new double[3, 3];
+            foreach (var (o, lm) in used)
+            {
+                var res = Residual(p, o, lm);
+                double[] jr = { -res.dx / res.rh, -res.dy / res.rh, 0 };
+                double[] jt = { res.dy / (res.rh * res.rh), -res.dx / (res.rh * res.rh), -1 };
+                double[] ja = { 0, 0, -1 };
+                foreach (var (j, w) in new[] { (jr, wr), (jt, wt), (ja, wa) })
+                    for (int i = 0; i < 3; i++) for (int k = 0; k < 3; k++) A[i, k] += w * j[i] * j[k];
+            }
+            return A;
+        }
+
+        /// Cofactor inverse of a 3x3; null when singular. Mirrors CoverageAnalyzer.invert3.
+        static double[,] Invert3(double[,] a)
+        {
+            double det = a[0, 0] * (a[1, 1] * a[2, 2] - a[1, 2] * a[2, 1])
+                       - a[0, 1] * (a[1, 0] * a[2, 2] - a[1, 2] * a[2, 0])
+                       + a[0, 2] * (a[1, 0] * a[2, 1] - a[1, 1] * a[2, 0]);
+            if (Math.Abs(det) < 1e-12) return null;
+            double[,] outM = new double[3, 3];
+            for (int i = 0; i < 3; i++)
+                for (int j = 0; j < 3; j++)
+                {
+                    int r0 = i == 0 ? 1 : 0, r1 = i == 2 ? 1 : 2, c0 = j == 0 ? 1 : 0, c1 = j == 2 ? 1 : 2;
+                    double minor = a[r0, c0] * a[r1, c1] - a[r0, c1] * a[r1, c0];
+                    outM[j, i] = ((i + j) % 2 == 0 ? minor : -minor) / det;   // transposed cofactor = adjugate
+                }
+            return outM;
+        }
+
+        /// Achievable (sigma_xy, sigma_psi_deg) at p, or (null, null) when A cannot be inverted.
+        static (double?, double?) Sigma(Pose2D p, List<(Observation o, LandmarkRef lm)> used, double wr, double wt, double wa)
+        {
+            var c = Invert3(Information(p, used, wr, wt, wa));
+            if (c == null) return (null, null);
+            double vx = Math.Max(c[0, 0], 0), vy = Math.Max(c[1, 1], 0), vp = Math.Max(c[2, 2], 0);
+            return (Math.Sqrt(vx + vy), Math.Sqrt(vp) * 180 / Math.PI);
         }
 
         /// Cramer's rule for the 3x3 normal equations. ponytail: direct inverse, fine for 3 unknowns; use Cholesky if this ever grows.
