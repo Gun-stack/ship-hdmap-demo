@@ -27,11 +27,12 @@ namespace ShipHdMap
         GameObject _overlay; string _deck = "all"; SetPoseMsg _pose;
         readonly Dictionary<string, LandmarkMarker> _markers = new();
 
-        public enum Phase { Idle, OnLane, Parking, Departing }
+        public enum Phase { Idle, OnQuay, OnRamp, OnLane, Parking, Departing, RampDown, QuayOut }
         public Phase ScenarioPhase { get; private set; } = Phase.Idle;
         public string TargetSlotId => _target?.id;
         string _scenarioMode = "load"; ParkingSlot _target; Lane _targetLane; Deck _targetDeck; double _exitS;
         const double R2D = 180 / Math.PI;
+        double _trimDeg;   // set by ApplyPose; RampEndsInQuay needs it to match SetRampAngle's ship-local rotation
 
         void Awake()
         {
@@ -155,7 +156,7 @@ namespace ShipHdMap
         public void ApplyPose()
         {
             if (_pose == null) return;
-            double trimDeg = Math.Atan2(_pose.draft_aft_m - _pose.draft_fwd_m, _pose.lpp_m <= 0 ? 120 : _pose.lpp_m) * 180 / Math.PI;
+            double trimDeg = _trimDeg = Math.Atan2(_pose.draft_aft_m - _pose.draft_fwd_m, _pose.lpp_m <= 0 ? 120 : _pose.lpp_m) * 180 / Math.PI;
             transform.localRotation = PoseRotation(trimDeg, _pose.heel_deg);
             transform.localPosition = new Vector3(0, (float)(-_pose.draft_aft_m), 0);   // waterline is world y = 0; the AP origin sits one aft draft below it
             QuayBuilder.SetHeight(Quay, _pose.quay_z_m + _pose.tide_m);
@@ -183,6 +184,7 @@ namespace ShipHdMap
         {
             var n = MapJson.Parse<SetNoiseMsg>(json);
             Sensor.noise.sigmaR = n.sigma_r; Sensor.noise.sigmaThetaRad = n.sigma_theta * Math.PI / 180; Sensor.noise.sigmaAlphaRad = n.sigma_alpha * Math.PI / 180;
+            Sensor.noise.sigmaGps = n.sigma_gps;
         }
 
         public void StartScenario(string json)
@@ -223,8 +225,13 @@ namespace ShipHdMap
             else
             {
                 _exitS = ScenarioPlanner.ExitS(_targetLane, _target.target_pose);
-                Vehicle.StartLane(_targetLane);
-                ScenarioPhase = Phase.OnLane;
+                var (hinge, foot) = RampEndsInQuay();
+                if (hinge == null) { Vehicle.StartLane(_targetLane); ScenarioPhase = Phase.OnLane; return; }   // no ramp in the map: start on the lane as in M5a
+                Vehicle.transform.SetParent(null, true);                                   // Quay Frame
+                var truth = new Pose2D { x = ScenarioPlanner.QuaySpawn[0], y = ScenarioPlanner.QuaySpawn[1], psiRad = 0 };
+                var est = Sensor.Gps(truth);
+                Vehicle.StartPath(ScenarioPlanner.ToTruthFrame(ScenarioPlanner.QuayPath(est, foot, hinge), est, truth), ScenarioPlanner.QuaySpeedMps);
+                ScenarioPhase = Phase.OnQuay;
             }
         }
 
@@ -303,6 +310,24 @@ namespace ShipHdMap
         }
 
         static LandmarkRef RefOf(Landmark lm) => new LandmarkRef { id = lm.id, mx = lm.position[0], my = lm.position[1], phiRad = Math.Atan2(lm.normal[1], lm.normal[0]) };
+
+        /// Ramp hinge midpoint and free-end midpoint in the Quay Frame, from the map's ramp geometry and the pose's angle.
+        public (double[] hinge, double[] foot) RampEndsInQuay()
+        {
+            var r = CurrentMap?.ramps != null && CurrentMap.ramps.Count > 0 ? CurrentMap.ramps[0] : null;
+            if (r == null) return (null, null);
+            double hx = (r.hinge[0][0] + r.hinge[1][0]) / 2, hy = (r.hinge[0][1] + r.hinge[1][1]) / 2, hz = r.hinge[0][2];
+            // SetRampAngle applies angleDeg + trimDeg as the ship-LOCAL rotation (angleDeg alone is measured
+            // against the horizon), so the free end must be computed with that same local angle here.
+            double a = ((_pose?.ramp?.angle_deg ?? 0) + _trimDeg) * Math.PI / 180;
+            return (InQuay(hx, hy, hz), InQuay(hx - r.length_m * Math.Cos(a), hy, hz + r.length_m * Math.Sin(a)));
+        }
+
+        double[] InQuay(double x, double y, double z)
+        {
+            var (qx, qy, qz) = ShipFrame.ToShip(transform.TransformPoint(ShipFrame.ToUnity(x, y, z)));
+            return new[] { qx, qy, qz };
+        }
 
 #if UNITY_WEBGL && !UNITY_EDITOR
         [DllImport("__Internal")] static extern void EmitToWeb(string name, string json);

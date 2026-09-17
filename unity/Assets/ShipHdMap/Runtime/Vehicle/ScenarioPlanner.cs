@@ -15,6 +15,21 @@ namespace ShipHdMap
         public const double FinalRunM = 5.0, ParkSpeedMps = 2.0;
         const double D = Math.PI / 180.0;
 
+        /// Quay Frame spawn point (astern of the ship, off to one side) and the speed on the quay.
+        public static readonly double[] QuaySpawn = { -45, 6 };
+        public const double QuaySpeedMps = 5.0, LeadInM = 6.0;
+
+        /// Belief-frame path on the quay: from the GPS fix, in behind the ramp, then up the ramp centreline to the hinge.
+        /// foot/hinge are the ramp's real ends expressed in the Quay Frame — berth infrastructure the vehicle is told about.
+        /// Executed through ToTruthFrame, so the GPS error becomes the lateral miss at the ramp.
+        public static double[][] QuayPath(Pose2D est, double[] foot, double[] hinge) => new[]
+        {
+            new[] { est.x, est.y, foot[2] },
+            new[] { foot[0] - LeadInM, foot[1], foot[2] },
+            new[] { foot[0], foot[1], foot[2] },
+            new[] { hinge[0], hinge[1], hinge[2] },
+        };
+
         public static bool IsFilled(string status) => status == "filled" || status == "needs_adjust";
 
         public static ParkingSlot NextSlot(IEnumerable<ParkingSlot> slots, string mode)

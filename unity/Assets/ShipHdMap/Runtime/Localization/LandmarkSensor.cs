@@ -5,7 +5,7 @@ using UnityEngine;
 namespace ShipHdMap
 {
     [Serializable]
-    public class SensorNoise { public double sigmaR = 0.2; public double sigmaThetaRad = 1 * Math.PI / 180; public double sigmaAlphaRad = 2 * Math.PI / 180; public int seed = 1; }
+    public class SensorNoise { public double sigmaR = 0.2; public double sigmaThetaRad = 1 * Math.PI / 180; public double sigmaAlphaRad = 2 * Math.PI / 180; public double sigmaGps = 0.5; public int seed = 1; }
 
     /// Detection model (spec §9.4). This imitates the OUTPUT of a tag detector; nothing here decodes images.
     public class LandmarkSensor : MonoBehaviour
@@ -56,6 +56,14 @@ namespace ShipHdMap
                 result.Add(AddNoise(Localizer.Observe(truth, lm), noise, _rng ??= new System.Random(noise.seed)));
             }
             return result;
+        }
+
+        /// GPS fix in the Quay Frame: position plus Gaussian noise, heading taken as known (compass/IMU).
+        /// The vehicle has nothing else until the entrance landmark pair comes into view.
+        public Pose2D Gps(Pose2D truth)
+        {
+            var rng = _rng ??= new System.Random(noise.seed);
+            return new Pose2D { x = truth.x + Gauss(rng, noise.sigmaGps), y = truth.y + Gauss(rng, noise.sigmaGps), psiRad = truth.psiRad };
         }
     }
 }
