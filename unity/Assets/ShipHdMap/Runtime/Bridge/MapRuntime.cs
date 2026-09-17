@@ -29,6 +29,9 @@ namespace ShipHdMap
         readonly Dictionary<string, LandmarkMarker> _markers = new();
         readonly HashSet<string> _seen = new();
 
+        public BeliefMonitor Belief { get; private set; } = new BeliefMonitor(new BeliefParams());
+        double _lastS;   // arc length at the previous tick, to measure how far we moved
+
         public enum Phase { Idle, OnQuay, OnRamp, OnLane, Parking, Departing, RampDown, QuayOut }
         public Phase ScenarioPhase { get; private set; } = Phase.Idle;
         public string TargetSlotId => _target?.id;
@@ -262,6 +265,13 @@ namespace ShipHdMap
             Prediction = new PredictionGrid(m?.bbox, m?.grid_m ?? 1, cells);
         }
 
+        public void SetBeliefParams(string json)
+        {
+            var m = MapJson.Parse<SetBeliefParamsMsg>(json) ?? new SetBeliefParamsMsg();
+            Belief = new BeliefMonitor(new BeliefParams { k = m.k, frames = m.frames, driftRate = m.drift_rate,
+                budgetM = m.budget_m, maxLostM = m.max_lost_m, trailM = m.trail_m });
+        }
+
         public void StartScenario(string json)
         {
             var s = MapJson.Parse<StartScenarioMsg>(json);
@@ -300,6 +310,7 @@ namespace ShipHdMap
                 if (Vehicle.transform.parent != transform) Vehicle.transform.SetParent(transform, false);
                 MapOverlay.RemoveParked(_overlay, _target.id);
                 Vehicle.StartPath(ScenarioPlanner.DeparturePath(_target.target_pose, _targetLane, z), ScenarioPlanner.ParkSpeedMps);
+                Belief.Reset(); _lastS = Vehicle.s;
                 ScenarioPhase = Phase.Departing;
             }
             else
@@ -308,7 +319,12 @@ namespace ShipHdMap
                 var (hinge, foot) = RampEndsInQuay();
                 // no ramp in the map: start on the lane as in M5a. Reparent first -- a *previous* vehicle's quay run
                 // may have left this Vehicle unparented (Quay Frame), and a Ship-Frame lane path needs it back on the Map root.
-                if (hinge == null) { Vehicle.transform.SetParent(transform, false); Vehicle.StartLane(_targetLane); ScenarioPhase = Phase.OnLane; return; }
+                if (hinge == null)
+                {
+                    Vehicle.transform.SetParent(transform, false); Vehicle.StartLane(_targetLane);
+                    Belief.Reset(); _lastS = Vehicle.s;
+                    ScenarioPhase = Phase.OnLane; return;
+                }
                 Vehicle.transform.SetParent(null, true);                                   // Quay Frame
                 // psiRad 0 is a placeholder, not a claim about which way the car actually faces at spawn: Gps() copies
                 // the heading exactly, so dPsi = truth.psi - est.psi is 0 regardless of this value and it never reaches
@@ -316,6 +332,7 @@ namespace ShipHdMap
                 var truth = new Pose2D { x = ScenarioPlanner.QuaySpawn[0], y = ScenarioPlanner.QuaySpawn[1], psiRad = 0 };
                 var est = Sensor.Gps(truth);
                 Vehicle.StartPath(ScenarioPlanner.ToTruthFrame(ScenarioPlanner.QuayPath(est, foot, hinge), est, truth), ScenarioPlanner.QuaySpeedMps);
+                Belief.Reset(); _lastS = Vehicle.s;
                 ScenarioPhase = Phase.OnQuay;
             }
         }
@@ -334,17 +351,31 @@ namespace ShipHdMap
         public void Step(float dt)
         {
             if (_mode != "drive" || !Vehicle.running) return;
-            Vehicle.Advance(dt);
+            // While backtracking (or given up) the retreat drive in StepScenario is the only thing allowed to move
+            // the vehicle -- letting Advance keep pushing it forward along the lane it was already on would outrun
+            // the retreat step every frame (lane speed exceeds it) and the vehicle would never actually retrace.
+            if (Belief.State != BeliefState.Backtracking && Belief.State != BeliefState.Stopped) Vehicle.Advance(dt);
             Localize();
+            var truth = ShipTruth();
+            // The belief only has markers to judge on the ship-frame legs; on the quay and the ramp the vehicle
+            // localises from GPS, so nObs is 0 there and an unguarded monitor would go Lost every normal run.
+            if (ScenarioPhase == Phase.OnLane || ScenarioPhase == Phase.Parking || ScenarioPhase == Phase.Departing)
+            {
+                double moved = Math.Abs(Vehicle.s - _lastS); _lastS = Vehicle.s;
+                Belief.Step(_lastRes.ok ? _lastRes.sigmaXy : null, Prediction?.SigmaAt(truth.x, truth.y), Vehicle.s, moved);
+            }
+            else { Belief.Reset(); _lastS = Vehicle.s; }
             _emitTimer += dt;
             if (_emitTimer >= 0.2f)
             {
                 _emitTimer = 0;
-                var truth = ShipTruth();
                 Send(BridgeMessages.OnLocalization, MapJson.Serialize(new LocalizationEvt { est_x = _lastRes.pose.x, est_y = _lastRes.pose.y, est_psi = _lastRes.pose.psiRad * R2D,
                     true_x = truth.x, true_y = truth.y, true_psi = truth.psiRad * R2D, residual_rms = _lastRes.residualRms, n_obs = _lastRes.nObs, frame = "SHIP_AP" }));
+                Send(BridgeMessages.OnBelief, MapJson.Serialize(new BeliefEvt { state = Belief.State.ToString().ToLowerInvariant(), n_obs = _lastRes.nObs,
+                    sigma_xy = _lastRes.sigmaXy, sigma_psi = _lastRes.sigmaPsiDeg, predicted_sigma_xy = Prediction?.SigmaAt(truth.x, truth.y),
+                    lost_m = Belief.LostM, sigma_odo = Belief.SigmaOdo, trail_m = Belief.TrailM }));
             }
-            StepScenario();
+            StepScenario(dt);
         }
 
         /// Sense → solve → HUD, factored out so a mid-frame Rewind (StepScenario's OnLane exit-overshoot correction) can
@@ -359,8 +390,23 @@ namespace ShipHdMap
             Hud.Set(_lastRes, truth, "SHIP_AP");
         }
 
-        void StepScenario()
+        void StepScenario(float dt)
         {
+            // Backtracking pre-empts every phase: retracing the path we drove needs no steering decision, and
+            // none could be trusted anyway.
+            if (Belief.State == BeliefState.Backtracking)
+            {
+                var target = Belief.BacktrackTargetS;
+                if (target.HasValue)
+                {
+                    double back = Math.Max(target.Value, Vehicle.s - ScenarioPlanner.ParkSpeedMps * 0.5 * dt);
+                    Vehicle.Rewind(back); _lastS = Vehicle.s;
+                    if (Vehicle.s <= target.Value + 1e-6) Belief.ReachedBacktrackTarget();
+                }
+                return;
+            }
+            if (Belief.State == BeliefState.Stopped) return;
+
             switch (ScenarioPhase)
             {
                 case Phase.OnQuay when SawEntrancePair():
@@ -380,6 +426,7 @@ namespace ShipHdMap
                     var (truth, truthZ) = ShipTruthPose();
                     Vehicle.transform.SetParent(transform, true);                       // Ship Frame, same world pose
                     Vehicle.StartPath(ScenarioPlanner.ToTruthFrame(ScenarioPlanner.RampTopPath(est, truthZ, hingeShip, _targetLane.centerline[0]), est, truth), ScenarioPlanner.ParkSpeedMps);
+                    Belief.Reset(); _lastS = Vehicle.s;
                     ScenarioPhase = Phase.OnRamp;
                     Send(BridgeMessages.OnScenario, MapJson.Serialize(new ScenarioEvt { evt = "frame_switch",
                         detail = $"est x {est.x:F2} y {est.y:F2} psi {est.psiRad * R2D:F1}" }));
@@ -390,6 +437,7 @@ namespace ShipHdMap
                     break;
                 case Phase.OnRamp when Vehicle.AtEnd:
                     Vehicle.StartLane(_targetLane);
+                    Belief.Reset(); _lastS = Vehicle.s;
                     ScenarioPhase = Phase.OnLane;
                     break;
                 case Phase.OnLane when Vehicle.s >= _exitS || Vehicle.AtEnd:
@@ -399,12 +447,13 @@ namespace ShipHdMap
                     // ponytail: open-loop from one estimate; closed-loop pure pursuit on every frame's estimate is the upgrade path.
                     // Land exactly on the exit point: one frame of travel at a high time scale would otherwise
                     // put the plan's origin metres past it, and that offset lands straight in the parking error.
-                    if (!Vehicle.AtEnd && Vehicle.s > _exitS) { Vehicle.Rewind(_exitS); Localize(); }
+                    if (!Vehicle.AtEnd && Vehicle.s > _exitS) { Vehicle.Rewind(_exitS); _lastS = Vehicle.s; Localize(); }
                     var est = _prev ?? Vehicle.Truth;
                     double z = _targetDeck.z_surface;
                     var path = ScenarioPlanner.ToTruthFrame(ScenarioPlanner.ApproachPath(est, _target.target_pose, z), est, Vehicle.Truth);
                     Send(BridgeMessages.OnScenario, MapJson.Serialize(new ScenarioEvt { evt = "leave_lane", slot_id = _target.id, detail = $"est x {est.x:F2} y {est.y:F2} psi {est.psiRad * R2D:F1}" }));
                     Vehicle.StartPath(path, ScenarioPlanner.ParkSpeedMps);
+                    Belief.Reset(); _lastS = Vehicle.s;
                     ScenarioPhase = Phase.Parking;
                     break;
                 }
@@ -429,6 +478,7 @@ namespace ShipHdMap
                     var hereQ = InQuay(Vehicle.Truth.x, Vehicle.Truth.y, Vehicle.Z);
                     Vehicle.transform.SetParent(null, true);
                     Vehicle.StartPath(ScenarioPlanner.QuayOutPath(hereQ, hingeQ, footQ), ScenarioPlanner.ParkSpeedMps);
+                    Belief.Reset(); _lastS = Vehicle.s;
                     ScenarioPhase = Phase.RampDown;
                     break;
                 }

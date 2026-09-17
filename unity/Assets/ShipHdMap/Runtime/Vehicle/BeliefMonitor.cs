@@ -28,6 +28,7 @@ namespace ShipHdMap
         readonly List<double> _trail = new();   // arc lengths, oldest first
         int _degraded;
         double _sinceRecord;
+        bool _hasBacktrackedThisPath;   // a path gets one retreat; a second loss on it pushes through instead
 
         public BeliefMonitor(BeliefParams p) { _p = p ?? new BeliefParams(); }
 
@@ -43,8 +44,9 @@ namespace ShipHdMap
 
         public void ReachedBacktrackTarget() { if (_trail.Count > 0) _trail.RemoveAt(_trail.Count - 1); }
 
-        /// Call on a new vehicle or whenever the path changes -- arc lengths from the old path mean nothing on a new one.
-        public void Reset() { State = BeliefState.Ok; LostM = 0; _degraded = 0; _sinceRecord = 0; _trail.Clear(); }
+        /// Call on a new vehicle or whenever the path changes -- arc lengths from the old path mean nothing on a new
+        /// one, and a new path earns a fresh retreat too.
+        public void Reset() { State = BeliefState.Ok; LostM = 0; _degraded = 0; _sinceRecord = 0; _trail.Clear(); _hasBacktrackedThisPath = false; }
 
         /// One tick. sigmaXy is null when the solve produced nothing; predictedSigmaXy is null where the coverage
         /// map says the cell is blind, in which case there is nothing to hold the reading against.
@@ -69,7 +71,13 @@ namespace ShipHdMap
             if (State == BeliefState.Lost)
             {
                 LostM += movedM;
-                if (LostM > _p.maxLostM || SigmaOdo > _p.budgetM) State = BeliefState.Backtracking;
+                // The two limits mean different things: a spent odometry budget means dead reckoning can no longer
+                // be trusted even to retrace the trail, so it always stops -- it never earns a retreat. The distance
+                // limit earns a retreat only once per path; a second loss on the same path would just retreat into
+                // the same gap forever, so it pushes through blind instead (spec §6.6: hold briefly on odometry,
+                // stop if that runs out -- retreating twice into one gap is not "holding briefly").
+                if (SigmaOdo > _p.budgetM) { State = BeliefState.Stopped; return; }
+                if (LostM > _p.maxLostM && !_hasBacktrackedThisPath) { State = BeliefState.Backtracking; _hasBacktrackedThisPath = true; }
                 return;
             }
 

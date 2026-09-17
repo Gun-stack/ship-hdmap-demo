@@ -91,16 +91,42 @@ public class BeliefMonitorTests
         Assert.That(m.SigmaOdo, Is.LessThan(P().budgetM), "the sigma budget did not fire");
     }
 
-    /// Crank the drift and the sigma budget binds first instead -- both regimes must be reachable.
+    /// Crank the drift and the sigma budget binds first instead -- but a spent odometry budget means dead
+    /// reckoning can no longer be trusted even to retrace the trail, so it stops rather than retreating.
     [Test]
-    public void SigmaBudgetTripsBacktrackingWhenDriftIsHigh()
+    public void SigmaBudgetStopsRatherThanRetreating()
     {
         var p = P(); p.driftRate = 0.5;                                     // 1.0 m of budget after 2 m
         var m = Healthy(10, p);
         GoBlind(m, 10, 9);                                                  // 2.25 m lost
-        Assert.That(m.State, Is.EqualTo(BeliefState.Backtracking));
+        Assert.That(m.State, Is.EqualTo(BeliefState.Stopped));
         Assert.That(m.LostM, Is.LessThan(p.maxLostM), "the distance limit did not fire");
         Assert.That(m.SigmaOdo, Is.GreaterThan(p.budgetM));
+    }
+
+    /// A path earns only one retreat: retreating into the same gap a second time would never make progress, so the
+    /// second loss on the same path pushes through blind instead of tripping Backtracking again.
+    [Test]
+    public void SecondLossOnTheSamePathPushesThroughInsteadOfRetreatingAgain()
+    {
+        var m = Healthy(10);
+        double s = GoBlind(m, 10, 21);                                      // 5.25 m lost -> first retreat
+        Assert.That(m.State, Is.EqualTo(BeliefState.Backtracking));
+        m.Step(0.35, 0.30, s, 0.25);                                        // markers return: recovers, but this path's one retreat is spent
+        Assert.That(m.State, Is.EqualTo(BeliefState.Ok));
+        GoBlind(m, s, 21);                                                  // blind again, past the distance limit again
+        Assert.That(m.State, Is.EqualTo(BeliefState.Lost), "the second loss on this path must push through, not retreat again");
+    }
+
+    /// Pushing through still has a floor: once the odometry budget itself runs out, it stops even with no retreat left to spend.
+    [Test]
+    public void PushingThroughStopsOnceTheSigmaBudgetIsSpent()
+    {
+        var m = Healthy(10);
+        double s = GoBlind(m, 10, 21);                                      // first retreat spent
+        m.Step(0.35, 0.30, s, 0.25);                                        // recovers
+        GoBlind(m, s, 81);                                                  // 20.25 m lost this time -- past the 20 m sigma budget
+        Assert.That(m.State, Is.EqualTo(BeliefState.Stopped));
     }
 
     /// Backtracking hands back arc lengths, newest first, so the vehicle retraces the path it drove.

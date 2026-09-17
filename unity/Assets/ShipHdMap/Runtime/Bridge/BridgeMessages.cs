@@ -3,9 +3,11 @@ namespace ShipHdMap
     public static class BridgeMessages
     {
         public const string Load = "Load", SetMode = "SetMode", SetDeck = "SetDeck", Select = "Select", Confirm = "Confirm",
-            SetPose = "SetPose", SetNoise = "SetNoise", StartScenario = "StartScenario", SetTimeScale = "SetTimeScale", SetPrediction = "SetPrediction", SetOccluded = "SetOccluded";
+            SetPose = "SetPose", SetNoise = "SetNoise", StartScenario = "StartScenario", SetTimeScale = "SetTimeScale", SetPrediction = "SetPrediction", SetOccluded = "SetOccluded",
+            SetBeliefParams = "SetBeliefParams";
         public const string OnSeedReady = "onSeedReady", OnFeatureCreated = "onFeatureCreated", OnFeatureMoved = "onFeatureMoved",
-            OnSelected = "onSelected", OnSlotFilled = "onSlotFilled", OnLocalization = "onLocalization", OnScenario = "onScenario";
+            OnSelected = "onSelected", OnSlotFilled = "onSlotFilled", OnLocalization = "onLocalization", OnScenario = "onScenario",
+            OnBelief = "onBelief";
     }
     public class FeatureCreatedEvt { public string tempId; public string layer; public double x, y, z; public string deck; public string mounted_on; public double[] normal; }
     public class FeatureMovedEvt { public string id; public double x, y, z; public double[] normal; public string deck; public string mounted_on; }
@@ -26,4 +28,17 @@ namespace ShipHdMap
     public class SetPoseMsg { public double draft_fwd_m = 8.1, draft_aft_m = 8.6, heel_deg, lpp_m = 120, tide_m = 0, quay_z_m = 3.5; public RampMsg ramp; }
     public class PredCellMsg { public double x, y; public double? s; }   // s null = the map says blind here
     public class SetPredictionMsg { public double grid_m = 1; public double[] bbox; public PredCellMsg[] cells; }
+    public class SetBeliefParamsMsg
+    {
+        public double k = 2.0, drift_rate = 0.05, budget_m = 1.0, max_lost_m = 5.0, trail_m = 20.0;
+        public int frames = 5;
+    }
+    /// `state`: ok | degraded | lost | backtracking | stopped. sigma fields are null when nothing was solved
+    /// or the coverage map calls this cell blind.
+    public class BeliefEvt
+    {
+        public string state; public int n_obs;
+        public double? sigma_xy, sigma_psi, predicted_sigma_xy;
+        public double lost_m, sigma_odo, trail_m;
+    }
 }
