@@ -51,8 +51,8 @@ public class SeedImportTests {
 		Map<String, Object> r = importer.importSeed("roro-demo-01", seed);
 		assertThat(r).containsEntry("decks", 3).containsEntry("parking_slots", 2);
 		assertThat(db.sql("SELECT count(*) FROM deck WHERE dataset_id = 'roro-demo-01'").query(Integer.class).single()).isEqualTo(3);
-		assertThat(db.sql("SELECT count(*) FROM feature WHERE dataset_id = 'roro-demo-01' AND layer = 'LM'").query(Integer.class).single()).isEqualTo(21);
-		assertThat(db.sql("SELECT count(*) FROM feature WHERE dataset_id = 'roro-demo-01' AND layer = 'C' AND kind = 'pillar'").query(Integer.class).single()).isEqualTo(18);
+		assertThat(db.sql("SELECT count(*) FROM feature WHERE dataset_id = 'roro-demo-01' AND layer = 'LM'").query(Integer.class).single()).isEqualTo(23);   // 21 pillar/hull/bow tags + the ramp's entrance pair
+		assertThat(db.sql("SELECT count(*) FROM feature WHERE dataset_id = 'roro-demo-01' AND layer = 'C' AND kind = 'pillar'").query(Integer.class).single()).isEqualTo(54);   // every deck's pillars, not just Deck 3
 		assertThat(db.sql("SELECT count(*) FROM feature WHERE dataset_id = 'roro-demo-01' AND kind = 'ramp'").query(Integer.class).single()).isEqualTo(1);
 		assertThat(db.sql("SELECT count(*) FROM feature WHERE dataset_id = 'roro-demo-01' AND layer = 'A2'").query(Integer.class).single()).isEqualTo(3);
 		assertThat(db.sql("SELECT count(*) FROM feature WHERE dataset_id = 'roro-demo-01' AND layer = 'LP'").query(Integer.class).single()).isEqualTo(lp);
@@ -71,7 +71,7 @@ public class SeedImportTests {
 		SeedData seed = fixtureAsSeed(json);
 		importer.importSeed("roro-demo-01", seed);
 		importer.importSeed("roro-demo-01", seed);
-		assertThat(db.sql("SELECT count(*) FROM feature WHERE dataset_id = 'roro-demo-01'").query(Integer.class).single()).isEqualTo(21 + 18 + 1 + 3 + seed.lashingPoints().size() + 2);
+		assertThat(db.sql("SELECT count(*) FROM feature WHERE dataset_id = 'roro-demo-01'").query(Integer.class).single()).isEqualTo(23 + 54 + 1 + 3 + seed.lashingPoints().size() + 2);
 		assertThat(db.sql("SELECT version FROM dataset WHERE id = 'roro-demo-01'").query(Integer.class).single()).isEqualTo(3);
 	}
 
