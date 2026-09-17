@@ -3,13 +3,13 @@ import { useUnityContext } from "react-unity-webgl";
 import { api } from "../api/client";
 import { scenarioLine, useEditorStore } from "../store/editor";
 
-export type BridgeName = "Load" | "SetMode" | "SetDeck" | "Select" | "Confirm" | "Delete" | "SetNoise" | "StartScenario" | "SetPose" | "SetTimeScale";
+export type BridgeName = "Load" | "SetMode" | "SetDeck" | "Select" | "Confirm" | "Delete" | "SetNoise" | "StartScenario" | "SetPose" | "SetTimeScale" | "SetPrediction" | "SetOccluded" | "SetBeliefParams";
 
 const URLS = { loaderUrl: "/unity/Build/unity.loader.js", dataUrl: "/unity/Build/unity.data", frameworkUrl: "/unity/Build/unity.framework.js", codeUrl: "/unity/Build/unity.wasm" };
 
 export function useShipUnity() {
   const { unityProvider, isLoaded, sendMessage, addEventListener, removeEventListener } = useUnityContext(URLS);
-  const { datasetId, dataset, deckFilter, selectedId, mode, pose, ramp, addDraft, select, setLocalization, moveFeature, onSlotFilled, appendLog } = useEditorStore();
+  const { datasetId, dataset, deckFilter, selectedId, mode, pose, ramp, addDraft, select, setLocalization, moveFeature, onSlotFilled, appendLog, setBelief } = useEditorStore();
   const loadedOnce = useRef(false);
   const loading = useRef(false);
   const fromScene = useRef<string | null>(null);
@@ -41,6 +41,7 @@ export function useShipUnity() {
     const onCreated = (json: string) => addDraft(JSON.parse(json));
     const onSelected = (json: string) => { const id = JSON.parse(json).id ?? null; fromScene.current = id; select(id); };
     const onLoc = (json: string) => setLocalization(JSON.parse(json));
+    const onBel = (json: string) => setBelief(JSON.parse(json));
     const onMoved = (json: string) => {
       void moveFeature(JSON.parse(json)).catch(async (e) => {
         useEditorStore.setState({ error: "move failed: " + (e as Error).message });
@@ -50,12 +51,12 @@ export function useShipUnity() {
     const onSlot = (json: string) => { void onSlotFilled(JSON.parse(json)); };
     const onScenario = (json: string) => appendLog(scenarioLine(JSON.parse(json)));
     addEventListener("onFeatureCreated", onCreated); addEventListener("onSelected", onSelected); addEventListener("onLocalization", onLoc); addEventListener("onFeatureMoved", onMoved);
-    addEventListener("onSlotFilled", onSlot); addEventListener("onScenario", onScenario);
+    addEventListener("onSlotFilled", onSlot); addEventListener("onScenario", onScenario); addEventListener("onBelief", onBel);
     return () => {
       removeEventListener("onFeatureCreated", onCreated); removeEventListener("onSelected", onSelected); removeEventListener("onLocalization", onLoc); removeEventListener("onFeatureMoved", onMoved);
-      removeEventListener("onSlotFilled", onSlot); removeEventListener("onScenario", onScenario);
+      removeEventListener("onSlotFilled", onSlot); removeEventListener("onScenario", onScenario); removeEventListener("onBelief", onBel);
     };
-  }, [addEventListener, removeEventListener, addDraft, select, setLocalization, moveFeature, reloadScene, onSlotFilled, appendLog]);
+  }, [addEventListener, removeEventListener, addDraft, select, setLocalization, moveFeature, reloadScene, onSlotFilled, appendLog, setBelief]);
 
   // initial Load: the vehicle-map body is exactly the Load payload (spec §10)
   useEffect(() => {

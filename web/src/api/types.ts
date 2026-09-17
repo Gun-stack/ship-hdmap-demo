@@ -37,3 +37,10 @@ export type SuggestOut = {
   before: { blind_ratio: number; weak_ratio: number }; after: { blind_ratio: number; weak_ratio: number };
   suggestions: Suggestion[];
 };
+export type BeliefState = "ok" | "degraded" | "lost" | "backtracking" | "stopped";
+export type BeliefEvt = {
+  state: BeliefState; n_obs: number;
+  sigma_xy?: number; sigma_psi?: number; predicted_sigma_xy?: number;
+  lost_m: number; sigma_odo: number; trail_m: number;
+};
+export type BeliefParamsIn = { k: number; frames: number; drift_rate: number; budget_m: number; max_lost_m: number; trail_m: number };
