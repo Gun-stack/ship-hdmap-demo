@@ -38,8 +38,8 @@ class SlotGenerateTests {
 	void generatesDeckThreeAndReplacesFixtureSlots() throws Exception {
 		int v0 = db.sql("SELECT version FROM dataset WHERE id = :id").param("id", DS).query(Integer.class).single();
 		String body = mvc.perform(post("/api/datasets/" + DS + "/decks/D3/slots/generate").contentType(MediaType.APPLICATION_JSON).content("{}"))
-			.andExpect(status().isOk()).andExpect(jsonPath("$.deck").value("D3")).andExpect(jsonPath("$.count").value(org.hamcrest.Matchers.greaterThan(100)))
-			.andExpect(jsonPath("$.utilization").value(org.hamcrest.Matchers.greaterThan(0.3), Double.class)).andExpect(jsonPath("$.version").value(v0 + 1))
+			.andExpect(status().isOk()).andExpect(jsonPath("$.deck").value("D3")).andExpect(jsonPath("$.count").value(org.hamcrest.Matchers.greaterThan(60)))
+			.andExpect(jsonPath("$.utilization").value(org.hamcrest.Matchers.greaterThan(0.2), Double.class)).andExpect(jsonPath("$.version").value(v0 + 1))
 			.andExpect(jsonPath("$.slots[0].id").value("PS-D3-001")).andExpect(jsonPath("$.slots[0].sequence_no").value(1))
 			.andReturn().getResponse().getContentAsString();
 		@SuppressWarnings("unchecked") Map<String, Object> r = json.readValue(body, Map.class);

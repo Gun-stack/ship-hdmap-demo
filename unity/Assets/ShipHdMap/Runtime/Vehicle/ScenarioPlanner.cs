@@ -8,7 +8,11 @@ namespace ShipHdMap
     /// parking judgement. No scene access, so it is unit-tested directly; MapRuntime owns the state machine.
     public static class ScenarioPlanner
     {
-        public const double FinalRunM = 2.0, ParkSpeedMps = 2.0;
+        /// Straight run along the target heading before the slot. Also how far astern the 45 deg pivot sits: at the pivot the
+        /// 4.8 x 1.85 m car spans +-2.35 m laterally while the slot rows are 2.25 m apart, so a pivot inside the slot's own x range
+        /// clips the cars parked in both neighbouring rows. Keeping it > 4.75 m puts the whole turn astern of the row, where the
+        /// bow-first fill order (SlotGenerator) guarantees empty ground. SlotGenerator.FINAL_RUN_M must match.
+        public const double FinalRunM = 5.0, ParkSpeedMps = 2.0;
         const double D = Math.PI / 180.0;
 
         public static bool IsFilled(string status) => status == "filled" || status == "needs_adjust";

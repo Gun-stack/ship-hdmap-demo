@@ -24,7 +24,7 @@ namespace ShipHdMap.Tests
         public void ExitPointIsFortyFiveDegreesBeforeTheSlotAndClampsAtLaneStart()
         {
             var t = new TargetPose { x = 102.4, y = 2.925, heading_deg = 0 };
-            Assert.That(ScenarioPlanner.ExitS(D3Lane(), t), Is.EqualTo(102.4 - 2 - 2.925 - 2).Within(1e-9));   // x_exit 97.475, lane starts at x = 2
+            Assert.That(ScenarioPlanner.ExitS(D3Lane(), t), Is.EqualTo(102.4 - 5 - 2.925 - 2).Within(1e-9));   // x_exit 94.475, lane starts at x = 2
             var stern = new TargetPose { x = 3.6, y = -8, heading_deg = 0 };
             Assert.That(ScenarioPlanner.ExitS(D3Lane(), stern), Is.EqualTo(0).Within(1e-9));
         }
@@ -33,16 +33,16 @@ namespace ShipHdMap.Tests
         public void ApproachPathEndsAtTargetWithTargetHeading()
         {
             var t = new TargetPose { x = 102.4, y = 2.925, heading_deg = 0 };
-            var path = ScenarioPlanner.ApproachPath(new Pose2D { x = 97.5, y = 0.1, psiRad = 0 }, t, 10.6);
+            var path = ScenarioPlanner.ApproachPath(new Pose2D { x = 94.5, y = 0.1, psiRad = 0 }, t, 10.6);
             Assert.That(path.Length, Is.EqualTo(3));
-            Assert.That(path[0], Is.EqualTo(new[] { 97.5, 0.1, 10.6 }).Within(1e-9));
-            Assert.That(path[1], Is.EqualTo(new[] { 100.4, 2.925, 10.6 }).Within(1e-9));
+            Assert.That(path[0], Is.EqualTo(new[] { 94.5, 0.1, 10.6 }).Within(1e-9));
+            Assert.That(path[1], Is.EqualTo(new[] { 97.4, 2.925, 10.6 }).Within(1e-9));
             Assert.That(path[2], Is.EqualTo(new[] { 102.4, 2.925, 10.6 }).Within(1e-9));
             var (end, heading, _) = LaneFollower.At(path, 999);
             Assert.That(end.x, Is.EqualTo(102.4f).Within(1e-4f)); Assert.That(heading, Is.EqualTo(0).Within(1e-9));
 
             var turned = ScenarioPlanner.ApproachPath(new Pose2D { x = 0, y = 0 }, new TargetPose { x = 10, y = 10, heading_deg = 90 }, 0);
-            Assert.That(turned[1], Is.EqualTo(new[] { 10.0, 8.0, 0.0 }).Within(1e-9));   // last 2 m run along +y
+            Assert.That(turned[1], Is.EqualTo(new[] { 10.0, 5.0, 0.0 }).Within(1e-9));   // last 5 m run along +y
         }
 
         [Test]
@@ -51,8 +51,8 @@ namespace ShipHdMap.Tests
             var t = new TargetPose { x = 102.4, y = 2.925, heading_deg = 0 };
             var path = ScenarioPlanner.DeparturePath(t, D3Lane(), 10.6);
             Assert.That(path.Length, Is.EqualTo(4));
-            Assert.That(path[1], Is.EqualTo(new[] { 100.4, 2.925, 10.6 }).Within(1e-9));
-            Assert.That(path[2], Is.EqualTo(new[] { 97.475, 0.0, 10.6 }).Within(1e-9));
+            Assert.That(path[1], Is.EqualTo(new[] { 97.4, 2.925, 10.6 }).Within(1e-9));
+            Assert.That(path[2], Is.EqualTo(new[] { 94.475, 0.0, 10.6 }).Within(1e-9));
             Assert.That(path[3], Is.EqualTo(new[] { 2.0, 0.0, 10.6 }).Within(1e-9));
             var (_, heading, _) = LaneFollower.At(path, 999);
             Assert.That(Math.Abs(heading), Is.EqualTo(Math.PI).Within(1e-9));   // ends pointing astern
