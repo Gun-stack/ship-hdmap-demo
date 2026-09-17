@@ -66,7 +66,7 @@ public class VehicleMapAssembler {
 	Map<String, Object> props(String s) { return JsonMaps.toMap(json, s); }
 	static double d(Object o) { return o == null ? 0 : ((Number) o).doubleValue(); }
 	static String str(Object o, String def) { return o == null ? def : o.toString(); }
-	@SuppressWarnings("unchecked") static double[] arr(Object o) { if (o == null) return null; List<Number> l = (List<Number>) o; double[] a = new double[l.size()]; for (int i = 0; i < a.length; i++) a[i] = l.get(i).doubleValue(); return a; }
+	static double[] arr(Object o) { return JsonMaps.doubles(o); }
 	@SuppressWarnings("unchecked") static List<String> strList(Object o) { return o == null ? List.of() : (List<String>) o; }
 	static List<String> pgArray(Object o) {
 		try { if (o instanceof java.sql.Array a) return List.of((String[]) a.getArray()); } catch (java.sql.SQLException e) { throw new IllegalStateException(e); }
