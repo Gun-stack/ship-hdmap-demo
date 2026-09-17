@@ -12,7 +12,7 @@ export type FeatureMovedEvt = { id: string; x: number; y: number; z: number; nor
 export type LocalizationEvt = { est_x: number; est_y: number; est_psi: number; true_x: number; true_y: number; true_psi: number; residual_rms: number; n_obs: number; frame: string };
 export type GenerateSlotsIn = { vehicle_class?: string; gap_lat_m?: number; gap_lon_m?: number; lashing_pitch_m?: number };
 export type GenerateSlotsOut = { deck: string; count: number; utilization: number; lashing_coverage: number; version: number; slots: unknown[] };
-export type SlotStatus = "empty" | "filled" | "needs_adjust";
+export type SlotStatus = "empty" | "filled" | "needs_adjust" | "unreachable";
 /** Unity -> React: parking judgement (load) or an emptied slot (unload: status "empty", no errors). */
 export type SlotFilledEvt = { slot_id: string; status: SlotStatus; err_lat?: number; err_lon?: number; err_heading?: number };
 export type ScenarioEvt = { event: "start" | "target" | "leave_lane" | "frame_switch" | "finished"; mode?: "load" | "unload"; slot_id?: string; detail?: string };

@@ -31,6 +31,7 @@ namespace ShipHdMap
 
         public BeliefMonitor Belief { get; private set; } = new BeliefMonitor(new BeliefParams());
         double _lastS;   // arc length at the previous tick, to measure how far we moved
+        string _retriedSlot;   // the slot we have already given one more go
 
         public enum Phase { Idle, OnQuay, OnRamp, OnLane, Parking, Departing, RampDown, QuayOut }
         public Phase ScenarioPhase { get; private set; } = Phase.Idle;
@@ -405,7 +406,22 @@ namespace ShipHdMap
                 }
                 return;
             }
-            if (Belief.State == BeliefState.Stopped) return;
+            if (Belief.State == BeliefState.Stopped)
+            {
+                if (_target == null) return;
+                if (_retriedSlot != _target.id)
+                {
+                    _retriedSlot = _target.id;            // spec §3.7: one retry before giving up
+                    Belief.Reset(); _lastS = 0;
+                    Vehicle.Rewind(0);
+                    return;
+                }
+                _target.status = "unreachable";
+                MapOverlay.SetStatus(_overlay, _target.id, "unreachable");
+                Send(BridgeMessages.OnSlotFilled, MapJson.Serialize(new SlotFilledEvt { slot_id = _target.id, status = "unreachable" }));
+                NextVehicle();
+                return;
+            }
 
             switch (ScenarioPhase)
             {

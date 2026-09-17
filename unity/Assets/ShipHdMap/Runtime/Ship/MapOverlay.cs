@@ -72,7 +72,11 @@ namespace ShipHdMap
         {
             string key = status + (selected ? "!" : "");
             if (FillMats.TryGetValue(key, out var m) && m) return m;
-            var c = status switch { "filled" => new Color(0.2f, 0.5f, 1f, 0.45f), "needs_adjust" => new Color(1f, 0.6f, 0.1f, 0.45f), _ => new Color(0.2f, 0.9f, 0.4f, 0.35f) };
+            var c = status switch {
+                "filled" => new Color(0.2f, 0.5f, 1f, 0.45f),
+                "needs_adjust" => new Color(1f, 0.6f, 0.1f, 0.45f),
+                "unreachable" => new Color(0.45f, 0.45f, 0.45f, 0.45f),   // grey: never got there, so nothing to adjust
+                _ => new Color(0.2f, 0.9f, 0.4f, 0.35f) };
             if (selected) c.a = 0.75f;
             m = new Material(Shader.Find("Sprites/Default")) { color = c, name = "slotfill-" + key }; // always-included, unlit, alpha-blended
             FillMats[key] = m; return m;

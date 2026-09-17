@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/datasets/{ds}")
 public class FeatureController {
 	static final Set<String> LAYERS = Set.of("A1", "A2", "B2", "C", "LM", "LP", "MEP");
-	static final Set<String> STATUSES = Set.of("empty", "filled", "needs_adjust");
+	static final Set<String> STATUSES = Set.of("empty", "filled", "needs_adjust", "unreachable");
 	private final JdbcClient db;
 	private final FeatureRepo repo;
 	public FeatureController(JdbcClient db, FeatureRepo repo) { this.db = db; this.repo = repo; }
