@@ -18,12 +18,12 @@ namespace ShipHdMap.Tests
             Assert.That(map.schema, Is.EqualTo("ship-hdmap/vehicle-map/1.0"));
             Assert.That(map.decks.Count, Is.EqualTo(3));
             Assert.That(map.decks[0].outline.Length, Is.EqualTo(5));
-            Assert.That(map.landmarks.Count, Is.EqualTo(21));
+            Assert.That(map.landmarks.Count, Is.EqualTo(23));
             Assert.That(map.landmarks[0].marker.code, Is.EqualTo(1));
             Assert.That(map.landmarks[0].normal, Is.EqualTo(new double[] { 0, 1, 0 }));
             Assert.That(map.parking_slots[0].target_pose.heading_deg, Is.EqualTo(0));
             Assert.That(map.parking_slots[0].lashing_points.Count, Is.EqualTo(4));
-            Assert.That(map.ramps[0].transition_landmarks, Is.EqualTo(new[] { "LM-0001", "LM-0002" }));
+            Assert.That(map.ramps[0].transition_landmarks, Is.EqualTo(new[] { "LM-0022", "LM-0023" }));
         }
 
         [Test]
@@ -34,6 +34,7 @@ namespace ShipHdMap.Tests
             var lashIds = new HashSet<string>(map.lashing_points.Select(l => l.id));
             var landmarkIds = new HashSet<string>(map.landmarks.Select(l => l.id));
             var facilityIds = new HashSet<string>(map.facilities.Select(f => f.id));
+            var rampIds = new HashSet<string>(map.ramps.Select(r => r.id));
 
             foreach (var ps in map.parking_slots)
             {
@@ -43,7 +44,7 @@ namespace ShipHdMap.Tests
             foreach (var r in map.ramps)
                 foreach (var lmId in r.transition_landmarks) Assert.That(landmarkIds, Does.Contain(lmId), $"ramp {r.id} transition_landmarks");
             foreach (var lm in map.landmarks)
-                Assert.That(lm.mounted_on == "HULL-PORT" || lm.mounted_on == "HULL-STBD" || map.decks.Any(d => lm.mounted_on == "BOW-" + d.id) || facilityIds.Contains(lm.mounted_on),
+                Assert.That(lm.mounted_on == "HULL-PORT" || lm.mounted_on == "HULL-STBD" || map.decks.Any(d => lm.mounted_on == "BOW-" + d.id) || facilityIds.Contains(lm.mounted_on) || rampIds.Contains(lm.mounted_on),
                     Is.True, $"landmark {lm.id} mounted_on {lm.mounted_on} unresolved");
         }
 

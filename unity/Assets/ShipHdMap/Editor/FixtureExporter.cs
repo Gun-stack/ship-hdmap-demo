@@ -28,7 +28,6 @@ namespace ShipHdMap.Editor
         public static void ExportFromSeed()
         {
             var seed = ShipSeedBuilder.Build(new ShipParams());
-            foreach (var r in seed.ramps) r.transition_landmarks = new List<string> { "LM-0001", "LM-0002" };
             var existing = File.Exists(BridgeStubWindow.FixturePath()) ? MapJson.Parse<VehicleMap>(File.ReadAllText(BridgeStubWindow.FixturePath())) : new VehicleMap();
 
             var landmarks = SeedLandmarks(seed);
@@ -40,8 +39,9 @@ namespace ShipHdMap.Editor
 
         /// Landmarks derived from seed geometry, so a changed ShipParams (beam, deck pitch, pillar layout) still puts every tag
         /// on a structure: one pair per pillar station on the ramp deck (tag on the pillar's centreline-side face, 1.2 m above
-        /// the deck), one on the port hull, and one bow pair. Ids/codes stay LM-0001.. so the fixture's slots and ramp keep
-        /// resolving. 21 landmarks total. The ramp deck itself is chosen by ShipParams.rampDeckIndex, not derived from the seed.
+        /// the deck), one on the port hull, one bow pair, and the ramp's frame-transition pair on its hinge posts. Ids/codes
+        /// stay LM-0001.. so the fixture's slots and ramp keep resolving. 23 landmarks total. The ramp deck itself is chosen
+        /// by ShipParams.rampDeckIndex, not derived from the seed.
         public static List<Landmark> SeedLandmarks(SeedData seed)
         {
             var deck = seed.decks[Math.Min(new ShipParams().rampDeckIndex, seed.decks.Count - 1)];
@@ -63,10 +63,21 @@ namespace ShipHdMap.Editor
             double bowX = deck.outline.Max(pt => pt[0]) - 0.3;
             landmarks.Add(Lm("LM-0020", 20 % 20, bowX, -3, zTag, -1, 0, 0, "BOW-" + deck.id, deck.id));
             landmarks.Add(Lm("LM-0021", 21 % 20, bowX, 3, zTag, -1, 0, 0, "BOW-" + deck.id, deck.id));
+
+            // Frame-transition pair (spec §3.2): two tags on the stern ramp's hinge posts, facing astern so a vehicle
+            // coming up the ramp sees both at once. 1.2 m above the hinge keeps the sight line clear of the ramp plate.
+            var ramp = seed.ramps.FirstOrDefault();
+            if (ramp != null)
+            {
+                double hy = (ramp.hinge[0][1] + ramp.hinge[1][1]) / 2, hz = ramp.hinge[0][2], half = ramp.width_m / 2 - 0.5;
+                landmarks.Add(Lm("LM-0022", 22 % 20, 0.3, hy - half, hz + 1.2, -1, 0, 0, ramp.id, deck.id));
+                landmarks.Add(Lm("LM-0023", 23 % 20, 0.3, hy + half, hz + 1.2, -1, 0, 0, ramp.id, deck.id));
+                ramp.transition_landmarks = new List<string> { "LM-0022", "LM-0023" };
+            }
             return landmarks;
         }
 
-        /// Shared build for both exporters: schema/version/frame bump, seed decks/lanes/ramps, D3 facilities,
+        /// Shared build for both exporters: schema/version/frame bump, seed decks/lanes/ramps, every deck's facilities,
         /// and the whole Deck 3 lashing grid, so slot.access_lane_id and slot.lashing_points always resolve inside
         /// the fixture instead of pointing at pre-regeneration ids (spec bug: was A2-0001 / LP-0001.. against seed
         /// A2-D3-0001 / LP-D3-....).
@@ -97,7 +108,7 @@ namespace ShipHdMap.Editor
                 schema = "ship-hdmap/vehicle-map/1.0", map_id = "roro-demo-01", version = existing.version + 1, generated_at = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
                 frame = existing.frame ?? new FrameInfo { name = "SHIP_AP", origin = "AP x Baseline x Centerline", axes = new Dictionary<string, string> { ["x"] = "AP->bow (+)", ["y"] = "port (+)", ["z"] = "baseline->up (+)" }, unit = "m" },
                 decks = seed.decks, lanes = seed.lanes, ramps = seed.ramps,
-                facilities = seed.facilities.Where(f => f.deck_id == "D3").ToList(),            // keep the fixture small
+                facilities = seed.facilities,   // every deck: Load rebuilds the hull from this map (M5b Task 7)
                 lashing_points = d3Lashing,   // whole Deck 3 grid (~4,700): slot generation maps every corner to a socket
                 landmarks = landmarks,
                 parking_slots = slots, markings = existing.markings ?? new List<Marking>(),
