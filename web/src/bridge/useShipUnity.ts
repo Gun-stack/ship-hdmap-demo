@@ -19,7 +19,7 @@ export function useShipUnity() {
     sendMessage("Map", name, payload === undefined ? "" : typeof payload === "string" ? payload : JSON.stringify(payload));
   }, [isLoaded, sendMessage]);
 
-  /** Pose for the tilt only (spec §4.6); the ramp angle comes from the API's /ramps response the store already holds. */
+  /** Pose: hull tilt and sink, quay height, ramp angle (spec §4.1, §4.6); the ramp angle comes from the API's /ramps response the store already holds. */
   const sendPose = useCallback(() => {
     const { pose, ramp, dataset } = useEditorStore.getState();
     if (!pose) return;
