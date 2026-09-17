@@ -18,7 +18,7 @@ namespace ShipHdMap.Tests
             Assert.That(map.schema, Is.EqualTo("ship-hdmap/vehicle-map/1.0"));
             Assert.That(map.decks.Count, Is.EqualTo(3));
             Assert.That(map.decks[0].outline.Length, Is.EqualTo(5));
-            Assert.That(map.landmarks.Count, Is.EqualTo(19));
+            Assert.That(map.landmarks.Count, Is.EqualTo(21));
             Assert.That(map.landmarks[0].marker.code, Is.EqualTo(1));
             Assert.That(map.landmarks[0].normal, Is.EqualTo(new double[] { 0, 1, 0 }));
             Assert.That(map.parking_slots[0].target_pose.heading_deg, Is.EqualTo(0));
@@ -43,7 +43,7 @@ namespace ShipHdMap.Tests
             foreach (var r in map.ramps)
                 foreach (var lmId in r.transition_landmarks) Assert.That(landmarkIds, Does.Contain(lmId), $"ramp {r.id} transition_landmarks");
             foreach (var lm in map.landmarks)
-                Assert.That(lm.mounted_on == "HULL-PORT" || lm.mounted_on == "HULL-STBD" || facilityIds.Contains(lm.mounted_on),
+                Assert.That(lm.mounted_on == "HULL-PORT" || lm.mounted_on == "HULL-STBD" || lm.mounted_on.StartsWith("BOW-") || facilityIds.Contains(lm.mounted_on),
                     Is.True, $"landmark {lm.id} mounted_on {lm.mounted_on} unresolved");
         }
 

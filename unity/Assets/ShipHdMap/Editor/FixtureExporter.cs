@@ -57,6 +57,11 @@ namespace ShipHdMap.Editor
                 landmarks.Add(Lm($"LM-{2 * i + 2:0000}", (2 * i + 2) % 20, PillarCenter(p).x, p.footprint.Min(pt => pt[1]), zTag, 0, -1, 0, p.id, deck.id));
             }
             landmarks.Add(Lm("LM-0019", 19, 40, deck.outline.Max(pt => pt[1]) - 0.1, zTag, 0, -1, 0, "HULL-PORT", deck.id));
+            // Bow pair: the pillar rows stop at x = 108 and sit 6.2 m off the centreline, so past x ~ 101.8 nothing is
+            // inside the 90 deg FOV from the lane. These two keep every lane exit point observable (spec 9.4).
+            double bowX = new ShipParams().lengthM - 0.3;
+            landmarks.Add(Lm("LM-0020", 20 % 20, bowX, -3, zTag, -1, 0, 0, "BOW-" + deck.id, deck.id));
+            landmarks.Add(Lm("LM-0021", 21 % 20, bowX, 3, zTag, -1, 0, 0, "BOW-" + deck.id, deck.id));
             return landmarks;
         }
 

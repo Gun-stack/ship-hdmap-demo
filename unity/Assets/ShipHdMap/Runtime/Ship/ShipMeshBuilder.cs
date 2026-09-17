@@ -22,6 +22,8 @@ namespace ShipHdMap
                 var floor = Prim(deck, "Floor", PrimitiveType.Cube, new Vector3(L / 2, z - FloorThick / 2, 0), new Vector3(L, FloorThick, B), Color(0.55f, 0.55f, 0.6f), layer, materials);
                 Prim(deck, "HullPort", PrimitiveType.Cube, new Vector3(L / 2, z + (float)d.z_clear / 2, -B / 2), new Vector3(L, (float)d.z_clear, WallThick), Color(0.4f, 0.45f, 0.5f), layer, materials);
                 Prim(deck, "HullStbd", PrimitiveType.Cube, new Vector3(L / 2, z + (float)d.z_clear / 2, B / 2), new Vector3(L, (float)d.z_clear, WallThick), Color(0.4f, 0.45f, 0.5f), layer, materials);
+                // Bow bulkhead: closes the deck at the forward end so landmarks placed there sit on structure and occlude like the hull.
+                Prim(deck, "Bow", PrimitiveType.Cube, new Vector3(L - WallThick / 2, z + (float)d.z_clear / 2, 0), new Vector3(WallThick, (float)d.z_clear, B), Color(0.4f, 0.45f, 0.5f), layer, materials);
                 var pillars = Child(deck, "Pillars");
                 foreach (var f in seed.facilities) if (f.deck_id == d.id && f.kind == "pillar")
                 {

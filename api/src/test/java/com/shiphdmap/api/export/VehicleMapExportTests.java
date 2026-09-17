@@ -51,7 +51,7 @@ class VehicleMapExportTests {
 		assertThat(m.version()).isEqualTo(2);
 		assertThat(m.decks()).extracting(VehicleMap.Deck::id).containsExactly("D1", "D2", "D3");
 		assertThat(m.decks().get(2).outline()).hasNumberOfRows(5);
-		assertThat(m.landmarks()).hasSize(19);
+		assertThat(m.landmarks()).hasSize(21);
 		VehicleMap.Landmark lm1 = m.landmarks().stream().filter(l -> l.id().equals("LM-0001")).findFirst().orElseThrow();
 		assertThat(lm1.position()).containsExactly(12.0, -6.2, 11.8);
 		assertThat(lm1.normal()).containsExactly(0.0, 1.0, 0.0);
@@ -98,7 +98,7 @@ class VehicleMapExportTests {
 	@Test
 	void etagAndNotModified() throws Exception {
 		String etag = mvc.perform(get("/api/datasets/" + DS + "/vehicle-map")).andExpect(status().isOk())
-			.andExpect(header().string("ETag", "\"2\"")).andExpect(jsonPath("$.map_id").value(DS)).andExpect(jsonPath("$.landmarks.length()").value(19))
+			.andExpect(header().string("ETag", "\"2\"")).andExpect(jsonPath("$.map_id").value(DS)).andExpect(jsonPath("$.landmarks.length()").value(21))
 			.andReturn().getResponse().getHeader("ETag");
 		mvc.perform(get("/api/datasets/" + DS + "/vehicle-map").header("If-None-Match", etag)).andExpect(status().isNotModified());
 		db.sql("UPDATE dataset SET version = version + 1 WHERE id = :id").param("id", DS).update();

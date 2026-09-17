@@ -67,7 +67,7 @@ class GeoJsonExportTests {
 		assertThat(lm1.get("properties").get("code").asInt()).isEqualTo(1);
 		assertThat(deck3.get("geometry").get("type").asText()).isEqualTo("Polygon");
 		assertThat(deck3.get("geometry").get("coordinates").get(0)).hasSize(5);
-		assertThat(fc.get("features").size()).isEqualTo(3 + 19 + 18 + 1 + 3 + SeedImportTests.fixtureLashingCount(json) + 2);
+		assertThat(fc.get("features").size()).isEqualTo(3 + 21 + 18 + 1 + 3 + SeedImportTests.fixtureLashingCount(json) + 2);
 	}
 
 	@Test

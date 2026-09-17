@@ -47,7 +47,7 @@ class FeatureCrudTests {
 	@Test
 	void listFiltersByDeckAndLayer() throws Exception {
 		mvc.perform(get("/api/datasets/" + DS + "/features").param("deck", "D3").param("layer", "LM"))
-			.andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(19)).andExpect(jsonPath("$[0].geometry.type").value("Point"))
+			.andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(21)).andExpect(jsonPath("$[0].geometry.type").value("Point"))
 			.andExpect(jsonPath("$[0].props.code").isNumber())
 			.andExpect(jsonPath("$[0].created_at", Matchers.matchesPattern("^\\d{4}-\\d{2}-\\d{2}T.*Z$")));
 		mvc.perform(get("/api/datasets/" + DS + "/features").param("layer", "A2")).andExpect(jsonPath("$.length()").value(3));
@@ -60,7 +60,7 @@ class FeatureCrudTests {
 			{"deck_id":"D3","layer":"LM","kind":"apriltag","geometry":{"type":"Point","coordinates":[84.0,-6.2,11.8]},
 			 "props":{"family":"apriltag-36h11","code":7,"normal":[0,1,0],"size_m":0.3,"mounted_on":"C-PILLAR-D3-007"}}""";
 		mvc.perform(post("/api/datasets/" + DS + "/features").contentType(MediaType.APPLICATION_JSON).content(body))
-			.andExpect(status().isCreated()).andExpect(jsonPath("$.id").value("LM-0020")).andExpect(jsonPath("$.geometry.coordinates[0]").value(84.0));
+			.andExpect(status().isCreated()).andExpect(jsonPath("$.id").value("LM-0022")).andExpect(jsonPath("$.geometry.coordinates[0]").value(84.0));
 		int after = db.sql("SELECT version FROM dataset WHERE id = :id").param("id", DS).query(Integer.class).single();
 		assertThat(after).isEqualTo(before + 1);
 	}

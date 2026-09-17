@@ -31,6 +31,9 @@ namespace ShipHdMap.Tests
                 Assert.That(pipe.GetComponent<BoxCollider>(), Is.Not.Null, $"{pipe.name} should have a BoxCollider");
                 Assert.That(pipe.GetComponent<CapsuleCollider>(), Is.Null, $"{pipe.name} should not have a CapsuleCollider");
             }
+            var bow = ship.transform.Find("D3/Bow");
+            Assert.That(bow, Is.Not.Null);
+            Assert.That(bow.GetComponent<Collider>().bounds.center.x, Is.EqualTo(119.9f).Within(0.05f)); // inner face at x = 120
             Assert.That(ship.transform.Find("Ramp/Plate"), Is.Not.Null);
         }
 

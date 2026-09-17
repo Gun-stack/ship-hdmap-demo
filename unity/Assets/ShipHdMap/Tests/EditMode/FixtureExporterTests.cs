@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using NUnit.Framework;
 using ShipHdMap.Editor;
@@ -11,7 +12,7 @@ namespace ShipHdMap.Tests
         {
             var seed = ShipSeedBuilder.Build(new ShipParams());
             var lms = FixtureExporter.SeedLandmarks(seed);
-            Assert.That(lms.Count, Is.EqualTo(19));
+            Assert.That(lms.Count, Is.EqualTo(21));
             var lm1 = lms.First(l => l.id == "LM-0001");
             Assert.That(lm1.position, Is.EqualTo(new[] { 12.0, -6.2, 11.8 }).Within(1e-9));   // inner face of the first -y pillar, tag 1.2 m above Deck 3
             Assert.That(lm1.normal, Is.EqualTo(new[] { 0.0, 1.0, 0.0 }));
@@ -22,6 +23,29 @@ namespace ShipHdMap.Tests
             var hull = lms.First(l => l.id == "LM-0019");
             Assert.That(hull.position, Is.EqualTo(new[] { 40.0, 11.9, 11.8 }).Within(1e-9));  // port hull (outline y max) minus 0.1
             Assert.That(hull.mounted_on, Is.EqualTo("HULL-PORT"));
+        }
+
+        [Test]
+        public void SeedLandmarksCoverTheBowApproach()
+        {
+            var seed = ShipSeedBuilder.Build(new ShipParams());
+            var lms = FixtureExporter.SeedLandmarks(seed);
+            Assert.That(lms.Count, Is.EqualTo(21));
+            var port = lms.First(l => l.id == "LM-0021");
+            Assert.That(port.position, Is.EqualTo(new[] { 119.7, 3.0, 11.8 }).Within(1e-9));
+            Assert.That(port.normal, Is.EqualTo(new[] { -1.0, 0.0, 0.0 }));
+            Assert.That(port.mounted_on, Is.EqualTo("BOW-D3"));
+            var stbd = lms.First(l => l.id == "LM-0020");
+            Assert.That(stbd.position[1], Is.EqualTo(-3.0).Within(1e-9));
+
+            // the reason they exist: from every lane exit point the bow pair is inside the 90 deg FOV (spec 9.4),
+            // which the pillar markers (x <= 108, y = +-6.2) are not past x = 101.8
+            foreach (double xExit in new[] { 101.58, 106.08, 111.65 })
+            {
+                double bearingDeg = Math.Atan2(3.0, 119.7 - xExit) * 180 / Math.PI;
+                Assert.That(bearingDeg, Is.LessThan(45), $"bow marker outside the FOV half-angle at x {xExit}");
+                Assert.That(119.7 - xExit, Is.LessThan(25), $"bow marker beyond the sensor range at x {xExit}");
+            }
         }
 
         [Test]
