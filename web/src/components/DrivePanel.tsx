@@ -4,7 +4,7 @@ import { beliefBadge, fmtRatioOf } from "../geo/belief";
 import { wrapDeg } from "../geo/shipFrame";
 import { useEditorStore, type NoiseParams } from "../store/editor";
 import type { BridgeName } from "../bridge/useShipUnity";
-import { pickDeck } from "./MiniMap";
+import { pickDeck } from "../geo/deck";
 
 type Send = (name: BridgeName, payload?: string | object) => void;
 const SLIDERS: { key: keyof NoiseParams; label: string; max: number; step: number; digits: number }[] = [

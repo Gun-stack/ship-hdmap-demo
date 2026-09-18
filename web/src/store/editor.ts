@@ -59,7 +59,7 @@ export type EditorState = {
   candidates: Candidate[];
   suggestions: Suggestion[];
   coverageBusy: boolean;
-  // Every coverage action takes the deck id instead of picking one: MiniMap.pickDeck owns that rule and
+  // Every coverage action takes the deck id instead of picking one: geo/deck.pickDeck owns that rule and
   // importing it here would be a cycle. Two rules would diverge -- all three decks have the same area, so
   // with deckFilter "all" the store and the plan view would land on different decks.
   setCoverageMode: (m: CoverageMode, deck: string) => void;
