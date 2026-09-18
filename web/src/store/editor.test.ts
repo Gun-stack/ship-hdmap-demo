@@ -158,6 +158,16 @@ describe("editor store", () => {
     expect(saved.coverage).toBeUndefined();
     expect(saved.selectedId).toBeUndefined();
   });
+
+  /// partialize 는 타입도 컴파일러도 지켜 주지 않는다 — 지도 데이터가 한 번 새면 낡은 사본이
+  /// 오늘의 dataset 버전 옆에 되살아난다. 키 집합 자체를 못박는다.
+  it("저장하는 키가 정확히 이것뿐이다", async () => {
+    useEditorStore.getState().setDeckFilter("D2");
+    await new Promise((r) => setTimeout(r, EDITOR_WRITE_MS + 80));
+    expect(Object.keys(JSON.parse(localStorage.getItem(EDITOR_KEY)!).state).sort()).toEqual(
+      ["beliefParams", "coverageMode", "coverageParams", "deckFilter", "mode", "noise", "occluded", "timeScale"],
+    );
+  });
 });
 
 import { scenarioLine, slotFilledLine } from "./editor";

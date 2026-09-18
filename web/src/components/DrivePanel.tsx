@@ -49,6 +49,7 @@ export function DrivePanel({ send }: { send: Send }) {
     }
     send("SetOccluded", { ids: occluded });
     send("SetBeliefParams", bp);
+    send("SetNoise", sig); // reload can restore a saved value while Unity still holds SetNoiseMsg's default -- resend it every start
     send("SetTimeScale", { scale });
     send("StartScenario", { mode });
   };

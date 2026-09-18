@@ -26,7 +26,11 @@ function coalescing(ms: number): StateStorage {
   return {
     getItem: (name) => localStorage.getItem(name),
     setItem: (name, value) => { pending = { name, value }; timer ??= setTimeout(flush, ms); },
-    removeItem: (name) => { pending = null; localStorage.removeItem(name); },
+    // The timer has to die with the value -- an armed timer outliving a clear would fire later and
+    // resurrect the key from whatever setItem queued moments before. (localStorage.clear() bypasses this
+    // adapter entirely, straight to the browser API, so a stray in-flight timer can still win a race
+    // against it -- nothing in this file can defend against that path.)
+    removeItem: (name) => { pending = null; if (timer !== undefined) { clearTimeout(timer); timer = undefined; } localStorage.removeItem(name); },
   };
 }
 
@@ -230,9 +234,11 @@ export const useEditorStore = create<EditorState>()(persist((set, get) => ({
       deckFilter: s.deckFilter, mode: s.mode, coverageMode: s.coverageMode, coverageParams: s.coverageParams,
       beliefParams: s.beliefParams, noise: s.noise, timeScale: s.timeScale, occluded: s.occluded,
     }),
-    // No migrate: zustand already drops a version mismatch and falls back to the store's own defaults,
-    // and declaring one widens the persisted type to {} -- which stops the compiler checking partialize's
-    // keys at all, so a typo there would persist silently.
+    // No migrate: zustand already drops a version mismatch and falls back to the store's own defaults.
+    // Nothing here backstops the key list above, though -- partialize's return type is inferred as a
+    // plain object either way, so tsc accepts a typo'd or extra key just as happily as a correct one.
+    // The exact persisted key set is pinned by a test instead (editor.test.ts, "저장하는 키가 정확히
+    // 이것뿐이다") -- that is the only thing that fails if this list drifts.
   },
 ));
 
