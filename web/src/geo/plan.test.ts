@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { LEGEND, MAX_SCALE, boxOfPoint, fitTo, viewBoxOf, zoomAt } from "./plan";
-import { BLIND_COLOR, cellColor } from "./coverage";
+import { BLIND_COLOR } from "./coverage";
 
 // Deck 3 의 실제 모양: 120 x 24 m. SVG 공간이므로 y 는 아래가 +.
 const DECK = { x: 0, y: -12, w: 120, h: 24 };

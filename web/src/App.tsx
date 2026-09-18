@@ -6,7 +6,7 @@ import { TopBar } from "./components/TopBar";
 import { StatusBar } from "./components/StatusBar";
 import { DeckTabs } from "./components/DeckTabs";
 import { LayerTree } from "./components/LayerTree";
-import { MiniMap } from "./components/MiniMap";
+import { PlanDock } from "./components/PlanDock";
 import { LoadPanel } from "./components/LoadPanel";
 import { PropertyForm } from "./components/PropertyForm";
 import { CoveragePanel } from "./components/CoveragePanel";
@@ -26,7 +26,6 @@ export default function App() {
       <aside className="left">
         <DeckTabs />
         <LayerTree />
-        <MiniMap />
       </aside>
       <main className="center" onContextMenu={(e) => e.preventDefault()}>
         {!isLoaded && <div className="loading">Unity 로딩 중…</div>}
@@ -36,6 +35,7 @@ export default function App() {
         {mode === "edit" ? (<><LoadPanel reloadScene={reloadScene} /><CoveragePanel /><PropertyForm send={send} /></>) : <DrivePanel send={send} />}
         <PosePanel />
       </aside>
+      <PlanDock />
       <StatusBar unityLoaded={isLoaded} />
     </div>
   );
