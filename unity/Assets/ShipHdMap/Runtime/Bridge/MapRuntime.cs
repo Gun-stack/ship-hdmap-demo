@@ -446,10 +446,14 @@ namespace ShipHdMap
             Step(Time.deltaTime); PollCamMode();
             // Recomputed every frame rather than pushed from SetTool/SetCamMode/ReleaseProbe/Focus: those are
             // four writers (and Focus is easy to forget), and a status line that drifts from the thing it
-            // reports is worse than none. Localize() fills SensorText while driving and ProbeView.Aim while
-            // probing; this clears it the moment neither eye is live, so a stale count cannot linger.
+            // reports is worse than none.
             Hud.SetStatus(HudView.StatusLine(Placer.tool, Orbit ? Orbit.mode : CamMode.Orbit, Probe.Active));
-            if (_mode != "drive" && !Probe.Active) Hud.SetSensor(null);
+            // Localize() fills SensorText while driving and ProbeView.Aim while probing; this clears it the
+            // moment neither eye is live. The drive half is Step's own guard negated, deliberately -- `_mode
+            // == "drive"` alone is not the same test, because Finish() parks the vehicle and DEACTIVATES it
+            // without leaving drive mode, and the count would then sit there describing an eye that is no
+            // longer in the scene. Any new reason Localize() stops running has to be mirrored here too.
+            if (!Probe.Active && !(_mode == "drive" && Vehicle.running)) Hud.SetSensor(null);
         }
 
         /// Unity writes Orbit.mode in places the web never hears about -- Focus, ProbeView.Aim, ReleaseProbe
