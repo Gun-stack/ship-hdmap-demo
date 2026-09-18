@@ -60,12 +60,20 @@ namespace ShipHdMap
         void EnsureLine()
         {
             if (_line) return;
-            _line = gameObject.AddComponent<LineRenderer>();
-            // useWorldSpace = false makes the LineRenderer read SetPositions' points in THIS transform's own local
-            // space. ConeArcPoints hands it Ship Frame coordinates (via ShipFrame.ToUnity) as if that local space
-            // WERE the Map root's, so this GameObject's transform must sit at the identity relative to the Map root
-            // -- zero position, no rotation, scale one. Any offset here, or an extra transform between this and the
-            // root, shifts or rotates the whole cone away from the pose it was drawn for.
+            // A LineRenderer added straight to this GameObject would collide with NormalGizmo, which
+            // MapRuntime.InitForTest attaches to this same Map root: Unity allows only one Renderer per
+            // GameObject, so whichever of the two called AddComponent<LineRenderer>() second would get null
+            // back and the very next line would throw (or, worse, silently never draw). A child sidesteps
+            // the collision instead of racing it.
+            var host = new GameObject("SensorCone");
+            host.transform.SetParent(transform, false);   // false: local transform stays identity, so host's local space IS the Map root's
+            _line = host.AddComponent<LineRenderer>();
+            // useWorldSpace = false makes the LineRenderer read SetPositions' points in `host`'s own local
+            // space. ConeArcPoints hands it Ship Frame coordinates (via ShipFrame.ToUnity) as if that local
+            // space WERE the Map root's directly -- true only because `host` sits at the identity relative to
+            // this transform (which is itself the Map root's, since SensorView is a component on it). Moving
+            // `host`, or reparenting it under anything with its own offset, shifts or rotates the whole cone
+            // away from the pose it was drawn for.
             _line.useWorldSpace = false;
             _line.widthMultiplier = 0.12f; _line.numCornerVertices = 0;
             _line.sharedMaterial = new Material(Shader.Find("Unlit/Color")) { color = coneColor };

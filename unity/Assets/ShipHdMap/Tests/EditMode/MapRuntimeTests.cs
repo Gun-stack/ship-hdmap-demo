@@ -59,6 +59,26 @@ namespace ShipHdMap.Tests
             Assert.That(rt.MapRefs["LM-confirmed"].id, Is.EqualTo("LM-confirmed"));
         }
 
+        /// InitForTest attaches both View and Gizmo to this same GameObject, and Unity allows only one Renderer
+        /// per GameObject -- so if SensorView's LineRenderer ever went back onto this transform directly, it
+        /// would be racing NormalGizmo's own for that single slot, and whichever lost would come back null and
+        /// throw on the very next line. SensorView keeps its LineRenderer on a child instead, so the two never compete.
+        [Test]
+        public void ProbeAndGizmoLineRenderersCoexistOnTheSameMapRoot()
+        {
+            go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>(); rt.InitForTest();
+            rt.Load(Fixture());
+            Assert.DoesNotThrow(() =>
+            {
+                rt.Select("LM-0001");                                    // NormalGizmo.Attach -> DrawRing, straight onto the Map root
+                rt.Probe.PlaceAt(ShipFrame.ToUnity(5, 0, 11.8), 11.8);    // SensorView.Show -> EnsureLine, onto its own child
+            });
+            var cone = rt.transform.Find("SensorCone");
+            Assert.That(cone, Is.Not.Null);
+            Assert.That(cone.GetComponent<LineRenderer>(), Is.Not.Null);
+            Assert.That(rt.GetComponent<LineRenderer>(), Is.Not.Null);    // the gizmo's ring, still directly on the root
+        }
+
         [Test]
         public void LoadTwiceReplacesLandmarks()
         {
