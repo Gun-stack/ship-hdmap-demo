@@ -12,6 +12,14 @@ const CAM_CYCLE: CamMode[] = ["orbit", "fly", "driver"];
 
 export function Shortcuts({ send, canvasRef }: { send: Send; canvasRef: RefObject<HTMLCanvasElement | null> }) {
   const helpOpen = useUiStore((s) => s.helpOpen);
+  const cam = useUiStore((s) => s.cam);
+
+  // Reacts to the state, not the keystroke -- so it covers every way "fly" gets set: the C key,
+  // the toolbar button (which never touches focus itself), and a reload that restores
+  // cam === "fly" from persisted state. One rule instead of one per entry point.
+  useEffect(() => {
+    if (cam === "fly") canvasRef.current?.focus();
+  }, [cam, canvasRef]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -35,9 +43,6 @@ export function Shortcuts({ send, canvasRef }: { send: Send; canvasRef: RefObjec
           const pool = ed.mode === "drive" ? CAM_CYCLE : CAM_CYCLE.filter((c) => c !== "driver");
           const next = pool[(pool.indexOf(ui.cam) + 1) % pool.length] ?? "orbit";
           ui.setCam(next); send("SetCamMode", { mode: next });
-          // 캔버스는 탭 순서 밖(tabIndex=-1)이라 클릭 없이 C 만으로 비행에 들어가면 포커스가 안 옮겨진다.
-          // 여기서 직접 옮기지 않으면 flyingFocused 게이트가 안 켜져서, 좌로 날다가 A 가 배치 모드로 튄다.
-          if (next === "fly") canvasRef.current?.focus();
           break;
         }
         case "deck": { const d = ed.decks[cmd.index]; if (d) ed.setDeckFilter(d.id); break; }
@@ -59,13 +64,17 @@ export function Shortcuts({ send, canvasRef }: { send: Send; canvasRef: RefObjec
           if (ui.helpOpen) { ui.toggleHelp(); break; }
           ed.select(null);
           ui.setTool("select"); send("SetTool", { tool: "select" });
+          // 캔버스는 일부러 포커스는 되지만 탭으로는 못 간다(tabIndex=-1) -- Unity 가 Tab 을 삼키는지는
+          // wasm 안이라 알 수 없으므로, 마우스 없이도 빠져나갈 길을 여기서 보장한다. blur() 는 캔버스가
+          // 포커스 상태가 아니면 그냥 아무 일도 안 한다.
+          canvasRef.current?.blur();
           break;
         case "help": ui.toggleHelp(); break;
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [send]);
+  }, [send, canvasRef]);
 
   if (!helpOpen) return null;
   return (
