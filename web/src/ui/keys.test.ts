@@ -1,8 +1,11 @@
+// @vitest-environment jsdom
+// isInField below needs a real DOM (document.createElement); the rest of the suite runs in the
+// faster default "node" environment, so this file opts in on its own rather than switching everyone.
 import { describe, expect, it } from "vitest";
-import { commandFor, HELP_ROWS } from "./keys";
+import { commandFor, isInField, HELP_ROWS } from "./keys";
 
-const key = (k: string, mod: Partial<{ ctrlKey: boolean; metaKey: boolean; altKey: boolean }> = {}) =>
-  ({ key: k, ctrlKey: false, metaKey: false, altKey: false, ...mod });
+const key = (k: string, mod: Partial<{ ctrlKey: boolean; metaKey: boolean; altKey: boolean; isComposing: boolean }> = {}) =>
+  ({ key: k, ctrlKey: false, metaKey: false, altKey: false, isComposing: false, ...mod });
 const FREE = { inField: false, flyingFocused: false };
 
 describe("commandFor", () => {
@@ -52,6 +55,13 @@ describe("commandFor", () => {
     expect(commandFor(key("a", { ctrlKey: true }), FREE)).toBeNull();
   });
 
+  /// 한글 입력 중에는 Escape 도 IME 의 것이다 -- 조합을 취소하는 게 그 Escape 이지,
+  /// 선택 해제가 아니다. 조합 중에 명령이 새 나가면 반쯤 쓴 글자 밑에서 패널이 사라진다.
+  it("조합 중이면 Escape 도 먹지 않는다", () => {
+    expect(commandFor(key("Escape", { isComposing: true }), FREE)).toBeNull();
+    expect(commandFor(key("v", { isComposing: true }), FREE)).toBeNull();
+  });
+
   /// Tab 은 잡지 않는다 — 버튼에 포커스가 있을 때 삼키면 키보드만 쓰는 사람이
   /// 툴바에서 입력 필드로 영영 못 들어간다. 탭 순환은 `[` `]` 로 옮겼다.
   it("Tab 은 브라우저의 포커스 순회에 맡긴다", () => {
@@ -65,8 +75,34 @@ describe("commandFor", () => {
     const text = HELP_ROWS.map(([k]) => k).join(" ").toLowerCase();
     for (const k of live) {
       const needle = k === "Escape" ? "esc" : k.toLowerCase();
-      expect(text, `${k} 가 도움말에 없다`).toContain(needle);
+      // 단어 경계로 찾는다 -- 순수 substring 이면 "c" 가 "esc" 안에서 걸려, C 행을 지워도 이 테스트가 못 잡는다.
+      const found = /^[a-z0-9]+$/.test(needle) ? new RegExp(`\\b${needle}\\b`).test(text) : text.includes(needle);
+      expect(found, `${k} 가 도움말에 없다`).toBe(true);
     }
     for (const [k, what] of HELP_ROWS) { expect(k).toBeTruthy(); expect(what).toBeTruthy(); }
+  });
+});
+
+describe("isInField", () => {
+  const tag = (name: string, opts: { editable?: boolean } = {}) => {
+    const el = document.createElement(name);
+    if (opts.editable) Object.defineProperty(el, "isContentEditable", { value: true });
+    return el;
+  };
+
+  it("INPUT · TEXTAREA · SELECT · contentEditable 는 필드다", () => {
+    expect(isInField(tag("input"))).toBe(true);
+    expect(isInField(tag("textarea"))).toBe(true);
+    expect(isInField(tag("select"))).toBe(true);
+    expect(isInField(tag("div", { editable: true }))).toBe(true);
+  });
+
+  /// 버튼은 필드가 아니다 -- 그게 아니면 탭 순환을 `[` `]` 로 옮긴 이유가 없다.
+  it("버튼은 필드가 아니다", () => {
+    expect(isInField(tag("button"))).toBe(false);
+  });
+
+  it("포커스가 없으면 필드가 아니다", () => {
+    expect(isInField(null)).toBe(false);
   });
 });

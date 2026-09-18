@@ -10,7 +10,7 @@ export type KeyCmd =
   | { kind: "escape" }
   | { kind: "help" };
 
-type KeyLike = { key: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean };
+type KeyLike = { key: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean; isComposing: boolean };
 type Ctx = { inField: boolean; flyingFocused: boolean };
 
 /** Keys free flight owns. Unity reads them straight off the focused canvas; the web must not also act on them. */
@@ -29,6 +29,10 @@ export function isInField(el: Element | null): boolean {
  * a focused field owns every key but Escape, and free flight with the canvas focused owns the movement keys.
  */
 export function commandFor(e: KeyLike, ctx: Ctx): KeyCmd | null {
+  // Composing (한글 입력 중) owns every key, Escape included -- that Escape is what cancels the
+  // composition itself. Not also checking legacy keyCode === 229: modern engines set isComposing
+  // correctly even on the Escape keydown that ends composition, and keyCode is deprecated on top.
+  if (e.isComposing) return null;
   if (e.key === "Escape") return { kind: "escape" };      // always a way out, even mid-typing
   if (e.ctrlKey || e.metaKey || e.altKey) return null;    // browser shortcuts stay the browser's
   if (ctx.inField) return null;

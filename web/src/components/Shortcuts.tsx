@@ -18,13 +18,15 @@ export function Shortcuts({ send }: { send: Send }) {
       const ui = useUiStore.getState();
       const ed = useEditorStore.getState();
       const active = document.activeElement;
+      // e is a real KeyboardEvent, so it already carries isComposing -- KeyLike needs nothing extra here.
       const cmd = commandFor(e, { inField: isInField(active), flyingFocused: ui.cam === "fly" && active?.tagName === "CANVAS" });
       if (!cmd) return;
       // Escape keeps its native behaviour -- it is what closes an open <select> dropdown, and the panels have several.
       if (cmd.kind !== "escape") e.preventDefault();
 
       switch (cmd.kind) {
-        case "tool": ui.setTool(cmd.tool); send("SetTool", { tool: cmd.tool }); break;
+        // 드라이브 모드에는 도구 UI 자체가 없다 (Toolbar 는 mode === "edit" 에서만 그린다) -- 조용히 무시.
+        case "tool": if (ed.mode !== "drive") { ui.setTool(cmd.tool); send("SetTool", { tool: cmd.tool }); } break;
         case "cam": {
           // 편집 모드에는 차가 없으므로 차량 시선은 건너뛴다 (스펙 §5.1)
           const pool = ed.mode === "drive" ? CAM_CYCLE : CAM_CYCLE.filter((c) => c !== "driver");
