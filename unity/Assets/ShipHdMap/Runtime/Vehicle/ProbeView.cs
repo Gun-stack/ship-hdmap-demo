@@ -43,6 +43,8 @@ namespace ShipHdMap
             Vector3 eyeWorld = root ? root.TransformPoint(eyeLocal) : eyeLocal;
             var why = sensor.VisibleFrom(_pose, eyeWorld, runtime.MapRefs, id => runtime.MarkerPos(id));
             view.Show(_pose, _zSurface, why, id => runtime.MarkerOf(id), sensor.fovDeg, sensor.maxDist);
+            // Same `why` the cone was drawn from, so the count and the picture can never disagree.
+            if (runtime.Hud) runtime.Hud.SetSensor(HudView.SensorLine(why));
             if (orbit)
             {
                 orbit.mode = CamMode.Driver; orbit.driverTarget = null;

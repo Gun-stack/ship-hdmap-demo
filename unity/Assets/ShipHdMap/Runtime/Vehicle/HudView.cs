@@ -11,12 +11,58 @@ namespace ShipHdMap
     {
         public Camera cam;
         UIDocument _doc; Label _info; VisualElement _labelLayer; string _ramp;
+        string _flash; float _flashUntil;
+
+        /// What tool and camera are live, and what the visible eye currently sees. Public so the editor's
+        /// Bridge Stub window can show the same two lines without recomputing them from a second source.
+        public string StatusText { get; private set; }
+        public string SensorText { get; private set; }
         readonly List<(Label label, Vector3 local)> _deckLabels = new();
         LocalizerResult _last; Pose2D _truth; string _frame = "SHIP_AP", _deck = "all", _selected;
 
         public void Set(LocalizerResult r, Pose2D truth, string frame) { _last = r; _truth = truth; _frame = frame; }
         public void SetContext(string deck, string selected) { _deck = deck ?? "all"; _selected = selected; }
         public void SetRamp(string line) { _ramp = line; }
+        public void SetStatus(string line) { StatusText = line; }
+        public void SetSensor(string line) { SensorText = line; }
+
+        /// A click that did nothing has to say so. LandmarkPlacer.Decide returns ClickAct.None when Place or
+        /// Probe misses the ship entirely, and the cursor readout keeps updating from a DIFFERENT raycast --
+        /// so a swallowed click reads as a frozen app rather than a miss (M5e review 6.2).
+        public void Flash(string msg, float seconds = 2.5f) { _flash = msg; _flashUntil = Time.unscaledTime + seconds; }
+
+        /// Which tool and which camera, in the HUD's own words.
+        ///
+        /// ASCII only, and not by oversight: the runtime panel draws with UI Toolkit's default theme font,
+        /// which carries no Hangul, so Korean here would come out as blank boxes in the WebGL build. The web
+        /// toolbar is where the Korean labels live; these are the same three tools and three cameras.
+        ///
+        /// `probeActive` is why this is not just `cam`: the probe parks the camera in Driver mode without
+        /// telling the web (MapRuntime.PollCamMode explains why it must not), so the toolbar keeps showing
+        /// 궤도 while the operator is standing at a virtual viewpoint. This line is the one place that admits it.
+        public static string StatusLine(PlacerTool tool, CamMode cam, bool probeActive)
+        {
+            string t = tool == PlacerTool.Place ? "place" : tool == PlacerTool.Probe ? "probe" : "select";
+            string c = probeActive ? "probe-eye" : cam == CamMode.Fly ? "fly" : cam == CamMode.Driver ? "driver" : "orbit";
+            string hint = probeActive ? "   [left/right] turn the eye"
+                : tool == PlacerTool.Probe ? "   click a deck to stand there"
+                : cam == CamMode.Fly ? "   [WASD] move  [QE] up/down  [shift] faster" : "";
+            return $"tool {t}   cam {c}{hint}";
+        }
+
+        /// How many mapped markers this eye actually sees, and why the rest are dark.
+        ///
+        /// The cone and the magenta rings answer "which ones"; nothing on screen answers "how many", and
+        /// counting by eye is always a lower bound because the camera's field of view (about 60 deg) is
+        /// narrower than the sensor's (90). VisibleFrom already carries every verdict -- this just adds them up.
+        public static string SensorLine(IEnumerable<(string id, Miss miss)> why)
+        {
+            if (why == null) return null;
+            var n = new int[Enum.GetValues(typeof(Miss)).Length];   // sized off the enum so a new Miss cannot overflow it
+            int total = 0;
+            foreach (var (_, m) in why) { n[(int)m]++; total++; }
+            return $"seen {n[(int)Miss.None]} / {total}   fov {n[(int)Miss.Fov]}  range {n[(int)Miss.Range]}  facing {n[(int)Miss.Facing]}  hidden {n[(int)Miss.Occluded]}  blocked {n[(int)Miss.Blocked]}";
+        }
 
         /// items carry root-local Unity points (Ship Frame); LateUpdate converts each to world via the Map root before projecting.
         public void SetDeckLabels(IEnumerable<(string text, Vector3 local)> items)
@@ -66,6 +112,8 @@ namespace ShipHdMap
             root.Add(_info);
         }
 
+        static string Extra(string line) => line == null ? "" : "\n" + line;
+
         static void Style(IStyle s, int fontSize)
         {
             s.backgroundColor = new Color(0, 0, 0, 0.55f); s.color = Color.white; s.fontSize = fontSize;
@@ -75,7 +123,9 @@ namespace ShipHdMap
         void LateUpdate()
         {
             if (_info == null) return;
-            _info.text = string.Join("\n", Lines(_deck, _selected, CursorShip(), _last, _truth, _frame)) + (_ramp == null ? "" : "\n" + _ramp);
+            if (_flash != null && Time.unscaledTime > _flashUntil) _flash = null;
+            _info.text = string.Join("\n", Lines(_deck, _selected, CursorShip(), _last, _truth, _frame))
+                + Extra(_ramp) + Extra(StatusText) + Extra(SensorText) + Extra(_flash);
             if (cam == null) return;
             var panel = _doc.rootVisualElement.panel;
             foreach (var (label, local) in _deckLabels)

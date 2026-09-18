@@ -70,6 +70,7 @@ namespace ShipHdMap
             Placer.Selected += lm => { Highlight(lm.id); Send(BridgeMessages.OnSelected, "{\"id\":\"" + lm.id + "\"}"); };
             Placer.Moved += OnMarkerMoved;
             Placer.Cleared += () => { Highlight(null); Send(BridgeMessages.OnSelected, "{\"id\":null}"); };
+            Placer.Missed += () => Hud.Flash("that click landed past the ship -- aim at a deck or a structure");
             Placer.ProbeAt += hit => { var d = CurrentMap?.decks?.Find(x => x.id == Placer.DeckIdForHeight(LandmarksRoot.InverseTransformPoint(hit.point).y)); Probe.PlaceAt(hit.point, d?.z_surface ?? 0); };
             Gizmo.Rotated += OnMarkerMoved;   // the same path a drag-move takes: onFeatureMoved carries `normal`
             if (_seed != null && Emit != null) Send(BridgeMessages.OnSeedReady, MapJson.Serialize(_seed));
@@ -440,7 +441,16 @@ namespace ShipHdMap
         // ---- per frame ----
         CamMode _camMode = CamMode.Orbit;   // last mode the web was told about
 
-        void Update() { Step(Time.deltaTime); PollCamMode(); }
+        void Update()
+        {
+            Step(Time.deltaTime); PollCamMode();
+            // Recomputed every frame rather than pushed from SetTool/SetCamMode/ReleaseProbe/Focus: those are
+            // four writers (and Focus is easy to forget), and a status line that drifts from the thing it
+            // reports is worse than none. Localize() fills SensorText while driving and ProbeView.Aim while
+            // probing; this clears it the moment neither eye is live, so a stale count cannot linger.
+            Hud.SetStatus(HudView.StatusLine(Placer.tool, Orbit ? Orbit.mode : CamMode.Orbit, Probe.Active));
+            if (_mode != "drive" && !Probe.Active) Hud.SetSensor(null);
+        }
 
         /// Unity writes Orbit.mode in places the web never hears about -- Focus, ProbeView.Aim, ReleaseProbe
         /// and StartScenario -- and the toolbar then lies about which camera is live (worse, the web gates the
@@ -509,6 +519,7 @@ namespace ShipHdMap
             _lastRes = Localizer.Solve(obs, MapRefs, Sensor.noise.sigmaR, Sensor.noise.sigmaThetaRad, Sensor.noise.sigmaAlphaRad, _prev);
             if (_lastRes.ok && double.IsFinite(_lastRes.pose.x) && double.IsFinite(_lastRes.pose.y) && double.IsFinite(_lastRes.pose.psiRad)) _prev = _lastRes.pose;
             Hud.Set(_lastRes, truth, "SHIP_AP");
+            Hud.SetSensor(HudView.SensorLine(why));   // the same verdicts Sense observed through, counted
             // The height has to come from the same projection as the pose, because the cone is drawn in Ship
             // Frame. Neither obvious candidate is that: _targetDeck.z_surface is where the car is GOING, not
             // where it is; and Vehicle.Z is "Ship Frame OR QUAY Frame depending on the parent" (its own comment)
