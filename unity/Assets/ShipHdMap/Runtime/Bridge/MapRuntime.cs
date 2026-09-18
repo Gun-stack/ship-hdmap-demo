@@ -235,7 +235,9 @@ namespace ShipHdMap
         public void Select(string id)
         {
             Highlight(id);
-            if (_selected != null && Orbit && _mode != "drive") Orbit.Focus(_markers[_selected].transform.position, 12f);
+            // Focus is the probe camera's fourth exit, alongside SetTool, SetMode and SetCamMode: without this
+            // the probe stays Active behind the new view and one arrow key drags the camera back to it.
+            if (_selected != null && Orbit && _mode != "drive") { ReleaseProbe(); Orbit.Focus(_markers[_selected].transform.position, 12f); }
         }
 
         /// Scene-side selection: at most one halo. Does not emit and does not move the camera —
@@ -438,19 +440,28 @@ namespace ShipHdMap
         // ---- per frame ----
         CamMode _camMode = CamMode.Orbit;   // last mode the web was told about
 
-        void Update()
+        void Update() { Step(Time.deltaTime); PollCamMode(); }
+
+        /// Unity writes Orbit.mode in places the web never hears about -- Focus, ProbeView.Aim, ReleaseProbe
+        /// and StartScenario -- and the toolbar then lies about which camera is live (worse, the web gates the
+        /// fly keys on its own copy, so flight silently stops working after a Focus). Polled rather than raised
+        /// from a property setter because `mode` is a public FIELD: making it a property would take it out of
+        /// the Inspector and out of scene serialisation to catch four assignments.
+        ///
+        /// Public only so an EditMode test can drive it; Update is its one real caller.
+        public void PollCamMode()
         {
-            Step(Time.deltaTime);
-            // Unity writes Orbit.mode in four places the web never hears about -- Focus, ProbeView.Aim,
-            // ReleaseProbe and StartScenario -- and the toolbar then lies about which camera is live (worse,
-            // the web gates the fly keys on its own copy, so flight silently stops working). Polled rather
-            // than raised from a property setter because `mode` is a public FIELD: making it a property would
-            // take it out of the Inspector and out of scene serialisation to catch four assignments.
-            if (Orbit && Orbit.mode != _camMode)
-            {
-                _camMode = Orbit.mode;
-                Send(BridgeMessages.OnCamMode, "{\"mode\":\"" + _camMode.ToString().ToLowerInvariant() + "\"}");
-            }
+            // The probe's Driver is NOT reportable, and this is not an oversight to tidy up later. Driver here
+            // means "hold this exact pose" (ApplyDriver's null-driverTarget contract), which is a TOOL state,
+            // not one of the three cameras the toolbar offers. Report it and the probe cancels itself in one
+            // round trip: the web adopts "driver", the toolbar's edit-mode correction fires -- its condition is
+            // `mode !== "drive" && cam === "driver"`, and a probe is BY DEFINITION in edit mode -- so it sends
+            // SetCamMode("orbit"), whose ReleaseProbe tears the probe down. The cone flashes once and the tool
+            // looks dead. Leaving _camMode untouched while suppressed is what makes the release silent too:
+            // ReleaseProbe puts the mode back exactly where the web still believes it is.
+            if (!Orbit || Probe.Active || Orbit.mode == _camMode) return;
+            _camMode = Orbit.mode;
+            Send(BridgeMessages.OnCamMode, "{\"mode\":\"" + _camMode.ToString().ToLowerInvariant() + "\"}");
         }
 
         /// One simulation tick: move the vehicle, localize, emit, then run the scenario transitions. Tests call this directly.

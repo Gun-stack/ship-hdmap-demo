@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -321,6 +323,38 @@ namespace ShipHdMap.Tests
 
             rt.SetMode("edit");
             Assert.That(rt.Gizmo.Target, Is.Not.Null, "back in edit the still-selected marker gets its handle back");
+            Object.DestroyImmediate(camGo);
+        }
+
+        /// The probe's Driver is a TOOL state, not one of the three cameras the toolbar offers, and reporting
+        /// it made the probe cancel itself in one round trip -- see PollCamMode's comment for the loop. What a
+        /// unit test can hold is the near end of it: while a probe stands, nothing about the camera mode goes
+        /// out, and leaving the probe is silent too because the mode lands back where the web already had it.
+        [Test]
+        public void TheProbesCameraModeNeverReachesTheWebButOtherChangesDo()
+        {
+            go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>();
+            var sent = new List<(string name, string json)>();
+            rt.Emit += (n, j) => sent.Add((n, j));
+            rt.InitForTest(); rt.Load(Fixture());
+            var camGo = new GameObject("cam"); camGo.AddComponent<Camera>();
+            rt.Orbit = camGo.AddComponent<OrbitCamera>(); rt.Probe.orbit = rt.Orbit;
+            System.Func<List<string>> reports = () => sent.Where(e => e.name == BridgeMessages.OnCamMode).Select(e => e.json).ToList();
+
+            rt.Probe.PlaceAt(Vector3.zero, 0);
+            Assert.That(rt.Orbit.mode, Is.EqualTo(CamMode.Driver), "the probe does hold the camera in Driver");
+            rt.PollCamMode();
+            Assert.That(reports(), Is.Empty, "the toolbar would answer a 'driver' report by killing the probe");
+
+            rt.SetTool("{\"tool\":\"select\"}");
+            rt.PollCamMode();
+            Assert.That(rt.Orbit.mode, Is.EqualTo(CamMode.Orbit));
+            Assert.That(reports(), Is.Empty, "leaving it is silent too: the camera is back where the web still believed it was");
+
+            // ...and the poll is not simply dead: a mode Unity changes for its own reasons still goes out.
+            rt.Orbit.mode = CamMode.Fly;
+            rt.PollCamMode();
+            Assert.That(reports(), Is.EqualTo(new List<string> { "{\"mode\":\"fly\"}" }));
             Object.DestroyImmediate(camGo);
         }
 

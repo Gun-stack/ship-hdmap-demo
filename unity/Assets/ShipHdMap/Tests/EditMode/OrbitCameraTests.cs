@@ -100,7 +100,15 @@ namespace ShipHdMap.Tests
         [Test]
         public void DriverModeLooksDownTheNoseAndNotOutTheStarboardSide()
         {
-            var car = new GameObject("car"); car.transform.SetPositionAndRotation(new Vector3(30, 10.6f, -4), Quaternion.Euler(0, 35, 0));
+            // The full stack the scene composes: the Map root carries the hull's trim and HEEL, and the
+            // vehicle's own rotation yaws onto the heading then pitches about its local Z for the ramp.
+            // Heel is the part that makes this fixture falsify the `up` assertion below. Ramp pitch alone does
+            // not: a rotation about the local Z leaves the body's forward horizontal, and LookRotation only
+            // uses the component of `up` perpendicular to forward -- so Vector3.up and the vehicle's own up
+            // project to the same thing and a Vector3.up reference stays green.
+            var car = new GameObject("car");
+            car.transform.SetPositionAndRotation(new Vector3(30, 10.6f, -4),
+                MapRuntime.PoseRotation(1.5, 6) * Quaternion.Euler(0, 35, 0) * Quaternion.Euler(0, 0, 12));
             var go = new GameObject("cam"); go.AddComponent<Camera>();
             var orbit = go.AddComponent<OrbitCamera>();
             orbit.mode = CamMode.Driver; orbit.driverTarget = car.transform; orbit.driverEyeM = 1.2f;
@@ -109,7 +117,13 @@ namespace ShipHdMap.Tests
             Assert.That(go.transform.position.x, Is.EqualTo(30f).Within(1e-3f));
             Assert.That(Vector3.Dot(go.transform.forward, car.transform.right), Is.EqualTo(1).Within(1e-3), "the eye looks where the nose points");
             Assert.That(Vector3.Dot(go.transform.forward, car.transform.forward), Is.EqualTo(0).Within(1e-3), "and not along the body's own +Z, which is starboard");
-            Assert.That(Vector3.Dot(go.transform.up, car.transform.up), Is.EqualTo(1).Within(1e-3), "upright in the vehicle's own frame, so a ramp tilts the horizon with it");
+            // Two of them, because a cosine near 1 is a flat signal: a Vector3.up reference misses this fixture
+            // by 4 deg, which is 0.9973 against the first (a whisker past tolerance) but 0.073 against the
+            // second. Together with the nose assertion above they pin the rotation exactly -- an up that is
+            // perpendicular to both the nose and the body's forward can only be +-the vehicle's own up, and the
+            // first assertion picks the sign.
+            Assert.That(Vector3.Dot(go.transform.up, car.transform.forward), Is.EqualTo(0).Within(1e-3), "the horizon carries no roll of its own");
+            Assert.That(Vector3.Dot(go.transform.up, car.transform.up), Is.EqualTo(1).Within(1e-3), "upright in the vehicle's own frame, so trim, heel and the ramp tilt it together");
             Object.DestroyImmediate(car); Object.DestroyImmediate(go);
         }
     }
