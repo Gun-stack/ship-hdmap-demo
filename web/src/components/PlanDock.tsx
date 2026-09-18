@@ -5,11 +5,22 @@ import { bbox, linePath, pickDeck, ringPath } from "../geo/deck";
 import { LEGEND, clampView, fitTo, screenToPlan, viewBoxOf, zoomAt } from "../geo/plan";
 import { cellColor, cellOpacity } from "../geo/coverage";
 
+// A pointerdown that never moves this many screen px is a click, not a drag -- small enough that any
+// real drag crosses it almost at once, big enough to absorb the jitter a plain click always has.
+const DRAG_PX = 4;
+// One store write per wheel *gesture*, not per tick: a burst of ticks keeps pushing this out.
+const WHEEL_COMMIT_MS = 250;
+
 export function PlanDock() {
   const s = useEditorStore();
   const ui = useUiStore();
   const svgRef = useRef<SVGSVGElement>(null);
-  const drag = useRef<{ x: number; y: number } | null>(null);
+  // Anchor plus the screen point pointerdown happened at, so pointermove can tell a click from a drag
+  // before committing to either.
+  const drag = useRef<{ x: number; y: number; sx: number; sy: number } | null>(null);
+  const dragging = useRef(false);   // crossed DRAG_PX -- only then does this pointerdown own the gesture
+  const wheelTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelWheelCommit = () => { if (wheelTimer.current) { clearTimeout(wheelTimer.current); wheelTimer.current = null; } };
   // The store is persisted, and zustand's persist serialises the whole slice synchronously on EVERY set.
   // A pan is one set per pointermove, so the drag lives in local state and only the release reaches the store.
   const [live, setLive] = useState<PlanView | null>(null);
@@ -17,10 +28,19 @@ export function PlanDock() {
 
   if (!ui.dockOpen) return <div className="dock collapsed"><button className="btn" onClick={ui.toggleDock}>평면도 펴기</button></div>;
   const deck = pickDeck(s.decks, s.deckFilter);
-  if (!deck) return <div className="dock collapsed"><span style={{ color: "#888" }}>갑판 없음</span></div>;
+  if (!deck) return (
+    <div className={`dock${ui.dockTall ? " tall" : ""}`}>
+      <div className="dockbar">
+        <span style={{ color: "#888" }}>갑판 없음</span>
+        <button className="btn" onClick={ui.toggleDockTall}>{ui.dockTall ? "낮게" : "크게"}</button>
+        <button className="btn" onClick={ui.toggleDock}>접기</button>
+      </div>
+    </div>
+  );
 
   const box = bbox(deck.outline, 3);
   const feats = visibleFeatures(s);
+  const mark = (f: (typeof feats)[number]) => (s.selectedId === f.id ? { stroke: "#1e88e5", strokeWidth: 0.8 } : {});
   const zoomed = ui.planView.scale >= 4;   // labels only once they would be readable
   const at = (e: { clientX: number; clientY: number }) => screenToPlan({ x: e.clientX, y: e.clientY }, svgRef.current!);
 
@@ -36,22 +56,56 @@ export function PlanDock() {
         </span>
       </div>
       <svg ref={svgRef} viewBox={viewBoxOf(box, view)} className="plan" preserveAspectRatio="xMidYMid meet"
-        onWheel={(e) => ui.setPlanView(clampView(box, zoomAt(view, at(e), e.deltaY < 0 ? 1.2 : 1 / 1.2)))}
-        onPointerDown={(e) => { if (e.button !== 0) return; drag.current = at(e); setLive(ui.planView); e.currentTarget.setPointerCapture(e.pointerId); }}
+        onWheel={(e) => {
+          // Zoom lives in the same local `live` state the pan uses, so the two can never disagree about
+          // which view is current -- and the write to the persisted store is debounced to one per burst
+          // of ticks, not one per tick.
+          const next = clampView(box, zoomAt(view, at(e), e.deltaY < 0 ? 1.2 : 1 / 1.2));
+          setLive(next);
+          cancelWheelCommit();
+          wheelTimer.current = setTimeout(() => { ui.setPlanView(next); wheelTimer.current = null; setLive(null); }, WHEEL_COMMIT_MS);
+        }}
+        onPointerDown={(e) => {
+          if (e.button !== 0) return;
+          // Record the anchor and where the gesture started, but do NOT capture yet: capturing here
+          // retargets the pointerup/click to this <svg>, so the onClick handlers below never see it and
+          // clicking a marker or a slot in the plan view stops working entirely.
+          drag.current = { ...at(e), sx: e.clientX, sy: e.clientY };
+          dragging.current = false;
+          cancelWheelCommit();
+        }}
         onPointerMove={(e) => {
           if (!drag.current) return;
+          if (!dragging.current) {
+            const dx = e.clientX - drag.current.sx, dy = e.clientY - drag.current.sy;
+            if (dx * dx + dy * dy < DRAG_PX * DRAG_PX) return;   // still just a click until this crosses
+            dragging.current = true;
+            setLive(ui.planView);
+            e.currentTarget.setPointerCapture(e.pointerId);   // now it's really a drag -- own the gesture
+          }
           // Grab the plan and pull it: the point under the cursor must not slide, so the window moves the
           // opposite way. `at()` re-reads the live transform, so this stays right at every zoom level.
           // The anchor stays the plan point that was grabbed. at() re-reads the LIVE transform, so once the
           // pan is right this delta is zero and nothing more moves -- do NOT re-anchor, that chases its own tail.
           const p = at(e), a = drag.current;
           setLive((v) => { const b = v ?? ui.planView; return { ...b, cx: b.cx - (p.x - a.x), cy: b.cy - (p.y - a.y) }; });
+          cancelWheelCommit();   // an active drag owns `live`; a stale wheel commit must not stomp it later
         }}
         onPointerUp={(e) => {
+          if (dragging.current) {
+            if (live) ui.setPlanView(clampView(box, live));   // one persisted write per drag, not one per frame
+            e.currentTarget.releasePointerCapture(e.pointerId);
+          }
           drag.current = null;
-          if (live) ui.setPlanView(clampView(box, live));   // one persisted write per drag, not one per frame
+          dragging.current = false;
           setLive(null);
-          e.currentTarget.releasePointerCapture(e.pointerId);
+        }}
+        onPointerCancel={() => {
+          // An interrupted gesture (capture stolen, touch cancelled, ...): discard whatever pan was in
+          // flight rather than committing or leaving it half-applied on screen.
+          drag.current = null;
+          dragging.current = false;
+          setLive(null);
         }}>
         {s.coverage?.cells.map((c, i) => (
           <rect key={i} x={c.x - s.coverage!.grid_m / 2} y={-c.y - s.coverage!.grid_m / 2}
@@ -59,9 +113,9 @@ export function PlanDock() {
             fill={cellColor(c)} fillOpacity={cellOpacity(c)} stroke="none" pointerEvents="none" />
         ))}
         <path d={ringPath(deck.outline)} fill="none" stroke="#7a8" strokeWidth={0.4} />
-        {feats.filter((f) => f.layer === "A2").map((f) => <path key={f.id} d={linePath(f.geometry.coordinates as number[][])} fill="none" stroke="#1e88e5" strokeWidth={0.4} strokeDasharray="2 1" onClick={() => s.select(f.id)} />)}
-        {feats.filter((f) => f.layer === "B2").map((f) => <path key={f.id} d={ringPath((f.geometry.coordinates as number[][][])[0])} fill="rgba(30,136,229,.15)" stroke="#1e88e5" strokeWidth={0.2} onClick={() => s.select(f.id)} />)}
-        {feats.filter((f) => f.layer === "C" && f.geometry.type === "Polygon").map((f) => <path key={f.id} d={ringPath((f.geometry.coordinates as number[][][])[0])} fill="#999" stroke="#666" strokeWidth={0.2} onClick={() => s.select(f.id)} />)}
+        {feats.filter((f) => f.layer === "A2").map((f) => <path key={f.id} d={linePath(f.geometry.coordinates as number[][])} fill="none" stroke="#1e88e5" strokeWidth={0.4} strokeDasharray="2 1" onClick={() => s.select(f.id)} {...mark(f)} />)}
+        {feats.filter((f) => f.layer === "B2").map((f) => <path key={f.id} d={ringPath((f.geometry.coordinates as number[][][])[0])} fill="rgba(30,136,229,.15)" stroke="#1e88e5" strokeWidth={0.2} onClick={() => s.select(f.id)} {...mark(f)} />)}
+        {feats.filter((f) => f.layer === "C" && f.geometry.type === "Polygon").map((f) => <path key={f.id} d={ringPath((f.geometry.coordinates as number[][][])[0])} fill="#999" stroke="#666" strokeWidth={0.2} onClick={() => s.select(f.id)} {...mark(f)} />)}
         {feats.filter((f) => f.layer === "LM").map((f) => {
           const c = f.geometry.coordinates as number[];
           // 없는 법선을 API 와 같은 쪽으로 본다 — CoverageController.java:138 이
