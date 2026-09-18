@@ -43,7 +43,7 @@
   `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`
   `Claude-Session: https://claude.ai/code/session_01PVuA3qih1j2w41MkuPAok4`
 
-**시작 기준선:** Vitest 38 (7 파일), Unity EditMode 134, api 는 이 마일스톤에서 건드리지 않는다.
+**시작 기준선:** Vitest 38 (7 파일), Unity EditMode 134 (`[Test]` 전수, `[TestCase]`·`[UnityTest]` 없음), api 는 이 마일스톤에서 건드리지 않는다.
 
 ---
 
@@ -1458,17 +1458,9 @@ namespace ShipHdMap.Tests
             Assert.That(LandmarkSensor.GeometricMiss(v, m["back"], 90 * D, 25, 70 * D), Is.EqualTo(Miss.Facing));
         }
 
-        /// The old predicate stays, expressed through the new one -- SensorAndVehicleTests still owns it.
-        [Test]
-        public void IsVisibleGeometricAgreesWithGeometricMiss()
-        {
-            var v = new Pose2D { x = 0, y = 0, psiRad = 0 };
-            foreach (var lm in Map().Values)
-            {
-                bool old = LandmarkSensor.IsVisibleGeometric(v, lm, 90 * D, 25, 70 * D);
-                Assert.That(old, Is.EqualTo(LandmarkSensor.GeometricMiss(v, lm, 90 * D, 25, 70 * D) == Miss.None), lm.id);
-            }
-        }
+        // `IsVisibleGeometric` 이 `GeometricMiss(...) == Miss.None` 그 자체이므로 둘이 같은지 묻는 테스트는
+        // 정의를 정의로 확인할 뿐 어떤 회귀에도 빨개지지 않는다. 그 술어는 기존
+        // SensorAndVehicleTests.VisibilityRespectsFovDistanceAndViewAngle 이 실값 5 개로 이미 고정한다.
 
         /// Spec §7.2.3: the drive and the overlay must not be able to disagree.
         [Test]
@@ -1518,8 +1510,9 @@ namespace ShipHdMap.Tests
         public void ConeArcPointsSpanTheFieldOfViewAtTheRangeLimit()
         {
             var pts = SensorView.ConeArcPoints(new Pose2D { x = 0, y = 0, psiRad = 0 }, 90, 25, 10.6, 8);
-            Assert.That(pts.Length, Is.EqualTo(11));                       // eye, +45 edge, 9 arc points, back to eye
-            foreach (var p in pts) Assert.That(p.y, Is.EqualTo(10.6f).Within(1e-3f), "drawn on the deck floor");
+            Assert.That(pts.Length, Is.EqualTo(11));                       // eye + 9 arc points + back to the eye
+            // 2 cm above the deck floor, not on it: coplanar lines z-fight with the deck mesh
+            foreach (var p in pts) Assert.That(p.y, Is.EqualTo(10.62f).Within(1e-3f));
             var (ax, ay, _) = ShipFrame.ToShip(pts[1]);
             Assert.That(Math.Sqrt(ax * ax + ay * ay), Is.EqualTo(25).Within(1e-3));
             Assert.That(Math.Atan2(ay, ax) * 180 / Math.PI, Is.EqualTo(45).Within(1e-3));
@@ -1572,14 +1565,17 @@ Expected: 컴파일 실패 — `Miss`·`GeometricMiss`·`VisibleFrom`·`SensorVi
         {
             var why = new List<(string, Miss)>(map.Count);
             double fov = fovDeg * Math.PI / 180, mva = maxViewAngleDeg * Math.PI / 180;
-            foreach (var lm in map.Values)
+            // Keyed by the DICTIONARY KEY, not by lm.id: MapRuntime.Confirm re-keys a draft's entry without
+            // rewriting the struct's own id, so after a save the two differ and a re-lookup by lm.id throws.
+            foreach (var kv in map)
             {
-                if (occluded.Contains(lm.id)) { why.Add((lm.id, Miss.Occluded)); continue; }
+                string id = kv.Key; var lm = kv.Value;
+                if (occluded.Contains(id)) { why.Add((id, Miss.Occluded)); continue; }
                 var m = GeometricMiss(pose, lm, fov, maxDist, mva);
-                if (m != Miss.None) { why.Add((lm.id, m)); continue; }
-                Vector3 target = posOf(lm.id);
+                if (m != Miss.None) { why.Add((id, m)); continue; }
+                Vector3 target = posOf(id);
                 bool blocked = occluders != 0 && Physics.Linecast(eyeWorld, target - (target - eyeWorld).normalized * 0.05f, occluders);
-                why.Add((lm.id, blocked ? Miss.Blocked : Miss.None));
+                why.Add((id, blocked ? Miss.Blocked : Miss.None));
             }
             return why;
         }
@@ -1706,7 +1702,7 @@ namespace ShipHdMap
 - [ ] **Step 6: 테스트 통과 확인**
 
 Unity EditMode 전체. 기존 `SensorAndVehicleTests` 4 개와 시드 고정 주행 테스트(`ScenarioRunTests` 21, `BeliefRunTests` 4)가 **하나도 안 바뀌고** 통과하는지 특히 본다 — 난수 순서가 유지됐다는 증거다.
-Expected: PASS. 138 + 5 = **143**
+Expected: PASS. 138 + 4 = **142**
 
 - [ ] **Step 7: 커밋**
 
@@ -1860,7 +1856,7 @@ Expected: 컴파일 실패 — `CamMode`·`FlyStep`·`ApplyDriver` 가 없다
 
 - [ ] **Step 4: 테스트 통과 확인**
 
-Expected: PASS. 143 + 3 = **146**. 기존 `OrbitCameraTests` 2 개 그대로 통과
+Expected: PASS. 142 + 3 = **145**. 기존 `OrbitCameraTests` 2 개 그대로 통과
 
 - [ ] **Step 5: 커밋**
 
@@ -1971,7 +1967,7 @@ namespace ShipHdMap
         }
 
         public void Attach(LandmarkMarker m) { _marker = m; _dragging = false; DrawRing(); }
-        public void Detach() { _marker = null; _dragging = false; if (orbit) orbit.enabled = true; if (_ring) _ring.enabled = false; }
+        public void Detach() { if (_dragging && orbit) orbit.enabled = true; _marker = null; _dragging = false; if (_ring) _ring.enabled = false; }
 
         void Update()
         {
@@ -1994,14 +1990,20 @@ namespace ShipHdMap
         void DragTo()
         {
             if (!PlanePoint(out var p)) return;
-            double phi = PhiAt(_marker.transform.position, p);
-            var n = ShipFrame.ToUnity(Math.Cos(phi), Math.Sin(phi), 0);
-            // MoveTo takes world; keep the mounting point where it is and turn only the facing
+            // Both points go through `root` first: PhiAt reads Ship Frame, and the marker's world transform is
+            // the Ship Frame rotated by trim and heel. Reading world coordinates as if they were Ship Frame
+            // pollutes x with the marker's height (11.8 m at 2 deg trim is 0.4 m) -- degrees of error on a 1.6 m ring.
+            double phi = PhiAt(ToRoot(_marker.transform.position), ToRoot(p));
+            var nLocal = ShipFrame.ToUnity(Math.Cos(phi), Math.Sin(phi), 0);
+            // MoveTo takes WORLD; keep the mounting point where it is and turn only the facing
+            var n = root ? root.TransformDirection(nLocal) : nLocal;
             _marker.MoveTo(_marker.transform.position - _marker.NormalUnity * 0.01f, n, _marker.deckId, _marker.mountedOn);
             DrawRing();
         }
 
-        void EndDrag() { _dragging = false; if (orbit) orbit.enabled = true; if (_marker) Rotated?.Invoke(_marker); }
+        Vector3 ToRoot(Vector3 world) => root ? root.InverseTransformPoint(world) : world;
+
+        void EndDrag() { bool was = _dragging; _dragging = false; if (was && orbit) orbit.enabled = true; if (was && _marker) Rotated?.Invoke(_marker); }
 
         /// Mouse ray against the horizontal plane through the marker.
         bool PlanePoint(out Vector3 p)
@@ -2038,7 +2040,7 @@ namespace ShipHdMap
 - [ ] **Step 4: 테스트 통과 확인**
 
 Unity EditMode 전체.
-Expected: PASS. 146 + 3 = **149**
+Expected: PASS. 145 + 3 = **148**
 
 - [ ] **Step 5: 커밋**
 
@@ -2101,12 +2103,26 @@ git commit   # feat: turn a marker's normal by hand -- the loop M5c and M5d left
             Assert.That(rt.MarkerOf("LM-0001").ToModel().normal[0], Is.EqualTo(1).Within(1e-3));
         }
 
+        /// Two halves, because the early return is the whole risk: without an Orbit it must not throw, and
+        /// WITH one it must actually set the mode. Asserting only the first half passes even if the body is dead.
         [Test]
-        public void SetCamModeIsIgnoredWithoutACamera()
+        public void SetCamModeGuardsAMissingCameraAndOtherwiseSetsTheMode()
         {
             go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>();
             rt.InitForTest();
             Assert.DoesNotThrow(() => rt.SetCamMode("{\"mode\":\"fly\"}"));   // EditMode has no Orbit; must not NRE
+
+            var camGo = new GameObject("cam"); camGo.AddComponent<Camera>();
+            rt.Orbit = camGo.AddComponent<OrbitCamera>();
+            rt.SetCamMode("{\"mode\":\"fly\"}");
+            Assert.That(rt.Orbit.mode, Is.EqualTo(CamMode.Fly));
+            rt.SetCamMode("{\"mode\":\"driver\"}");
+            Assert.That(rt.Orbit.mode, Is.EqualTo(CamMode.Driver));
+            Assert.That(rt.Orbit.driverTarget, Is.EqualTo(rt.Vehicle.transform));
+            rt.SetCamMode("{\"mode\":\"orbit\"}");
+            Assert.That(rt.Orbit.mode, Is.EqualTo(CamMode.Orbit));
+            Assert.That(rt.Orbit.driverTarget, Is.Null);
+            Object.DestroyImmediate(camGo);
         }
 ```
 
@@ -2198,7 +2214,10 @@ namespace ShipHdMap
 `InitForTest` 끝에 새 컴포넌트를 만든다. **씬에 두지 않는 이유는 Global Constraints 참조** — 씬에는 `Map` 과 카메라뿐이다.
 
 ```csharp
-            View = Sensor.gameObject.AddComponent<SensorView>();
+            // On the MAP ROOT, not on Vehicle: EnsureLine sets useWorldSpace = false, so the cone's points are
+            // read as the parent's local space. VehicleController.Apply() overwrites Vehicle's transform every
+            // frame (and the quay leg unparents it entirely), which would apply the vehicle pose a second time.
+            View = gameObject.AddComponent<SensorView>();
             Gizmo = gameObject.AddComponent<NormalGizmo>(); Gizmo.root = LandmarksRoot;
             Probe = gameObject.AddComponent<ProbeView>(); Probe.sensor = Sensor; Probe.view = View; Probe.root = transform;
 ```
@@ -2214,7 +2233,7 @@ namespace ShipHdMap
         public Vector3 MarkerPos(string id) => _markers[id].transform.position;
 ```
 
-`Awake` 의 카메라 블록에서 기즈모와 관측점에 카메라를 준다:
+`Awake` 의 카메라 줄은 `MapRuntime.cs:56` **한 줄**이다. 그 줄만 아래로 바꾼다 — 바로 위 `:55` 의 `if (cam == null) cam = Camera.main;` 는 그대로 둔다:
 
 ```csharp
             if (cam)
@@ -2240,7 +2259,11 @@ namespace ShipHdMap
         {
             var t = MapJson.Parse<SetToolMsg>(json)?.tool;
             Placer.tool = t == "place" ? PlacerTool.Place : t == "probe" ? PlacerTool.Probe : PlacerTool.Select;
-            if (Placer.tool != PlacerTool.Probe) Probe.Clear();
+            if (Placer.tool == PlacerTool.Probe) return;
+            Probe.Clear();
+            // The probe drove the camera to its own eye with no driverTarget; leaving the tool must give the
+            // camera back, or the toolbar offers no way out of a first-person view of nothing.
+            if (Orbit && Orbit.mode == CamMode.Driver && Orbit.driverTarget == null) Orbit.mode = CamMode.Orbit;
         }
 
         public void SetCamMode(string json)
@@ -2265,7 +2288,15 @@ namespace ShipHdMap
         }
 ```
 
-`Load` 안에서 기즈모·관측점을 떼어 놓는다 (마커를 전부 지우므로):
+`StartScenario`(`MapRuntime.cs:282`)의 `if (Orbit)` 블록에 한 줄을 더한다. 모드 게이팅이 생기면서 `follow` 는 **궤도 모드에서만** 동작하므로, 자유 비행 중에 주행을 시작하면 카메라가 차를 안 따라간다:
+
+```csharp
+            if (Orbit) { Orbit.follow = Vehicle.transform; Orbit.distance = 25f; Orbit.pitchDeg = 35f;
+                // free flight follows nothing; driver's eye is a valid way to watch a run, so keep that one
+                if (Orbit.mode != CamMode.Driver) Orbit.mode = CamMode.Orbit; }
+```
+
+`Load` 안에서 기즈모·관측점을 떼어 놓는다 (마커를 전부 지우므로). `MapRuntime.cs:126` 의 `ScenarioPhase = Phase.Idle; …` 줄 **바로 뒤**에 넣는다:
 
 ```csharp
             Gizmo.Detach(); Probe.Clear(); View.Hide();
@@ -2280,10 +2311,13 @@ namespace ShipHdMap
 `Localize()` 끝에 차량 시선 표시를 붙인다. `_seen` 은 **믿음 판정용으로 그대로 두고**(스펙 §5.3) 표시는 `VisibleFrom` 이 낸 이유까지 쓴다:
 
 ```csharp
-            if (Orbit != null && Orbit.mode == CamMode.Driver && _targetDeck != null)
+            // Vehicle.Z, not _targetDeck.z_surface: the target deck is where the car is GOING, and on the quay
+            // and the ramp it is nowhere near that height. Vehicle.Z is the current path point, right every frame.
+            // (_targetDeck would never be null here either -- Step returns early unless a run is under way.)
+            if (Orbit != null && Orbit.mode == CamMode.Driver)
             {
                 Vector3 eye = Sensor.transform.position + Vector3.up * Sensor.eyeHeight;
-                View.Show(truth, _targetDeck.z_surface, Sensor.VisibleFrom(truth, eye, MapRefs, MarkerPos), MarkerOf, Sensor.fovDeg, Sensor.maxDist);
+                View.Show(truth, Vehicle.Z, Sensor.VisibleFrom(truth, eye, MapRefs, MarkerPos), MarkerOf, Sensor.fovDeg, Sensor.maxDist);
             }
 ```
 
@@ -2344,7 +2378,7 @@ Run (웹): `cd web && pnpm vitest run && pnpm tsc --noEmit && pnpm build`
 Expected: PASS 69, 빌드 성공
 
 Unity EditMode 전체.
-Expected: PASS. 149 + 3 = **152**
+Expected: PASS. 148 + 3 = **151**
 
 - [ ] **Step 8: 커밋**
 
@@ -2395,7 +2429,7 @@ cd web && pnpm vitest run && pnpm tsc --noEmit && pnpm build && pnpm lint
 cd ../api && ./gradlew test
 ```
 Unity EditMode 전체.
-Expected: web 69, Unity 152, api 는 시작할 때 센 값 그대로 (이 마일스톤은 `api/` 를 건드리지 않는다)
+Expected: web 69, Unity 151, api 는 시작할 때 센 값 그대로 (이 마일스톤은 `api/` 를 건드리지 않는다)
 
 - [ ] **Step 5: 리뷰 문서와 커밋**
 
@@ -2425,5 +2459,5 @@ git commit   # docs: what the browser said about M5e
 | | 시작 | 끝 | 늘어나는 곳 |
 |---|---|---|---|
 | Vitest | 38 | **69** | T1 +10, T2 +2, T3 +10, T5 +2, T6 +7 |
-| Unity EditMode | 134 | **152** | T7 +4, T8 +5, T9 +3, T10 +3, T11 +3 |
+| Unity EditMode | 134 | **151** | T7 +4, T8 +4, T9 +3, T10 +3, T11 +3 |
 | api (Gradle) | 그대로 | 그대로 | 이 마일스톤은 `api/` 를 건드리지 않는다 |
