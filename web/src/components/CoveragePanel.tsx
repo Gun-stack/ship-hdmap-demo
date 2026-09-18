@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useEditorStore } from "../store/editor";
 import { fmtRatio } from "../geo/coverage";
-import { pickDeck } from "./MiniMap";
+import { pickDeck } from "../geo/deck";
 
 export function CoveragePanel() {
   const s = useEditorStore();

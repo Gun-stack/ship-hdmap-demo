@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -41,6 +43,47 @@ namespace ShipHdMap.Tests
             Assert.That(rt.MapRefs.ContainsKey("LM-0003"));
             Assert.That(rt.MapRefs["LM-0001"].phiRad, Is.EqualTo(System.Math.PI / 2).Within(1e-6)); // normal +y
             Assert.That(rt.CurrentMap.parking_slots.Count, Is.EqualTo(2));
+        }
+
+        /// A re-key that leaves the struct's own id stale is invisible here (MapRefs[c.id] exists either way) but
+        /// fatal downstream: Localizer.Observe stamps Observation.id from that field, and Localizer.Solve looks the
+        /// observation back up by id in this same map, so a stale id makes every future sighting of this landmark
+        /// silently vanish from localization with no error anywhere.
+        [Test]
+        public void ConfirmRewritesTheLandmarkRefIdSoASightingCannotBeLookedUpUnderTheStaleOne()
+        {
+            go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>(); rt.InitForTest();
+            rt.Load(Fixture());
+            rt.Confirm(MapJson.Serialize(new ConfirmMsg { tempId = "LM-0001", id = "LM-confirmed" }));
+
+            Assert.That(rt.MapRefs.ContainsKey("LM-0001"), Is.False);
+            Assert.That(rt.MapRefs.ContainsKey("LM-confirmed"), Is.True);
+            Assert.That(rt.MapRefs["LM-confirmed"].id, Is.EqualTo("LM-confirmed"));
+        }
+
+        /// InitForTest attaches both View and Gizmo to this same GameObject, and Unity allows only one Renderer
+        /// per GameObject -- so a LineRenderer added straight to this transform by either one would be racing
+        /// the other for that single slot, and whichever lost would come back null and throw on the very next
+        /// line. Both keep their LineRenderer on their own child instead (SensorCone, NormalRing), so neither
+        /// ever competes for a slot on the root, and a third such component in the future has an established
+        /// pattern to follow rather than a trap to rediscover.
+        [Test]
+        public void ProbeAndGizmoLineRenderersCoexistOnTheSameMapRoot()
+        {
+            go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>(); rt.InitForTest();
+            rt.Load(Fixture());
+            Assert.DoesNotThrow(() =>
+            {
+                rt.Select("LM-0001");                                    // NormalGizmo.Attach -> DrawRing, onto its own child
+                rt.Probe.PlaceAt(ShipFrame.ToUnity(5, 0, 11.8), 11.8);    // SensorView.Show -> EnsureLine, onto its own child
+            });
+            var cone = rt.transform.Find("SensorCone");
+            Assert.That(cone, Is.Not.Null);
+            Assert.That(cone.GetComponent<LineRenderer>(), Is.Not.Null);
+            var ring = rt.transform.Find("NormalRing");
+            Assert.That(ring, Is.Not.Null);
+            Assert.That(ring.GetComponent<LineRenderer>(), Is.Not.Null);
+            Assert.That(rt.GetComponent<LineRenderer>(), Is.Null);       // neither renderer sits on the root itself any more
         }
 
         [Test]
@@ -197,6 +240,122 @@ namespace ShipHdMap.Tests
 
             b.decks[0].outline[1][0] += 10; b.decks[0].outline[2][0] += 10;   // same deck heights, 10 m longer Deck 1
             Assert.That(MapRuntime.ShipSignature(b), Is.Not.EqualTo(MapRuntime.ShipSignature(a)), "a different deck outline must rebuild the hull");
+        }
+
+        /// 완료 기준 5: 편집 모드에서 3D 를 마음대로 클릭해도 마커가 생기지 않는다.
+        /// 도구는 웹이 정하고, Load 가 그것을 지워서는 안 된다 — 지도를 다시 받았다고 배치 모드가 풀리면
+        /// 마커를 줄지어 놓던 사람이 매번 다시 켜야 한다.
+        [Test]
+        public void SetToolReachesThePlacerAndSurvivesAReload()
+        {
+            go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>();
+            rt.InitForTest();
+            Assert.That(rt.Placer.tool, Is.EqualTo(PlacerTool.Select));      // default: clicking must be safe
+            rt.SetTool("{\"tool\":\"place\"}");
+            Assert.That(rt.Placer.tool, Is.EqualTo(PlacerTool.Place));
+            rt.Load(Fixture());
+            Assert.That(rt.Placer.tool, Is.EqualTo(PlacerTool.Place));
+        }
+
+        /// The web saved the normal already; Unity just has to turn the quad and update the map reference,
+        /// or the coverage the web is about to recompute will disagree with what the drive senses.
+        [Test]
+        public void SetNormalTurnsTheMarkerAndTheMapReference()
+        {
+            go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>();
+            rt.InitForTest(); rt.Load(Fixture());
+            var before = rt.MapRefs["LM-0001"].phiRad;
+            Assert.That(before, Is.EqualTo(System.Math.PI / 2).Within(1e-6));
+            rt.SetNormal("{\"id\":\"LM-0001\",\"normal\":[1,0,0]}");
+            Assert.That(rt.MapRefs["LM-0001"].phiRad, Is.EqualTo(0).Within(1e-6));
+            Assert.That(rt.MarkerOf("LM-0001").ToModel().normal[0], Is.EqualTo(1).Within(1e-3));
+        }
+
+        /// Two halves, because the early return is the whole risk: without an Orbit it must not throw, and
+        /// WITH one it must actually set the mode. Asserting only the first half passes even if the body is dead.
+        [Test]
+        public void SetCamModeGuardsAMissingCameraAndOtherwiseSetsTheMode()
+        {
+            go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>();
+            rt.InitForTest();
+            Assert.DoesNotThrow(() => rt.SetCamMode("{\"mode\":\"fly\"}"));   // EditMode has no Orbit; must not NRE
+
+            var camGo = new GameObject("cam"); camGo.AddComponent<Camera>();
+            rt.Orbit = camGo.AddComponent<OrbitCamera>();
+            rt.SetCamMode("{\"mode\":\"fly\"}");
+            Assert.That(rt.Orbit.mode, Is.EqualTo(CamMode.Fly));
+            rt.SetCamMode("{\"mode\":\"driver\"}");
+            Assert.That(rt.Orbit.mode, Is.EqualTo(CamMode.Driver));
+            Assert.That(rt.Orbit.driverTarget, Is.EqualTo(rt.Vehicle.transform));
+            rt.SetCamMode("{\"mode\":\"orbit\"}");
+            Assert.That(rt.Orbit.mode, Is.EqualTo(CamMode.Orbit));
+            Assert.That(rt.Orbit.driverTarget, Is.Null);
+            Object.DestroyImmediate(camGo);
+        }
+
+        /// Both editor handles are taken by Unity and given back by nothing else: leaving edit mode never passes
+        /// through SetTool. A probe left holding the camera freezes the whole drive at its own eye (null
+        /// driverTarget means ApplyDriver will not move it again) and a gizmo left attached turns normals -- and
+        /// PUTs them -- mid-run.
+        [Test]
+        public void LeavingEditModeGivesBackTheCameraAndTheGizmo()
+        {
+            go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>();
+            rt.InitForTest(); rt.Load(Fixture());
+            var camGo = new GameObject("cam"); camGo.AddComponent<Camera>();
+            rt.Orbit = camGo.AddComponent<OrbitCamera>(); rt.Probe.orbit = rt.Orbit;
+
+            rt.Highlight("LM-0001");
+            Assert.That(rt.Gizmo.Target, Is.Not.Null, "edit mode: the selected marker carries a handle");
+            rt.Probe.PlaceAt(Vector3.zero, 0);                       // the probe parks the camera at its own eye
+            Assert.That(rt.Probe.Active, Is.True);
+            Assert.That(rt.Orbit.mode, Is.EqualTo(CamMode.Driver)); Assert.That(rt.Orbit.driverTarget, Is.Null);
+            Assert.That(camGo.transform.position, Is.EqualTo(new Vector3(0, 1.2f, 0)).Using<Vector3>((a, b) => Vector3.Distance(a, b) < 1e-3f ? 0 : 1),
+                "Aim parks the camera at the probe's eye: origin, one eye height up (no pose applied here)");
+            // Heading 0 is ship +x, which ShipFrame maps to Unity +x. A yaw-only rotation would leave the
+            // camera looking along +z -- 90 deg to starboard of the cone it just drew.
+            Assert.That(Vector3.Dot(camGo.transform.forward, Vector3.right), Is.EqualTo(1).Within(1e-3), "the probe looks along its own heading");
+
+            rt.SetMode("drive");
+            Assert.That(rt.Probe.Active, Is.False, "a drive must not start from the probe's frozen eye");
+            Assert.That(rt.Orbit.mode, Is.EqualTo(CamMode.Orbit), "and the web believes it is orbiting");
+            Assert.That(rt.Gizmo.Target, Is.Null, "a right-drag during a run must not turn a normal");
+
+            rt.SetMode("edit");
+            Assert.That(rt.Gizmo.Target, Is.Not.Null, "back in edit the still-selected marker gets its handle back");
+            Object.DestroyImmediate(camGo);
+        }
+
+        /// The probe's Driver is a TOOL state, not one of the three cameras the toolbar offers, and reporting
+        /// it made the probe cancel itself in one round trip -- see PollCamMode's comment for the loop. What a
+        /// unit test can hold is the near end of it: while a probe stands, nothing about the camera mode goes
+        /// out, and leaving the probe is silent too because the mode lands back where the web already had it.
+        [Test]
+        public void TheProbesCameraModeNeverReachesTheWebButOtherChangesDo()
+        {
+            go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>();
+            var sent = new List<(string name, string json)>();
+            rt.Emit += (n, j) => sent.Add((n, j));
+            rt.InitForTest(); rt.Load(Fixture());
+            var camGo = new GameObject("cam"); camGo.AddComponent<Camera>();
+            rt.Orbit = camGo.AddComponent<OrbitCamera>(); rt.Probe.orbit = rt.Orbit;
+            System.Func<List<string>> reports = () => sent.Where(e => e.name == BridgeMessages.OnCamMode).Select(e => e.json).ToList();
+
+            rt.Probe.PlaceAt(Vector3.zero, 0);
+            Assert.That(rt.Orbit.mode, Is.EqualTo(CamMode.Driver), "the probe does hold the camera in Driver");
+            rt.PollCamMode();
+            Assert.That(reports(), Is.Empty, "the toolbar would answer a 'driver' report by killing the probe");
+
+            rt.SetTool("{\"tool\":\"select\"}");
+            rt.PollCamMode();
+            Assert.That(rt.Orbit.mode, Is.EqualTo(CamMode.Orbit));
+            Assert.That(reports(), Is.Empty, "leaving it is silent too: the camera is back where the web still believed it was");
+
+            // ...and the poll is not simply dead: a mode Unity changes for its own reasons still goes out.
+            rt.Orbit.mode = CamMode.Fly;
+            rt.PollCamMode();
+            Assert.That(reports(), Is.EqualTo(new List<string> { "{\"mode\":\"fly\"}" }));
+            Object.DestroyImmediate(camGo);
         }
 
         [Test]

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { bbox, ringPath, pickDeck } from "./MiniMap";
+import { bbox, ringPath, pickDeck } from "./deck";
 
-describe("minimap geometry", () => {
+describe("deck geometry", () => {
   it("bbox of a closed ring with margin", () => {
     const b = bbox([[0, -12, 10.6], [120, -12, 10.6], [120, 12, 10.6], [0, 12, 10.6], [0, -12, 10.6]], 2);
     expect(b).toEqual({ x: -2, y: -14, w: 124, h: 28 });

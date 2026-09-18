@@ -417,6 +417,40 @@ namespace ShipHdMap.Tests
             Assert.That(rt.Vehicle.transform.parent, Is.Null, "back in the Quay Frame on the way out");
         }
 
+        /// The driver's-eye cone is drawn in Ship Frame, so its height must come from the same projection as
+        /// the pose it is drawn for. The quay leg is where that bites: the vehicle is UNPARENTED there, so
+        /// Vehicle.Z -- the obvious candidate, and the one this started life with -- is a QUAY-Frame height and
+        /// puts the whole cone an aft draft down, under the water. Reverting Localize() to it fails this test.
+        [Test]
+        public void DriverEyeConeIsDrawnAtTheShipFrameHeightOnTheQuay()
+        {
+            var rt = NewRuntime(FilledFixture());
+            rt.SetPose(PoseJson(0));
+            var camGo = new GameObject("cam"); camGo.AddComponent<Camera>();
+            rt.Orbit = camGo.AddComponent<OrbitCamera>();
+            rt.Orbit.mode = CamMode.Driver; rt.Orbit.driverTarget = rt.Vehicle.transform;   // what SetCamMode("driver") does
+            rt.StartScenario("{\"mode\":\"unload\"}");
+            RunUntil(rt, emitted, "onSlotFilled");
+            for (int i = 0; i < 2000 && rt.ScenarioPhase != MapRuntime.Phase.QuayOut; i++) rt.Step(0.05f);
+            Assert.That(rt.ScenarioPhase, Is.EqualTo(MapRuntime.Phase.QuayOut));
+            Assert.That(rt.Vehicle.transform.parent, Is.Null, "the quay leg is the whole point of this test");
+            Assert.That(rt.Vehicle.running, Is.True, "still driving, so the next tick redraws the cone where it is now");
+            rt.Step(0.05f);                              // Advance runs before Localize, so the cone is this tick's
+
+            // By name, not GetComponentInChildren: the Map root's subtree is full of other LineRenderers
+            // (MapOverlay's deck outlines and lanes, the gizmo ring), and the first one found was a D1 outline.
+            // The cone's own host sits at the identity under the Map root, so its points ARE Ship Frame
+            // (ShipFrame.ToUnity), and ConeArcPoints puts the eye point 2 cm above the surface.
+            var cone = rt.transform.Find("SensorCone")?.GetComponent<LineRenderer>();
+            Assert.That(cone, Is.Not.Null, "the driver's eye must have drawn a cone");
+            var shipZ = rt.transform.InverseTransformPoint(rt.Vehicle.transform.position - Vector3.up * (float)VehicleController.RideHeightM).y;
+            Assert.That(cone.GetPosition(0).y, Is.EqualTo(shipZ + 0.02).Within(0.05), "the cone floor must be the Ship-Frame height");
+            // Stated separately so the failure says WHY: the two frames really do disagree here, by the aft
+            // draft. Without this the assertion above would also pass on a ship with no draft at all.
+            Assert.That(cone.GetPosition(0).y - rt.Vehicle.Z, Is.GreaterThan(5.0), "Vehicle.Z here is a quay height, metres below");
+            Object.DestroyImmediate(camGo);
+        }
+
         [Test]
         public void LoadRunsQuayToSlot()
         {
