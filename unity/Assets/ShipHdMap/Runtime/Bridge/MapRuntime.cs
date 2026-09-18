@@ -131,8 +131,9 @@ namespace ShipHdMap
         /// is reachable once Ship is destroyed, and Materials are not reclaimed by GC until a domain reload -- costly
         /// on the WebGL target, where a single deck can carry thousands of lashing-socket renderers. Nothing outside
         /// the hull shares these: the quay, overlay fills, parked-car boxes and landmark markers each own their own
-        /// Materials (QuayBuilder._mat, MapOverlay.LineMats/FillMats/_parkedMat, LandmarkMarker's per-code tag
-        /// texture; its halo/seen rings are shared statics the same way MapOverlay's line and fill colours are), and every
+        /// Materials (QuayBuilder._mat, MapOverlay.LineMats/FillMats/_parkedMat, LandmarkMarker's own tag Material
+        /// and Texture2D -- one fresh pair per marker, uncached, still leaked on every Load, and out of scope here;
+        /// its halo/seen rings are the exception, shared statics the same way MapOverlay's line and fill colours are), and every
         /// ShipMeshBuilder.Build call starts a fresh dictionary, so no two builds ever share a Material instance.
         public static void DestroyShipMaterials(GameObject ship)
         {

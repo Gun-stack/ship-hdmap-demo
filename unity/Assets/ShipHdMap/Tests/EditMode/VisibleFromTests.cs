@@ -14,9 +14,10 @@ namespace ShipHdMap.Tests
         static Dictionary<string, LandmarkRef> Map() => new()
         {
             ["near"] = new LandmarkRef { id = "near", mx = 10, my = 0, phiRad = Math.PI },       // faces the vehicle
-            // id deliberately differs from the dictionary key: MapRuntime.Confirm re-keys a saved draft without
-            // rewriting the struct's own id, and why["far"] below would throw KeyNotFoundException instead of
-            // reading Miss.Range if VisibleFrom ever went back to keying its results by lm.id.
+            // id deliberately differs from the dictionary key: nothing enforces that a LandmarkRef's own id field
+            // matches the key it lives under (MapRuntime.Confirm keeps the two in sync today, but that is not a
+            // type-level guarantee), so this fixture is what would catch a regression back to keying by lm.id --
+            // why["far"] below would throw KeyNotFoundException instead of reading Miss.Range.
             ["far"] = new LandmarkRef { id = "far-old", mx = 30, my = 0, phiRad = Math.PI },
             ["side"] = new LandmarkRef { id = "side", mx = 0.1, my = 10, phiRad = -Math.PI / 2 },// bearing ~89deg, outside the 45deg half-angle
             ["back"] = new LandmarkRef { id = "back", mx = 10, my = 0, phiRad = 0 },             // normal points away

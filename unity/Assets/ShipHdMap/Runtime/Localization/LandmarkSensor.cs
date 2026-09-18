@@ -60,8 +60,11 @@ namespace ShipHdMap
         {
             var why = new List<(string, Miss)>(map.Count);
             double fov = fovDeg * Math.PI / 180, mva = maxViewAngleDeg * Math.PI / 180;
-            // Keyed by the DICTIONARY KEY, not by lm.id: MapRuntime.Confirm re-keys a draft's entry without
-            // rewriting the struct's own id, so after a save the two differ and a re-lookup by lm.id throws.
+            // Keyed by the DICTIONARY KEY, not by lm.id: LandmarkRef is a struct copied into this dictionary, and
+            // the key -- not the copy's own id field -- is the one thing every caller (Sense, Localizer.Solve,
+            // the web bridge) actually holds to name an entry. MapRuntime.Confirm keeps the two in sync when it
+            // re-keys a saved draft, but nothing at the type level enforces that; trusting the struct's own id
+            // here would trust an invariant this dictionary does not guarantee.
             foreach (var kv in map)
             {
                 string id = kv.Key; var lm = kv.Value;
