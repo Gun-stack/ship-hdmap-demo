@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useEditorStore } from "../store/editor";
 import { useUiStore, type CamMode, type Tool } from "../store/ui";
 import type { BridgeName } from "../bridge/useShipUnity";
@@ -18,6 +19,18 @@ export function Toolbar({ send }: { send: Send }) {
   const { tool, setTool, cam, setCam } = useUiStore();
   const pickTool = (t: Tool) => { setTool(t); send("SetTool", { tool: t }); };
   const pickCam = (c: CamMode) => { setCam(c); send("SetCamMode", { mode: c }); };
+
+  // "driver" outlives the condition that allowed it: leaving drive mode disables the button but
+  // does not itself change `cam`, and `cam` is persisted, so a reload would restore a camera the
+  // toolbar refuses to let the user pick. Correct it here, in the component that owns the rule
+  // (driver requires drive mode), with the same setCam + send pair the buttons use, so the store
+  // and Unity never disagree about which camera is live. This settles rather than oscillates:
+  // once it runs, cam becomes "orbit" and the condition below is false, so the effect is a no-op
+  // on every later render until drive mode is re-entered and driver is picked again.
+  useEffect(() => {
+    if (mode !== "drive" && cam === "driver") { setCam("orbit"); send("SetCamMode", { mode: "orbit" }); }
+  }, [mode, cam, setCam, send]);
+
   return (
     <div className="toolbar">
       {mode === "edit" && TOOLS.map((t) => (
