@@ -3,7 +3,7 @@ import { useUnityContext } from "react-unity-webgl";
 import { api } from "../api/client";
 import { scenarioLine, useEditorStore } from "../store/editor";
 
-export type BridgeName = "Load" | "SetMode" | "SetDeck" | "Select" | "Confirm" | "Delete" | "SetNoise" | "StartScenario" | "SetPose" | "SetTimeScale" | "SetPrediction" | "SetOccluded" | "SetBeliefParams";
+export type BridgeName = "Load" | "SetMode" | "SetDeck" | "Select" | "Confirm" | "Delete" | "SetNoise" | "StartScenario" | "SetPose" | "SetTimeScale" | "SetPrediction" | "SetOccluded" | "SetBeliefParams" | "SetTool" | "SetCamMode";
 
 const URLS = { loaderUrl: "/unity/Build/unity.loader.js", dataUrl: "/unity/Build/unity.data", frameworkUrl: "/unity/Build/unity.framework.js", codeUrl: "/unity/Build/unity.wasm" };
 

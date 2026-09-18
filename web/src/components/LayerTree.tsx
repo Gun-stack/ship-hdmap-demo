@@ -1,5 +1,5 @@
-import { useState } from "react";
 import { useEditorStore, visibleFeatures } from "../store/editor";
+import { useUiStore } from "../store/ui";
 import type { Layer } from "../api/types";
 
 const ORDER: Layer[] = ["A2", "A1", "B2", "LP", "C", "LM", "MEP"];
@@ -8,7 +8,8 @@ const LABEL: Record<Layer, string> = { A2: "A2 차로중심선", A1: "A1 차선"
 export function LayerTree() {
   const s = useEditorStore();
   const feats = visibleFeatures(s);
-  const [open, setOpen] = useState<Record<string, boolean>>({ LM: true, A2: true, B2: true, C: true });
+  const open = useUiStore((s) => s.treeOpen);
+  const toggleTree = useUiStore((s) => s.toggleTree);
   return (
     <div className="panel tree">
       <h4>레이어 / 객체</h4>
@@ -18,7 +19,7 @@ export function LayerTree() {
         if (items.length === 0 && drafts.length === 0) return null;
         return (
           <ul key={layer}>
-            <li onClick={() => setOpen({ ...open, [layer]: !open[layer] })}>{open[layer] ? "▾" : "▸"} {LABEL[layer]} ({items.length}{drafts.length ? ` +${drafts.length} 초안` : ""})</li>
+            <li onClick={() => toggleTree(layer)}>{open[layer] ? "▾" : "▸"} {LABEL[layer]} ({items.length}{drafts.length ? ` +${drafts.length} 초안` : ""})</li>
             {open[layer] && (
               <ul>
                 {drafts.map((d) => <li key={d.tempId} className={s.selectedId === d.tempId ? "sel" : ""} onClick={() => s.select(d.tempId)}>{d.tempId} (초안)</li>)}
