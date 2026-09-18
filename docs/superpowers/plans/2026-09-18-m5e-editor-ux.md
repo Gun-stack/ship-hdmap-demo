@@ -32,6 +32,7 @@
 ## Global Constraints
 
 - 웹 들여쓰기 2 칸, C# 4 칸 (기존 파일 그대로)
+- **타입 검사는 `pnpm build` 로만 한다. `pnpm tsc --noEmit` 은 이 저장소에서 아무것도 검사하지 않는다** — `web/tsconfig.json` 이 `{"files": [], "references": [...]}` 인 솔루션 설정이고 `--noEmit` 은 참조를 따라가지 않아 **0 개 파일**을 본다(`--listFiles` 로 확인). 참조를 따라가는 것은 `tsc -b` 뿐이고 `pnpm build` 가 그것을 부른다. Task 3 의 쓰지 않는 import 하나가 이 구멍으로 커밋까지 갔다
 - **Unity 는 HTTP 를 호출하지 않는다.** API 조회는 웹이 하고 브리지로 넘긴다
 - **새 런타임 의존성 없음.** devDependency 는 `jsdom` 하나만 는다 (Task 1 에서 이유를 적는다). `@testing-library/*` 는 쓰지 않는다 — 탭 전환 규칙은 스토어 액션이라 DOM 없이 테스트된다
 - 단축키는 **입력 필드에 포커스가 있으면 전부 먹지 않는다**
@@ -286,7 +287,7 @@ export const useUiStore = create<UiState>()(
 
 - [ ] **Step 5: 테스트 통과 확인**
 
-Run: `cd web && pnpm vitest run && pnpm tsc --noEmit`
+Run: `cd web && pnpm vitest run && pnpm build`
 Expected: PASS. 38 + 10 = **48**
 
 - [ ] **Step 6: 커밋**
@@ -473,7 +474,7 @@ function coalescing(ms: number): StateStorage {
 
 - [ ] **Step 6: 테스트·빌드 확인**
 
-Run: `cd web && pnpm vitest run && pnpm tsc --noEmit && pnpm build`
+Run: `cd web && pnpm vitest run && pnpm build`
 Expected: PASS. 48 + 2 = **50**
 
 - [ ] **Step 7: 커밋**
@@ -665,7 +666,7 @@ export const LEGEND: { label: string; color: string }[] = [
 
 - [ ] **Step 5: 테스트 통과 확인**
 
-Run: `cd web && pnpm vitest run && pnpm tsc --noEmit`
+Run: `cd web && pnpm vitest run && pnpm build`
 Expected: PASS. 50 + 10 = **60** (기존 `MiniMap.test.ts` 3 개는 파일만 옮겨 갔으므로 총계에 더해지지 않는다)
 
 - [ ] **Step 6: 커밋**
@@ -830,7 +831,7 @@ git rm web/src/components/MiniMap.tsx
 
 - [ ] **Step 4: 테스트·빌드 확인**
 
-Run: `cd web && pnpm vitest run && pnpm tsc --noEmit && pnpm build`
+Run: `cd web && pnpm vitest run && pnpm build`
 Expected: PASS 60, 빌드 성공
 
 - [ ] **Step 5: 커밋**
@@ -1044,7 +1045,7 @@ CSS — 그리드에 툴바 행을 넣고, `.right` 를 세로 flex 로 만든�
 
 - [ ] **Step 7: 테스트·빌드 확인**
 
-Run: `cd web && pnpm vitest run && pnpm tsc --noEmit && pnpm build`
+Run: `cd web && pnpm vitest run && pnpm build`
 Expected: PASS. 60 + 2 = **62**
 
 - [ ] **Step 8: 커밋**
@@ -1308,7 +1309,7 @@ export function Shortcuts({ send }: { send: Send }) {
 
 - [ ] **Step 5: 테스트·빌드 확인**
 
-Run: `cd web && pnpm vitest run && pnpm tsc --noEmit && pnpm build`
+Run: `cd web && pnpm vitest run && pnpm build`
 Expected: PASS. 62 + 8 = **70**
 
 - [ ] **Step 6: 커밋**
@@ -2448,7 +2449,7 @@ namespace ShipHdMap
 
 - [ ] **Step 7: 테스트·빌드 확인**
 
-Run (웹): `cd web && pnpm vitest run && pnpm tsc --noEmit && pnpm build`
+Run (웹): `cd web && pnpm vitest run && pnpm build`
 Expected: PASS 70, 빌드 성공
 
 Unity EditMode 전체.
@@ -2499,7 +2500,7 @@ cd ../web && pnpm dev
 - [ ] **Step 4: 전체 확인**
 
 ```bash
-cd web && pnpm vitest run && pnpm tsc --noEmit && pnpm build && pnpm lint
+cd web && pnpm vitest run && pnpm build && pnpm lint
 cd ../api && ./gradlew test
 ```
 Unity EditMode 전체.
