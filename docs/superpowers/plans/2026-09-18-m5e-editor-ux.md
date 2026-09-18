@@ -14,7 +14,7 @@
 
 ## 스펙과 달라지는 점 (먼저 읽는다)
 
-계획을 세우며 코드를 읽어 보니 스펙의 전제 다섯이 사실과 달랐거나(A~C) 값어치보다 비쌌다(D·E). 스펙을 고치지 않고 여기에 적어 둔다 — 실행자는 **이 절이 스펙보다 우선**이다.
+계획을 세우며 코드를 읽어 보니 스펙의 전제 여섯이 사실과 달랐거나(A~C) 값어치보다 비쌌다(D~F). 스펙을 고치지 않고 여기에 적어 둔다 — 실행자는 **이 절이 스펙보다 우선**이다.
 
 | # | 스펙이 말한 것 | 코드의 사실 | 이 계획의 처리 |
 |---|---|---|---|
@@ -22,6 +22,7 @@
 | B | §4.2 "`F` 로 카메라가 선택으로 간다 — 지금은 하이라이트만 켜지고 화면 밖이면 보이지 않는다" | **웹에서 고른 선택은 이미 카메라가 따라간다.** `MapRuntime.Select`(`MapRuntime.cs:187-191`)가 `Orbit.Focus(…, 12f)` 를 부른다. 씬 클릭 선택만 일부러 안 따라간다(같은 프레임 드래그 레이캐스트 때문 — M3b 함정, `Highlight` 주석) | `F` 는 **새 Unity 코드 없이** 웹이 `send("Select", selectedId)` 를 다시 보내는 것으로 끝난다 (Task 6) |
 | C | §3.3 "마커 법선을 항상 그린다 — 평면도와 3D 양쪽" | 3D 에서는 마커 Quad 가 **이미 법선 방향으로 서 있다**(`LandmarkMarker.MoveTo` 의 `LookRotation(-n)`). 위에서 내려다보면 안 보이지만, 선택한 마커에는 기즈모 링이 뜬다 | 3D 에 별도 화살표를 더하지 않는다. 평면도에는 저장된 마커 전부에 법선을 그린다 (Task 4) — 스펙이 실제로 없다고 지적한 쪽이 그쪽이다 |
 | D | §4.2 "3D 강조를 윤곽선과 완만한 펄스로 바꾼다" | 지금 Halo(노란 Quad, 1.6 배)가 이미 거리와 무관하게 읽힌다 | **안 바꾼다.** 펄스는 장식이고, 이 마일스톤이 §4.2 에서 실제로 여는 것은 "선택이 화면 밖이면 안 보인다"인데 그건 `F`(Task 6)가 닫는다. 대신 감지 표시(`SetSeen`, 초록 테)를 Halo 와 **겹쳐 보이게** 만들어 둘이 다른 질문에 답하게 한다 (Task 8) |
+| F | §5.4 "`Tab` — 오른쪽 탭 순환" | `Tab` 을 가로채면 포커스가 버튼에 있을 때(툴바·탭·갑판 버튼이 전부 `<button>`) 삼켜져 키보드만 쓰는 사람이 입력 필드로 못 들어간다. `isInField` 는 `<button>` 을 막지 않는다 | **`[` 와 `]` 로 옮긴다.** 기능은 그대로고 `]` 는 정방향, `[` 는 역방향까지 는다. Global Constraints 의 "입력 중에는 단축키가 안 먹는다"와 같은 이유 — 표준 키 동작을 빼앗지 않는다 |
 | E | §6 "3D 카메라 자세" 를 `localStorage` 에 | 카메라 자세는 Unity 안에만 있다. 저장하려면 Unity→웹 카메라 자세 이벤트를 새로 만들고 스로틀링해야 한다 — 매 프레임 채널이 하나 더 생긴다 | **뺀다.** 값어치 대비 비용이 맞지 않는다. §6 의 나머지(탭·트리·갑판·모드·슬라이더 전부·도크·평면도 뷰·가림 집합)는 전부 넣는다. 완료 기준 1 의 "카메라"는 **카메라 모드**(궤도/비행/시선)로 읽는다 — 그건 저장한다 |
 
 또 하나. 스펙 §7.2 의 "선택 모드에서 구조물을 클릭해도 `Created` 가 발화하지 않는다" 는 EditMode 에서 **그대로는 테스트할 수 없다**(`Input.GetMouseButtonDown` 을 가짜로 만들 수 없다). 클릭 판정을 순수 함수 `LandmarkPlacer.Decide(tool, hitMarker, hitStructure)` 로 뽑아 그것을 테스트한다 (Task 7).
@@ -334,8 +335,14 @@ git commit   # feat: a screen-state store that survives a reload
     s().setTimeScale(20);
     s().toggleOccluded("LM-0003");
 
+    // 쓰기는 디바운스된다(아래 EDITOR_WRITE_MS) — 붙잡기 전에 실제로 나갈 때까지 기다린다
+    await new Promise((r) => setTimeout(r, EDITOR_WRITE_MS + 80));
+    // persist 는 *모든* setState 를 storage 에 쓴다. 그래서 메모리를 비우는 그 동작이 저장본까지
+    // 기본값으로 덮어쓴다 — 붙잡았다가 되돌려 놓지 않으면 어떤 구현으로도 통과할 수 없는 테스트가 된다.
+    const saved = localStorage.getItem(EDITOR_KEY)!;
     useEditorStore.setState(useEditorStore.getInitialState());   // 새로고침 흉내: 메모리를 비운다
     expect(s().deckFilter).toBe("all");
+    localStorage.setItem(EDITOR_KEY, saved);
     await useEditorStore.persist.rehydrate();
 
     expect(s().deckFilter).toBe("D2");
@@ -350,6 +357,7 @@ git commit   # feat: a screen-state store that survives a reload
   /// 지도 데이터는 저장하지 않는다 — 서버가 진실이고, 낡은 사본이 되살아나면 버전 표시가 거짓말을 한다.
   it("지도 데이터는 저장하지 않는다", async () => {
     await useEditorStore.getState().load("ds1");
+    await new Promise((r) => setTimeout(r, EDITOR_WRITE_MS + 80));
     const saved = JSON.parse(localStorage.getItem(EDITOR_KEY)!).state;
     expect(saved.features).toBeUndefined();
     expect(saved.dataset).toBeUndefined();
@@ -358,7 +366,7 @@ git commit   # feat: a screen-state store that survives a reload
   });
 ```
 
-`import { EDITOR_KEY, useEditorStore, visibleFeatures } from "./editor";` 로 import 를 고친다.
+`import { EDITOR_KEY, EDITOR_WRITE_MS, useEditorStore, visibleFeatures } from "./editor";` 로 import 를 고친다.
 
 - [ ] **Step 2: 실패를 확인한다**
 
@@ -370,7 +378,7 @@ Expected: FAIL — `setNoise` 가 없고 `EDITOR_KEY` 를 export 하지 않는�
 `web/src/store/editor.ts`:
 
 ```ts
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
 ```
 
 `EditorState` 타입에 더한다:
@@ -389,6 +397,24 @@ import { persist } from "zustand/middleware";
 export type NoiseParams = { sigma_r: number; sigma_theta: number; sigma_alpha: number; sigma_gps: number };
 export const EDITOR_KEY = "shiphdmap.editor.roro-demo-01";
 export const EDITOR_SCHEMA = 1;
+export const EDITOR_WRITE_MS = 200;
+
+/**
+ * persist writes on EVERY set, and this store takes one at 5 Hz all through a drive
+ * (setLocalization and setBelief, MapRuntime's 0.2 s emit) -- at time scale 20 that is a synchronous
+ * localStorage write most frames, for fields partialize throws away anyway. Coalesce to one trailing
+ * write instead. A write can be lost if the tab closes inside the window; these are view preferences.
+ */
+function coalescing(ms: number): StateStorage {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let pending: { name: string; value: string } | null = null;
+  const flush = () => { timer = undefined; if (pending) localStorage.setItem(pending.name, pending.value); pending = null; };
+  return {
+    getItem: (name) => localStorage.getItem(name),
+    setItem: (name, value) => { pending = { name, value }; timer ??= setTimeout(flush, ms); },
+    removeItem: (name) => { pending = null; localStorage.removeItem(name); },
+  };
+}
 ```
 
 초기값 블록(`belief: null, occluded: []` 줄 옆)에:
@@ -412,6 +438,7 @@ export const EDITOR_SCHEMA = 1;
   {
     name: EDITOR_KEY,
     version: EDITOR_SCHEMA,
+    storage: createJSONStorage(() => coalescing(EDITOR_WRITE_MS)),
     // Only what the viewer set by hand. Map data, coverage results, drafts, the selection and the live
     // localization/belief feeds all come back from the server or from Unity -- persisting a stale copy
     // would put yesterday's numbers next to today's dataset version.
@@ -419,7 +446,9 @@ export const EDITOR_SCHEMA = 1;
       deckFilter: s.deckFilter, mode: s.mode, coverageMode: s.coverageMode, coverageParams: s.coverageParams,
       beliefParams: s.beliefParams, noise: s.noise, timeScale: s.timeScale, occluded: s.occluded,
     }),
-    migrate: () => ({}),   // a shape change means start from the store's own defaults
+    // No migrate: zustand already drops a version mismatch and falls back to the store's own defaults,
+    // and declaring one widens the persisted type to {} -- which stops the compiler checking partialize's
+    // keys at all, so a typo there would persist silently.
   },
 ```
 
@@ -438,7 +467,9 @@ export const EDITOR_SCHEMA = 1;
         <select value={scale} onChange={(e) => { const v = Number(e.target.value); setTimeScale(v); send("SetTimeScale", { scale: v }); }} style={{ flex: "0 0 auto" }}>
 ```
 
-나머지(`commit`, `start`)는 `sig`·`scale` 이름을 그대로 읽으므로 바뀌지 않는다.
+한 가지 더: 쓰기가 디바운스되므로 테스트가 끝난 뒤에도 타이머가 하나 떠 있을 수 있다. `pending` 은 **마지막 값 하나만** 들고 있고 타이머도 하나뿐이라, 다음 테스트 도중에 터져도 그 시점의 최신 상태를 쓴다 — 낡은 값이 되살아나지 않는다. 그래서 `beforeEach` 의 `localStorage.clear()` 만으로 충분하다.
+
+`DrivePanel.tsx:11` 의 `type Sig = { … }` 를 지우고 `SLIDERS` 의 `keyof Sig` 를 `keyof NoiseParams` 로 바꾼다 — 같은 계약을 두 곳에 두지 않는다. 나머지(`commit`, `start`)는 `sig`·`scale` 이름을 그대로 읽으므로 바뀌지 않는다.
 
 - [ ] **Step 6: 테스트·빌드 확인**
 
@@ -468,7 +499,7 @@ git commit   # feat: stop making the operator redial every slider after a reload
 **Interfaces:**
 - Consumes: Task 1 의 `PlanView`
 - Produces: `geo/deck.ts` → `bbox(ring: number[][], margin?: number): Box`, `ringPath(pts: number[][]): string`, `linePath(pts: number[][]): string`, `pickDeck<T extends {id: string; outline: number[][]}>(decks: T[], filter: string): T | undefined`, `type Box = { x: number; y: number; w: number; h: number }`
-- Produces: `geo/plan.ts` → `viewBoxOf(deck: Box, v: PlanView): string`, `fitTo(deck: Box, target: Box): PlanView`, `zoomAt(deck: Box, v: PlanView, anchor: {x: number; y: number}, k: number): PlanView`, `screenToPlan(pt: {x: number; y: number}, svg: SVGSVGElement): {x: number; y: number}`, `boxOfPoint(x: number, y: number, r?: number): Box`, `LEGEND: {label: string; color: string}[]`, `MIN_SCALE = 1`, `MAX_SCALE = 40`
+- Produces: `geo/plan.ts` → `viewBoxOf(deck: Box, v: PlanView): string`, `fitTo(deck: Box, target: Box): PlanView`, `zoomAt(v: PlanView, anchor: {x: number; y: number}, k: number): PlanView`, `screenToPlan(pt: {x: number; y: number}, svg: SVGSVGElement): {x: number; y: number}`, `boxOfPoint(x: number, y: number, r?: number): Box`, `LEGEND: {label: string; color: string}[]`, `MIN_SCALE = 1`, `MAX_SCALE = 40`
 
 - [ ] **Step 1: 실패하는 테스트를 쓴다**
 
@@ -521,13 +552,13 @@ describe("zoomAt", () => {
   it("커서 아래 지점을 붙잡는다", () => {
     const v0 = { cx: 60, cy: 0, scale: 1 };
     const anchor = { x: 100, y: 8 };
-    const v1 = zoomAt(DECK, v0, anchor, 2);
+    const v1 = zoomAt(v0, anchor, 2);
     const frac = (v: typeof v0, a: number, span: number) => (a - (v.cx - span / v.scale / 2)) / (span / v.scale);
     expect(frac(v1, anchor.x, DECK.w)).toBeCloseTo(frac(v0, anchor.x, DECK.w), 6);
   });
   it("배율을 1..40 으로 묶는다", () => {
-    expect(zoomAt(DECK, { cx: 60, cy: 0, scale: 1 }, { x: 60, y: 0 }, 0.5).scale).toBe(1);
-    expect(zoomAt(DECK, { cx: 60, cy: 0, scale: 30 }, { x: 60, y: 0 }, 4).scale).toBe(MAX_SCALE);
+    expect(zoomAt({ cx: 60, cy: 0, scale: 1 }, { x: 60, y: 0 }, 0.5).scale).toBe(1);
+    expect(zoomAt({ cx: 60, cy: 0, scale: 30 }, { x: 60, y: 0 }, 4).scale).toBe(MAX_SCALE);
   });
 });
 
@@ -537,7 +568,7 @@ describe("LEGEND", () => {
   it("네 항목이고 blind 는 히트맵과 같은 색이다", () => {
     expect(LEGEND).toHaveLength(4);
     expect(LEGEND[0].color).toBe(BLIND_COLOR);
-    expect(LEGEND[0].color).toBe(cellColor({ x: 0, y: 0, n: 0 }));
+    expect(LEGEND[0].color).toBe("#d32f2f");   // 값으로 못박는다: cellColor 를 다시 부르면 같은 식을 두 번 쓰는 것뿐
   });
   it("weak 은 주황, ok 는 초록 쪽이다", () => {
     const weak = LEGEND[1].color, ok = LEGEND[2].color;
@@ -601,8 +632,9 @@ export function fitTo(deck: Box, target: Box): PlanView {
 /**
  * Zoom by `k` about `anchor` (plan space), keeping whatever is under the cursor under the cursor.
  * The window half-width scales by s_old/s_new, so the centre moves the same fraction toward the anchor.
+ * Takes no deck box: the anchor is already absolute, and tsconfig sets noUnusedParameters.
  */
-export function zoomAt(deck: Box, v: PlanView, anchor: { x: number; y: number }, k: number): PlanView {
+export function zoomAt(v: PlanView, anchor: { x: number; y: number }, k: number): PlanView {
   const scale = clamp(v.scale * k, MIN_SCALE, MAX_SCALE);
   const f = v.scale / scale;
   return { cx: anchor.x - (anchor.x - v.cx) * f, cy: anchor.y - (anchor.y - v.cy) * f, scale };
@@ -698,7 +730,7 @@ export function PlanDock() {
         </span>
       </div>
       <svg ref={svgRef} viewBox={viewBoxOf(box, ui.planView)} className="plan" preserveAspectRatio="xMidYMid meet"
-        onWheel={(e) => ui.setPlanView(zoomAt(box, ui.planView, at(e), e.deltaY < 0 ? 1.2 : 1 / 1.2))}
+        onWheel={(e) => ui.setPlanView(zoomAt(ui.planView, at(e), e.deltaY < 0 ? 1.2 : 1 / 1.2))}
         onPointerDown={(e) => { if (e.button !== 0) return; drag.current = at(e); e.currentTarget.setPointerCapture(e.pointerId); }}
         onPointerMove={(e) => {
           if (!drag.current) return;
@@ -719,7 +751,9 @@ export function PlanDock() {
         {feats.filter((f) => f.layer === "C" && f.geometry.type === "Polygon").map((f) => <path key={f.id} d={ringPath((f.geometry.coordinates as number[][][])[0])} fill="#999" stroke="#666" strokeWidth={0.2} onClick={() => s.select(f.id)} />)}
         {feats.filter((f) => f.layer === "LM").map((f) => {
           const c = f.geometry.coordinates as number[];
-          const n = (f.props.normal as number[] | undefined) ?? [1, 0, 0];
+          // 없는 법선을 API 와 같은 쪽으로 본다 — CoverageController.java:138 이
+          // `n == null ? Math.PI : atan2(...)` 로 선미를 향한다고 친다. [1,0,0] 이면 화면이 커버리지와 180° 어긋난다.
+          const n = (f.props.normal as number[] | undefined) ?? [-1, 0, 0];
           const sel = s.selectedId === f.id;
           const dim = s.occluded.includes(f.id);
           return (
@@ -771,6 +805,8 @@ git rm web/src/components/MiniMap.tsx
 .dockbar { display: flex; align-items: center; gap: 8px; padding: 2px 8px; font-size: 12px; border-bottom: 1px solid #eee; }
 .dockbar .legend { display: flex; gap: 10px; margin-left: auto; color: #555; }
 .dockbar .legend i { display: inline-block; width: 10px; height: 10px; margin-right: 4px; vertical-align: -1px; }
+/* touch-action stops pointer gestures, not the wheel. React attaches wheel passively, so onWheel cannot
+   preventDefault -- fine here because the dock has nothing to scroll and the page itself never scrolls. */
 .plan { flex: 1; min-height: 0; width: 100%; background: #f3f6f9; touch-action: none; cursor: grab; }
 .plan:active { cursor: grabbing; }
 ```
@@ -930,7 +966,7 @@ export function Toolbar({ send }: { send: Send }) {
       <span className="sep" />
       {CAMS.map((c) => (
         // 차량 시선은 차가 있어야 한다 (스펙 §5.1)
-        <button key={c.k} type="button" className={`btn${cam === c.k ? " primary" : ""}`}
+        <button key={c.k} type="button" className={`btn${cam === c.k ? " primary" : ""}`} title={`${c.label} (${c.key} 로 순환)`}
           disabled={c.k === "driver" && mode !== "drive"} onClick={() => pickCam(c.k)}>{c.label}</button>
       ))}
     </div>
@@ -953,7 +989,7 @@ export function Toolbar({ send }: { send: Send }) {
 
 - [ ] **Step 6: `App.tsx` 와 CSS 를 고친다**
 
-오른쪽 `<aside>` 안을 `<RightTabs>` 하나로 바꾸고 `TopBar` 아래에 `Toolbar` 를 둔다. `LoadPanel`·`CoveragePanel`·`PropertyForm`·`PosePanel`·`DrivePanel` import 는 `App.tsx` 에서 전부 지운다 (`RightTabs` 가 갖는다):
+오른쪽 `<aside>` 안을 `<RightTabs>` 하나로 바꾸고 `TopBar` 아래에 `Toolbar` 를 둔다. `LoadPanel`·`CoveragePanel`·`PropertyForm`·`PosePanel`·`DrivePanel` import 는 `App.tsx` 에서 전부 지운다 (`RightTabs` 가 갖는다). **`App.tsx:20` 의 `const mode = useEditorStore((s) => s.mode);` 도 지운다** — 쓰던 곳이 `RightTabs` 로 옮겨 가므로 `noUnusedLocals` 가 빌드를 깬다. `Toolbar` 와 `PlanDock` import 를 더한다:
 
 ```tsx
       <TopBar />
@@ -979,12 +1015,15 @@ CSS — 그리드에 툴바 행을 넣고, `.right` 를 세로 flex 로 만든�
 .toolbar .mode-hint { color: #666; font-size: 12px; }
 .right { grid-area: right; display: flex; flex-direction: column; overflow: hidden; border-left: 1px solid #ccc; background: #fff; }
 .tabs { display: flex; border-bottom: 1px solid #ddd; }
-.tab { flex: 1; padding: 6px 4px; border: 0; background: #f4f6f8; cursor: pointer; border-bottom: 2px solid transparent; font: inherit; }
-.tab.on { background: #fff; border-bottom-color: #1e88e5; font-weight: 600; }
+/* .tabs .tab, not a bare .tab: TopBar's 편집/주행 buttons also carry class "tab", and .topbar .tab declares
+   neither flex nor font-weight -- specificity cannot protect a property a rule never sets, so a global
+   .tab { flex: 1 } would stretch them across the whole top bar. */
+.tabs .tab { flex: 1; padding: 6px 4px; border: 0; background: #f4f6f8; cursor: pointer; border-bottom: 2px solid transparent; font: inherit; }
+.tabs .tab.on { background: #fff; border-bottom-color: #1e88e5; font-weight: 600; }
 .tabbody { flex: 1; min-height: 0; overflow: auto; }
 ```
 
-(`.right` 의 옛 `overflow: auto` 줄은 위 규칙으로 **대체**한다. `.topbar .tab` 규칙이 먼저 오므로 상단바 버튼은 영향받지 않는다.)
+(`.right` 의 옛 `overflow: auto` 줄은 위 규칙으로 **대체**한다.)
 
 - [ ] **Step 7: 테스트·빌드 확인**
 
@@ -1033,7 +1072,8 @@ describe("commandFor", () => {
     expect(commandFor(key("p"), FREE)).toEqual({ kind: "tool", tool: "probe" });
     expect(commandFor(key("c"), FREE)).toEqual({ kind: "cam" });
     expect(commandFor(key("2"), FREE)).toEqual({ kind: "deck", index: 1 });
-    expect(commandFor(key("Tab"), FREE)).toEqual({ kind: "tab", dir: 1 });
+    expect(commandFor(key("]"), FREE)).toEqual({ kind: "tab", dir: 1 });
+    expect(commandFor(key("["), FREE)).toEqual({ kind: "tab", dir: -1 });
     expect(commandFor(key("f"), FREE)).toEqual({ kind: "fit" });
     expect(commandFor(key("0"), FREE)).toEqual({ kind: "all" });
     expect(commandFor(key("Escape"), FREE)).toEqual({ kind: "escape" });
@@ -1046,7 +1086,7 @@ describe("commandFor", () => {
 
   /// 속성 패널에서 φ 를 치다가 0 을 누르면 뷰가 리셋되는 일이 없어야 한다 (스펙 §5.4).
   it("입력 필드에 포커스가 있으면 전부 먹지 않는다", () => {
-    for (const k of ["v", "a", "p", "c", "0", "1", "f", "Tab", "?"]) {
+    for (const k of ["v", "a", "p", "c", "0", "1", "f", "]", "?"]) {
       expect(commandFor(key(k), { inField: true, flyingFocused: false })).toBeNull();
     }
   });
@@ -1072,8 +1112,21 @@ describe("commandFor", () => {
     expect(commandFor(key("a", { ctrlKey: true }), FREE)).toBeNull();
   });
 
-  it("도움말 표가 모든 키를 설명한다", () => {
-    expect(HELP_ROWS.length).toBeGreaterThanOrEqual(8);
+  /// Tab 은 잡지 않는다 — 버튼에 포커스가 있을 때 삼키면 키보드만 쓰는 사람이
+  /// 툴바에서 입력 필드로 영영 못 들어간다. 탭 순환은 `[` `]` 로 옮겼다.
+  it("Tab 은 브라우저의 포커스 순회에 맡긴다", () => {
+    expect(commandFor(key("Tab"), FREE)).toBeNull();
+  });
+
+  /// 도움말과 매핑이 갈라지면 화면이 거짓말을 한다 — 실제로 명령을 내는 키가 표에 전부 있는지 본다.
+  it("도움말 표가 실제로 먹는 키를 빠짐없이 덮는다", () => {
+    const live = ["v", "a", "p", "c", "1", "2", "3", "[", "]", "f", "0", "Escape", "?"]
+      .filter((k) => commandFor(key(k), FREE) !== null);
+    const text = HELP_ROWS.map(([k]) => k).join(" ").toLowerCase();
+    for (const k of live) {
+      const needle = k === "Escape" ? "esc" : k.toLowerCase();
+      expect(text, `${k} 가 도움말에 없다`).toContain(needle);
+    }
     for (const [k, what] of HELP_ROWS) { expect(k).toBeTruthy(); expect(what).toBeTruthy(); }
   });
 });
@@ -1126,7 +1179,9 @@ export function commandFor(e: KeyLike, ctx: Ctx): KeyCmd | null {
   if (k in TOOL_KEYS) return { kind: "tool", tool: TOOL_KEYS[k] };
   if (k === "c") return { kind: "cam" };
   if (k === "1" || k === "2" || k === "3") return { kind: "deck", index: Number(k) - 1 };
-  if (e.key === "Tab") return { kind: "tab", dir: 1 };
+  // Not Tab: swallowing it on a focused button strands keyboard users in the toolbar. Brackets are free.
+  if (k === "]") return { kind: "tab", dir: 1 };
+  if (k === "[") return { kind: "tab", dir: -1 };
   if (k === "f") return { kind: "fit" };
   if (k === "0") return { kind: "all" };
   if (e.key === "?") return { kind: "help" };
@@ -1142,7 +1197,7 @@ export const HELP_ROWS: [string, string][] = [
   ["0", "전체 보기 — 평면도"],
   ["Esc", "선택 해제 + 선택 모드로"],
   ["1 / 2 / 3", "갑판 D1 / D2 / D3"],
-  ["Tab", "오른쪽 탭 순환"],
+  ["[ / ]", "오른쪽 탭 순환 (Tab 은 브라우저 포커스 순회에 남겨 둔다)"],
   ["?", "이 목록"],
 ];
 ```
@@ -1174,7 +1229,8 @@ export function Shortcuts({ send }: { send: Send }) {
       const active = document.activeElement;
       const cmd = commandFor(e, { inField: isInField(active), flyingFocused: ui.cam === "fly" && active?.tagName === "CANVAS" });
       if (!cmd) return;
-      e.preventDefault();      // Tab must not walk the focus ring, 0 must not zoom the browser
+      // Escape keeps its native behaviour -- it is what closes an open <select> dropdown, and the panels have several.
+      if (cmd.kind !== "escape") e.preventDefault();
 
       switch (cmd.kind) {
         case "tool": ui.setTool(cmd.tool); send("SetTool", { tool: cmd.tool }); break;
@@ -1191,7 +1247,8 @@ export function Shortcuts({ send }: { send: Send }) {
           // 3D 는 Unity 가 이미 Select 에서 카메라를 옮긴다 — 같은 메시지를 다시 보내면 그게 곧 F 다.
           if (ed.selectedId) send("Select", ed.selectedId);
           const deck = pickDeck(ed.decks, ed.deckFilter);
-          const f = ed.selectedId ? ed.features[ed.selectedId] : undefined;
+          // drafts too: the moment you most want F is right after placing a marker, and a draft is not in features yet
+          const f = ed.selectedId ? (ed.features[ed.selectedId] ?? ed.drafts[ed.selectedId]) : undefined;
           if (deck && f && f.geometry.type === "Point") {
             const c = f.geometry.coordinates as number[];
             ui.setPlanView(fitTo(bbox(deck.outline, 3), boxOfPoint(c[0], -c[1])));
@@ -1235,7 +1292,7 @@ export function Shortcuts({ send }: { send: Send }) {
 - [ ] **Step 5: 테스트·빌드 확인**
 
 Run: `cd web && pnpm vitest run && pnpm tsc --noEmit && pnpm build`
-Expected: PASS. 62 + 7 = **69**
+Expected: PASS. 62 + 8 = **70**
 
 - [ ] **Step 6: 커밋**
 
@@ -2375,7 +2432,7 @@ namespace ShipHdMap
 - [ ] **Step 7: 테스트·빌드 확인**
 
 Run (웹): `cd web && pnpm vitest run && pnpm tsc --noEmit && pnpm build`
-Expected: PASS 69, 빌드 성공
+Expected: PASS 70, 빌드 성공
 
 Unity EditMode 전체.
 Expected: PASS. 148 + 3 = **151**
@@ -2429,7 +2486,7 @@ cd web && pnpm vitest run && pnpm tsc --noEmit && pnpm build && pnpm lint
 cd ../api && ./gradlew test
 ```
 Unity EditMode 전체.
-Expected: web 69, Unity 151, api 는 시작할 때 센 값 그대로 (이 마일스톤은 `api/` 를 건드리지 않는다)
+Expected: web 70, Unity 151, api 는 시작할 때 센 값 그대로 (이 마일스톤은 `api/` 를 건드리지 않는다)
 
 - [ ] **Step 5: 리뷰 문서와 커밋**
 
@@ -2458,6 +2515,6 @@ git commit   # docs: what the browser said about M5e
 
 | | 시작 | 끝 | 늘어나는 곳 |
 |---|---|---|---|
-| Vitest | 38 | **69** | T1 +10, T2 +2, T3 +10, T5 +2, T6 +7 |
+| Vitest | 38 | **70** | T1 +10, T2 +2, T3 +10, T5 +2, T6 +8 |
 | Unity EditMode | 134 | **151** | T7 +4, T8 +4, T9 +3, T10 +3, T11 +3 |
 | api (Gradle) | 그대로 | 그대로 | 이 마일스톤은 `api/` 를 건드리지 않는다 |
