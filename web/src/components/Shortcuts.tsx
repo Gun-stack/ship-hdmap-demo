@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useEditorStore } from "../store/editor";
 import { useUiStore, type CamMode } from "../store/ui";
 import { commandFor, isInField, HELP_ROWS } from "../ui/keys";
@@ -24,13 +24,23 @@ export function Shortcuts({ send, canvas }: { send: Send; canvas: HTMLCanvasElem
     if (cam === "fly") canvas?.focus();
   }, [cam, canvas]);
 
+  /// timeStamp of the last Escape that arrived mid-composition; see the pairing rule in ui/keys.ts.
+  const composingEscapeAt = useRef<number | null>(null);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const ui = useUiStore.getState();
       const ed = useEditorStore.getState();
       const active = document.activeElement;
-      // e is a real KeyboardEvent, so it already carries isComposing -- KeyLike needs nothing extra here.
-      const cmd = commandFor(e, { inField: isInField(active), flyingFocused: ui.cam === "fly" && active?.tagName === "CANVAS" });
+      // e is a real KeyboardEvent, so it already carries isComposing and timeStamp -- KeyLike needs nothing extra.
+      // Remember the composition-cancelling Escape BEFORE asking commandFor, because the plain Escape that
+      // follows it shares this timeStamp and that equality is the only thing distinguishing it from a real one.
+      if (e.key === "Escape" && e.isComposing) composingEscapeAt.current = e.timeStamp;
+      const cmd = commandFor(e, {
+        inField: isInField(active),
+        flyingFocused: ui.cam === "fly" && active?.tagName === "CANVAS",
+        composingEscapeAt: composingEscapeAt.current,
+      });
       if (!cmd) return;
       // Escape keeps its native behaviour -- it is what closes an open <select> dropdown, and the panels have several.
       // Unconditional otherwise, even for "tool" in drive mode where it ends up a no-op: plain

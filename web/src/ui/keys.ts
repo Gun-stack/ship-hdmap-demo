@@ -10,8 +10,10 @@ export type KeyCmd =
   | { kind: "escape" }
   | { kind: "help" };
 
-type KeyLike = { key: string; code: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean; isComposing: boolean };
-type Ctx = { inField: boolean; flyingFocused: boolean };
+type KeyLike = { key: string; code: string; timeStamp: number; ctrlKey: boolean; metaKey: boolean; altKey: boolean; isComposing: boolean };
+/// `composingEscapeAt` is the timeStamp of the last Escape seen with isComposing set; the handler remembers it
+/// because the rule below needs to pair two events, and only the handler lives long enough to do that.
+type Ctx = { inField: boolean; flyingFocused: boolean; composingEscapeAt?: number | null };
 
 /**
  * Keys free flight owns, named by PHYSICAL key. Unity reads them straight off the focused canvas;
@@ -38,6 +40,18 @@ export function commandFor(e: KeyLike, ctx: Ctx): KeyCmd | null {
   // so it could not have guarded this case anyway -- and the character keys it does cover are
   // already stopped by the inField gate below.
   if (e.isComposing) return null;
+  // ONE physical Escape arrives TWICE while a Hangul composition is open. Measured in Chrome/macOS with the
+  // 2-Set IME, caret in the property form's textarea, one jamo composed:
+  //     keydown Escape  keyCode 229  isComposing true      <- the IME's own cancel; the gate above stops it
+  //     compositionend  data "ㄱ"
+  //     keydown Escape  keyCode  27  isComposing false     <- a plain Escape; the gate above does NOT stop it
+  // The second one cleared the selection and closed the panel being edited -- exactly the failure the
+  // isComposing gate exists to prevent, so that gate alone does not hold. Both events carry the SAME
+  // e.timeStamp (313779.0 in the run above) because they are one key press, and that is what lets them be
+  // paired with no timer and no tolerance window: a second, deliberate Escape is a different press and
+  // therefore a different timeStamp. Ordering by timeStamp would NOT work -- compositionend's stamp
+  // (313786.4) is later than the second keydown's -- only equality between the two keydowns is reliable.
+  if (e.key === "Escape" && ctx.composingEscapeAt === e.timeStamp) return null;
   if (e.key === "Escape") return { kind: "escape" };      // always a way out, even mid-typing
   if (e.ctrlKey || e.metaKey || e.altKey) return null;    // browser shortcuts stay the browser's
   if (ctx.inField) return null;
