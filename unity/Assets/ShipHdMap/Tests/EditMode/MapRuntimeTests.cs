@@ -43,6 +43,22 @@ namespace ShipHdMap.Tests
             Assert.That(rt.CurrentMap.parking_slots.Count, Is.EqualTo(2));
         }
 
+        /// A re-key that leaves the struct's own id stale is invisible here (MapRefs[c.id] exists either way) but
+        /// fatal downstream: Localizer.Observe stamps Observation.id from that field, and Localizer.Solve looks the
+        /// observation back up by id in this same map, so a stale id makes every future sighting of this landmark
+        /// silently vanish from localization with no error anywhere.
+        [Test]
+        public void ConfirmRewritesTheLandmarkRefIdSoASightingCannotBeLookedUpUnderTheStaleOne()
+        {
+            go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>(); rt.InitForTest();
+            rt.Load(Fixture());
+            rt.Confirm(MapJson.Serialize(new ConfirmMsg { tempId = "LM-0001", id = "LM-confirmed" }));
+
+            Assert.That(rt.MapRefs.ContainsKey("LM-0001"), Is.False);
+            Assert.That(rt.MapRefs.ContainsKey("LM-confirmed"), Is.True);
+            Assert.That(rt.MapRefs["LM-confirmed"].id, Is.EqualTo("LM-confirmed"));
+        }
+
         [Test]
         public void LoadTwiceReplacesLandmarks()
         {

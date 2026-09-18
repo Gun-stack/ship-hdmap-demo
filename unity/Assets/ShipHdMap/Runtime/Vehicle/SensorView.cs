@@ -61,7 +61,12 @@ namespace ShipHdMap
         {
             if (_line) return;
             _line = gameObject.AddComponent<LineRenderer>();
-            _line.useWorldSpace = false;                 // this component lives under the Map root, so local = Ship Frame
+            // useWorldSpace = false makes the LineRenderer read SetPositions' points in THIS transform's own local
+            // space. ConeArcPoints hands it Ship Frame coordinates (via ShipFrame.ToUnity) as if that local space
+            // WERE the Map root's, so this GameObject's transform must sit at the identity relative to the Map root
+            // -- zero position, no rotation, scale one. Any offset here, or an extra transform between this and the
+            // root, shifts or rotates the whole cone away from the pose it was drawn for.
+            _line.useWorldSpace = false;
             _line.widthMultiplier = 0.12f; _line.numCornerVertices = 0;
             _line.sharedMaterial = new Material(Shader.Find("Unlit/Color")) { color = coneColor };
         }

@@ -131,7 +131,8 @@ namespace ShipHdMap
         /// is reachable once Ship is destroyed, and Materials are not reclaimed by GC until a domain reload -- costly
         /// on the WebGL target, where a single deck can carry thousands of lashing-socket renderers. Nothing outside
         /// the hull shares these: the quay, overlay fills, parked-car boxes and landmark markers each own their own
-        /// Materials (QuayBuilder._mat, MapOverlay.LineMats/FillMats/_parkedMat, LandmarkMarker's own), and every
+        /// Materials (QuayBuilder._mat, MapOverlay.LineMats/FillMats/_parkedMat, LandmarkMarker's per-code tag
+        /// texture; its halo/seen rings are shared statics the same way MapOverlay's line and fill colours are), and every
         /// ShipMeshBuilder.Build call starts a fresh dictionary, so no two builds ever share a Material instance.
         public static void DestroyShipMaterials(GameObject ship)
         {
@@ -224,7 +225,11 @@ namespace ShipHdMap
             if (_selected != null && _mode == "edit") Gizmo.Attach(_markers[_selected]); else Gizmo.Detach();
         }
 
-        public void Confirm(string json) { var c = MapJson.Parse<ConfirmMsg>(json); if (_markers.TryGetValue(c.tempId, out var m)) { _markers.Remove(c.tempId); m.id = c.id; m.name = c.id; _markers[c.id] = m; MapRefs[c.id] = MapRefs[c.tempId]; MapRefs.Remove(c.tempId); if (_selected == c.tempId) _selected = c.id; } }
+        /// Re-keys both the marker and its LandmarkRef under the confirmed id. The LandmarkRef's own id field has
+        /// to move with the key: Localizer.Observe stamps every Observation.id from that field, and Localizer.Solve
+        /// looks the observation back up in this same map by id -- leaving the struct's old id behind after a
+        /// re-key would make every future sighting of this landmark fail that lookup and get silently dropped.
+        public void Confirm(string json) { var c = MapJson.Parse<ConfirmMsg>(json); if (_markers.TryGetValue(c.tempId, out var m)) { _markers.Remove(c.tempId); m.id = c.id; m.name = c.id; _markers[c.id] = m; if (MapRefs.TryGetValue(c.tempId, out var r)) { r.id = c.id; MapRefs[c.id] = r; MapRefs.Remove(c.tempId); } if (_selected == c.tempId) _selected = c.id; } }
         /// Ship Frame is the Map root's local space; pose rotates this root (M5a) and drops it by the aft draft (M5b).
         /// Children keep their local coordinates either way.
         public void SetPose(string json) { _pose = MapJson.Parse<SetPoseMsg>(json); ApplyPose(); }

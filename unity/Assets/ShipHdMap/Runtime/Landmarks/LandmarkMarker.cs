@@ -10,6 +10,8 @@ namespace ShipHdMap
         public Vector3 NormalUnity => -transform.forward;
 
         Transform _halo;
+        static Material _haloMat, _seenMat;   // one Material each for every marker (MapOverlay.LineMats does the same for line/fill colours);
+                                               // a per-marker Material here leaked on every Load -- 272 markers on Deck 3 alone
 
         /// Yellow frame behind the tag (4 mm toward the surface, 1.6x) so the selection reads at any camera distance.
         public void SetHighlighted(bool on)
@@ -22,7 +24,7 @@ namespace ShipHdMap
                 h.transform.SetParent(transform, false);
                 h.transform.localPosition = new Vector3(0, 0, 0.004f); // marker forward is -normal, so +z is toward the surface
                 h.transform.localScale = new Vector3(1.6f, 1.6f, 1f);
-                h.GetComponent<Renderer>().sharedMaterial = new Material(Shader.Find("Unlit/Color")) { color = new Color(1f, 0.85f, 0.1f) };
+                h.GetComponent<Renderer>().sharedMaterial = _haloMat ??= new Material(Shader.Find("Unlit/Color")) { color = new Color(1f, 0.85f, 0.1f) };
                 _halo = h.transform;
             }
             _halo.gameObject.SetActive(on);
@@ -30,8 +32,14 @@ namespace ShipHdMap
 
         Transform _seenRing;
 
-        /// Green frame behind the tag, smaller than the selection halo so both can show at once:
-        /// the halo answers "which one am I editing", this answers "does the sensor have it right now".
+        /// Green ring for "the sensor has this marker right now", shown alongside the yellow selection halo above
+        /// so an operator can tell "which one am I editing" from "which ones is it seeing" at the same time.
+        /// Local +z points away from the viewer (into the mounting surface, same fact SetHighlighted relies on),
+        /// so whichever quad sits at the SMALLER local z wins the depth test wherever the two overlap. This ring
+        /// is placed closer to the tag than the halo (0.002 against the halo's 0.004) and scaled smaller (1.3x
+        /// against 1.6x), so it wins its own footprint and shows as an inner ring with the halo's yellow showing
+        /// as an outer frame beyond it. Putting it behind the halo instead (a larger z) would bury it completely:
+        /// a smaller quad at a larger z always loses the depth test to the larger quad already in front of it.
         public void SetSeen(bool on)
         {
             if (_seenRing == null)
@@ -40,9 +48,9 @@ namespace ShipHdMap
                 var h = GameObject.CreatePrimitive(PrimitiveType.Quad); h.name = "Seen"; h.layer = gameObject.layer;
                 Object.DestroyImmediate(h.GetComponent<Collider>());
                 h.transform.SetParent(transform, false);
-                h.transform.localPosition = new Vector3(0, 0, 0.006f);
+                h.transform.localPosition = new Vector3(0, 0, 0.002f);
                 h.transform.localScale = new Vector3(1.3f, 1.3f, 1f);
-                h.GetComponent<Renderer>().sharedMaterial = new Material(Shader.Find("Unlit/Color")) { color = new Color(0.2f, 1f, 0.35f) };
+                h.GetComponent<Renderer>().sharedMaterial = _seenMat ??= new Material(Shader.Find("Unlit/Color")) { color = new Color(0.2f, 1f, 0.35f) };
                 _seenRing = h.transform;
             }
             _seenRing.gameObject.SetActive(on);

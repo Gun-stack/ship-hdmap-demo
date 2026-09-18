@@ -14,7 +14,10 @@ namespace ShipHdMap.Tests
         static Dictionary<string, LandmarkRef> Map() => new()
         {
             ["near"] = new LandmarkRef { id = "near", mx = 10, my = 0, phiRad = Math.PI },       // faces the vehicle
-            ["far"] = new LandmarkRef { id = "far", mx = 30, my = 0, phiRad = Math.PI },
+            // id deliberately differs from the dictionary key: MapRuntime.Confirm re-keys a saved draft without
+            // rewriting the struct's own id, and why["far"] below would throw KeyNotFoundException instead of
+            // reading Miss.Range if VisibleFrom ever went back to keying its results by lm.id.
+            ["far"] = new LandmarkRef { id = "far-old", mx = 30, my = 0, phiRad = Math.PI },
             ["side"] = new LandmarkRef { id = "side", mx = 0.1, my = 10, phiRad = -Math.PI / 2 },// bearing ~89deg, outside the 45deg half-angle
             ["back"] = new LandmarkRef { id = "back", mx = 10, my = 0, phiRad = 0 },             // normal points away
         };
@@ -75,7 +78,9 @@ namespace ShipHdMap.Tests
             foreach (var (id, miss) in sensor.VisibleFrom(new Pose2D { x = 0, y = 0, psiRad = 0 }, Vector3.up * 1.2f, map, posOf)) why[id] = miss;
 
             Assert.That(why["near"], Is.EqualTo(Miss.Occluded));
-            Assert.That(why["far"], Is.EqualTo(Miss.Range));
+            Assert.That(why["far"], Is.EqualTo(Miss.Range));         // "far"'s own LandmarkRef.id is "far-old" -- this line only
+                                                                      // reads by the dictionary key if VisibleFrom does too
+            Assert.That(why.ContainsKey("far-old"), Is.False);       // and never under the struct's stale id
             Assert.That(why.Count, Is.EqualTo(4));   // every mapped marker gets an answer, not just the visible ones
         }
 
