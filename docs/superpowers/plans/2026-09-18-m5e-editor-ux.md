@@ -70,7 +70,7 @@
 | `unity/…/Vehicle/SensorView.cs` | **신규.** 시야 콘·사거리 호 + 감지 표시 (차량 시선·관측점 공용) | Unity T8 |
 | `unity/…/Vehicle/OrbitCamera.cs` | 모드 셋 (궤도·자유 비행·차량 시선) | Unity T9 |
 | `unity/…/Landmarks/NormalGizmo.cs` | **신규.** 법선 원형 핸들 | Unity T10 |
-| `unity/…/Vehicle/ProbeView.cs` | **신규.** 가상 관측점 | Unity T10 |
+| `unity/…/Vehicle/ProbeView.cs` | **신규.** 가상 관측점 | 통합 T11 |
 | `unity/…/Bridge/BridgeMessages.cs` | `SetTool`·`SetCamMode`·`SetNormal` | 통합 T11 |
 | `unity/…/Bridge/MapRuntime.cs` | 새 메시지 배선, 새 컴포넌트 생성, 빈 선택 emit | 통합 T11 |
 | `web/src/bridge/useShipUnity.ts` | 새 메시지 이름, 재로드 후 상태 재전송, 법선 변경 시 커버리지 재계산 | 통합 T11 |
@@ -1871,21 +1871,22 @@ git commit   # feat: three cameras -- orbit to edit, fly to walk the deck, drive
 
 ---
 
-### Task 10: 법선 기즈모와 가상 관측점
+### Task 10: 법선 기즈모
 
 M5c·M5d 가 **법선이 위치보다 결정적**이라고 반복해 밝혔는데 지금 법선을 바꾸려면 `props` JSON 을 손으로 고쳐야 한다. 기즈모를 넣어 그 고리를 닫는다.
 
 **핵심 절약:** 기즈모는 **새 이벤트를 만들지 않는다.** 놓는 순간 `Placer.Moved` 를 그대로 발화시키면 `MapRuntime.OnMarkerMoved` → `onFeatureMoved` → `store.moveFeature` 가 이미 `normal` 을 실어 나른다 (`BridgeMessages.cs:13`, `editor.ts:109-114`). 마커 드래그 이동이 이미 쓰는 길이다.
 
 **Files:**
-- Create: `unity/Assets/ShipHdMap/Runtime/Landmarks/NormalGizmo.cs`, `unity/Assets/ShipHdMap/Runtime/Vehicle/ProbeView.cs`
+- Create: `unity/Assets/ShipHdMap/Runtime/Landmarks/NormalGizmo.cs`
 - Test: `unity/Assets/ShipHdMap/Tests/EditMode/NormalGizmoTests.cs` (신규)
 
 **Interfaces:**
-- Consumes: Task 8 의 `LandmarkSensor.VisibleFrom`·`SensorView`, Task 7 의 `LandmarkPlacer.ProbeAt`
+- Consumes: Task 9 의 `OrbitCamera`
 - Produces: `static double NormalGizmo.PhiAt(Vector3 centerUnity, Vector3 pointUnity)` — Ship Frame 각, `(-π, π]`
-- Produces: `NormalGizmo.Attach(LandmarkMarker)`, `NormalGizmo.Detach()`, `event Action<LandmarkMarker> Rotated`
-- Produces: `ProbeView.PlaceAt(Vector3 worldPoint, double zSurface)`, `ProbeView.Clear()`, `ProbeView.Active`
+- Produces: `NormalGizmo.Attach(LandmarkMarker)`, `NormalGizmo.Detach()`, `event Action<LandmarkMarker> Rotated`, 필드 `cam`·`root`·`orbit`·`radiusM`
+
+**가상 관측점(`ProbeView`)은 Task 11 에 있다** — `MapRuntime.MarkerOf`/`MarkerPos` 없이는 컴파일되지 않아서, 여기 두면 이 Task 의 커밋이 빌드되지 않는다.
 
 - [ ] **Step 1: 실패하는 테스트를 쓴다**
 
@@ -2034,7 +2035,86 @@ namespace ShipHdMap
 }
 ```
 
-- [ ] **Step 4: `ProbeView` 를 만든다**
+- [ ] **Step 4: 테스트 통과 확인**
+
+Unity EditMode 전체.
+Expected: PASS. 146 + 3 = **149**
+
+- [ ] **Step 5: 커밋**
+
+```bash
+git add unity/Assets/ShipHdMap/Runtime/Landmarks/NormalGizmo.cs unity/Assets/ShipHdMap/Tests/EditMode/NormalGizmoTests.cs
+git commit   # feat: turn a marker's normal by hand -- the loop M5c and M5d left open
+```
+
+---
+
+### Task 11: 브리지 배선
+
+웹의 도구·카메라·법선을 Unity 에 잇고, 새 컴포넌트를 `InitForTest` 에서 만들고, 법선이 바뀌면 커버리지를 다시 돌린다.
+
+**Files:**
+- Modify: `unity/Assets/ShipHdMap/Runtime/Bridge/BridgeMessages.cs`, `unity/Assets/ShipHdMap/Runtime/Bridge/MapRuntime.cs`
+- Create: `unity/Assets/ShipHdMap/Runtime/Vehicle/ProbeView.cs`
+- Modify: `web/src/bridge/useShipUnity.ts`, `web/src/components/PropertyForm.tsx`
+- Test: `unity/Assets/ShipHdMap/Tests/EditMode/MapRuntimeTests.cs` (추가)
+
+**Interfaces:**
+- Consumes: Task 7~10 전부, Task 5 의 `BridgeName`
+- Produces: `BridgeMessages.SetTool`·`SetCamMode`·`SetNormal`
+- Produces: `class SetToolMsg { public string tool; }`, `class SetCamModeMsg { public string mode; }`, `class SetNormalMsg { public string id; public double[] normal; }`
+- Produces: `ProbeView.PlaceAt(Vector3 worldPoint, double zSurface)`, `ProbeView.Clear()`, `ProbeView.Active`, `ProbeView.Aim()`
+- Produces: `MapRuntime.MarkerOf(string): LandmarkMarker`, `MapRuntime.MarkerPos(string): Vector3`, `MapRuntime.SetTool(string)`, `MapRuntime.SetCamMode(string)`, `MapRuntime.SetNormal(string)`
+- Produces: `BridgeName` 에 `"SetNormal"` 추가
+
+- [ ] **Step 1: 실패하는 테스트를 쓴다**
+
+`MapRuntimeTests.cs` 에 더한다:
+
+```csharp
+        /// 완료 기준 5: 편집 모드에서 3D 를 마음대로 클릭해도 마커가 생기지 않는다.
+        /// 도구는 웹이 정하고, Load 가 그것을 지워서는 안 된다 — 지도를 다시 받았다고 배치 모드가 풀리면
+        /// 마커를 줄지어 놓던 사람이 매번 다시 켜야 한다.
+        [Test]
+        public void SetToolReachesThePlacerAndSurvivesAReload()
+        {
+            go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>();
+            rt.InitForTest();
+            Assert.That(rt.Placer.tool, Is.EqualTo(PlacerTool.Select));      // default: clicking must be safe
+            rt.SetTool("{\"tool\":\"place\"}");
+            Assert.That(rt.Placer.tool, Is.EqualTo(PlacerTool.Place));
+            rt.Load(Fixture());
+            Assert.That(rt.Placer.tool, Is.EqualTo(PlacerTool.Place));
+        }
+
+        /// The web saved the normal already; Unity just has to turn the quad and update the map reference,
+        /// or the coverage the web is about to recompute will disagree with what the drive senses.
+        [Test]
+        public void SetNormalTurnsTheMarkerAndTheMapReference()
+        {
+            go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>();
+            rt.InitForTest(); rt.Load(Fixture());
+            var before = rt.MapRefs["LM-0001"].phiRad;
+            Assert.That(before, Is.EqualTo(System.Math.PI / 2).Within(1e-6));
+            rt.SetNormal("{\"id\":\"LM-0001\",\"normal\":[1,0,0]}");
+            Assert.That(rt.MapRefs["LM-0001"].phiRad, Is.EqualTo(0).Within(1e-6));
+            Assert.That(rt.MarkerOf("LM-0001").ToModel().normal[0], Is.EqualTo(1).Within(1e-3));
+        }
+
+        [Test]
+        public void SetCamModeIsIgnoredWithoutACamera()
+        {
+            go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>();
+            rt.InitForTest();
+            Assert.DoesNotThrow(() => rt.SetCamMode("{\"mode\":\"fly\"}"));   // EditMode has no Orbit; must not NRE
+        }
+```
+
+- [ ] **Step 2: 실패를 확인한다**
+
+Expected: 컴파일 실패 — `SetTool`·`SetNormal`·`MarkerOf` 가 없다
+
+- [ ] **Step 3: `ProbeView` 를 만든다**
 
 ```csharp
 using System;
@@ -2094,87 +2174,9 @@ namespace ShipHdMap
 
 `orbit.driverTarget` 이 `null` 이면 `ApplyDriver` 가 곧장 돌아오므로(위 Task 9) 관측점이 직접 놓은 자세가 유지된다.
 
-`MapRuntime.MarkerPos(id)`·`MarkerOf(id)` 는 Task 11 에서 더한다 — 지금은 컴파일이 깨지므로 **Task 11 과 한 커밋으로 묶는다**. 이 Task 의 커밋은 `NormalGizmo` 와 그 테스트만 담고, `ProbeView.cs` 는 Task 11 커밋에 들어간다.
+`MarkerOf`·`MarkerPos` 는 이 Task 의 Step 5 가 `MapRuntime` 에 더한다. 그래서 `ProbeView` 가 Task 10 이 아니라 여기 있다 — 두 파일이 한 커밋에서 같이 컴파일된다.
 
-- [ ] **Step 5: 테스트 통과 확인**
-
-`ProbeView.cs` 를 잠시 빼 두고(또는 Task 11 을 이어서 한 뒤) EditMode 를 돌린다.
-Expected: PASS. 146 + 3 = **149**
-
-- [ ] **Step 6: 커밋**
-
-```bash
-git add unity/Assets/ShipHdMap/Runtime/Landmarks/NormalGizmo.cs unity/Assets/ShipHdMap/Tests/EditMode/NormalGizmoTests.cs
-git commit   # feat: turn a marker's normal by hand -- the loop M5c and M5d left open
-```
-
----
-
-### Task 11: 브리지 배선
-
-웹의 도구·카메라·법선을 Unity 에 잇고, 새 컴포넌트를 `InitForTest` 에서 만들고, 법선이 바뀌면 커버리지를 다시 돌린다.
-
-**Files:**
-- Modify: `unity/Assets/ShipHdMap/Runtime/Bridge/BridgeMessages.cs`, `unity/Assets/ShipHdMap/Runtime/Bridge/MapRuntime.cs`
-- Create (Task 10 에서 옮겨 옴): `unity/Assets/ShipHdMap/Runtime/Vehicle/ProbeView.cs`
-- Modify: `web/src/bridge/useShipUnity.ts`, `web/src/components/PropertyForm.tsx`
-- Test: `unity/Assets/ShipHdMap/Tests/EditMode/MapRuntimeTests.cs` (추가)
-
-**Interfaces:**
-- Consumes: Task 7~10 전부, Task 5 의 `BridgeName`
-- Produces: `BridgeMessages.SetTool`·`SetCamMode`·`SetNormal`
-- Produces: `class SetToolMsg { public string tool; }`, `class SetCamModeMsg { public string mode; }`, `class SetNormalMsg { public string id; public double[] normal; }`
-- Produces: `MapRuntime.MarkerOf(string): LandmarkMarker`, `MapRuntime.MarkerPos(string): Vector3`, `MapRuntime.SetTool(string)`, `MapRuntime.SetCamMode(string)`, `MapRuntime.SetNormal(string)`
-- Produces: `BridgeName` 에 `"SetNormal"` 추가
-
-- [ ] **Step 1: 실패하는 테스트를 쓴다**
-
-`MapRuntimeTests.cs` 에 더한다:
-
-```csharp
-        /// 완료 기준 5: 편집 모드에서 3D 를 마음대로 클릭해도 마커가 생기지 않는다.
-        /// 도구는 웹이 정하고, Load 가 그것을 지워서는 안 된다 — 지도를 다시 받았다고 배치 모드가 풀리면
-        /// 마커를 줄지어 놓던 사람이 매번 다시 켜야 한다.
-        [Test]
-        public void SetToolReachesThePlacerAndSurvivesAReload()
-        {
-            go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>();
-            rt.InitForTest();
-            Assert.That(rt.Placer.tool, Is.EqualTo(PlacerTool.Select));      // default: clicking must be safe
-            rt.SetTool("{\"tool\":\"place\"}");
-            Assert.That(rt.Placer.tool, Is.EqualTo(PlacerTool.Place));
-            rt.Load(Fixture());
-            Assert.That(rt.Placer.tool, Is.EqualTo(PlacerTool.Place));
-        }
-
-        /// The web saved the normal already; Unity just has to turn the quad and update the map reference,
-        /// or the coverage the web is about to recompute will disagree with what the drive senses.
-        [Test]
-        public void SetNormalTurnsTheMarkerAndTheMapReference()
-        {
-            go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>();
-            rt.InitForTest(); rt.Load(Fixture());
-            var before = rt.MapRefs["LM-0001"].phiRad;
-            Assert.That(before, Is.EqualTo(System.Math.PI / 2).Within(1e-6));
-            rt.SetNormal("{\"id\":\"LM-0001\",\"normal\":[1,0,0]}");
-            Assert.That(rt.MapRefs["LM-0001"].phiRad, Is.EqualTo(0).Within(1e-6));
-            Assert.That(rt.MarkerOf("LM-0001").ToModel().normal[0], Is.EqualTo(1).Within(1e-3));
-        }
-
-        [Test]
-        public void SetCamModeIsIgnoredWithoutACamera()
-        {
-            go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>();
-            rt.InitForTest();
-            Assert.DoesNotThrow(() => rt.SetCamMode("{\"mode\":\"fly\"}"));   // EditMode has no Orbit; must not NRE
-        }
-```
-
-- [ ] **Step 2: 실패를 확인한다**
-
-Expected: 컴파일 실패 — `SetTool`·`SetNormal`·`MarkerOf` 가 없다
-
-- [ ] **Step 3: 메시지를 더한다**
+- [ ] **Step 4: 메시지를 더한다**
 
 `BridgeMessages.cs`:
 
@@ -2191,7 +2193,7 @@ Expected: 컴파일 실패 — `SetTool`·`SetNormal`·`MarkerOf` 가 없다
     public class SetNormalMsg { public string id; public double[] normal; }
 ```
 
-- [ ] **Step 4: `MapRuntime` 을 배선한다**
+- [ ] **Step 5: `MapRuntime` 을 배선한다**
 
 `InitForTest` 끝에 새 컴포넌트를 만든다. **씬에 두지 않는 이유는 Global Constraints 참조** — 씬에는 `Map` 과 카메라뿐이다.
 
@@ -2285,7 +2287,7 @@ Expected: 컴파일 실패 — `SetTool`·`SetNormal`·`MarkerOf` 가 없다
             }
 ```
 
-- [ ] **Step 5: 웹 쪽을 잇는다**
+- [ ] **Step 6: 웹 쪽을 잇는다**
 
 `useShipUnity.ts:6` 의 `BridgeName` 에 `| "SetNormal"` 을 더한다 (`SetTool`·`SetCamMode` 는 Task 5 에서 더했다).
 
@@ -2336,7 +2338,7 @@ Expected: 컴파일 실패 — `SetTool`·`SetNormal`·`MarkerOf` 가 없다
 
 `import { pickDeck } from "../geo/deck";` 를 더한다.
 
-- [ ] **Step 6: 테스트·빌드 확인**
+- [ ] **Step 7: 테스트·빌드 확인**
 
 Run (웹): `cd web && pnpm vitest run && pnpm tsc --noEmit && pnpm build`
 Expected: PASS 69, 빌드 성공
@@ -2344,7 +2346,7 @@ Expected: PASS 69, 빌드 성공
 Unity EditMode 전체.
 Expected: PASS. 149 + 3 = **152**
 
-- [ ] **Step 7: 커밋**
+- [ ] **Step 8: 커밋**
 
 ```bash
 git add unity/Assets/ShipHdMap/Runtime web/src/bridge/useShipUnity.ts web/src/components/PropertyForm.tsx unity/Assets/ShipHdMap/Tests/EditMode/MapRuntimeTests.cs
@@ -2416,7 +2418,7 @@ git commit   # docs: what the browser said about M5e
 | 4 | 3D 에서 법선을 돌려 저장하면 커버리지 숫자가 바뀐다 | T10(기즈모) + T11(`onFeatureMoved` 재사용 + `runCoverage`) / 검증 T12-2.3 |
 | 5 | 편집 모드에서 클릭·회전해도 마커가 안 생긴다 | T7(`Decide`) + T11(`SetTool`) / 검증 T12-2.1 |
 | 6 | 차량 시선에서 마커가 하나씩 꺼지고 마지막이 `상실` 과 같은 시점 | T8(`VisibleFrom`·`SensorView`) + T9(Driver) + T11(`Localize` 배선) / 검증 T12-2.6 |
-| 7 | 관측점에서 세 조건이 각각 다른 이유로 읽힌다 | T8(`Miss`) + T10(`ProbeView`) / 검증 T12-2.7 |
+| 7 | 관측점에서 세 조건이 각각 다른 이유로 읽힌다 | T8(`Miss`) + T11(`ProbeView`) / 검증 T12-2.7 |
 
 ## 테스트 총계
 
