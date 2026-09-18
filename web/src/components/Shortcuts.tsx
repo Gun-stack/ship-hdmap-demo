@@ -1,4 +1,4 @@
-import { useEffect, type RefObject } from "react";
+import { useEffect } from "react";
 import { useEditorStore } from "../store/editor";
 import { useUiStore, type CamMode } from "../store/ui";
 import { commandFor, isInField, HELP_ROWS } from "../ui/keys";
@@ -10,16 +10,19 @@ import type { BridgeName } from "../bridge/useShipUnity";
 type Send = (name: BridgeName, payload?: string | object) => void;
 const CAM_CYCLE: CamMode[] = ["orbit", "fly", "driver"];
 
-export function Shortcuts({ send, canvasRef }: { send: Send; canvasRef: RefObject<HTMLCanvasElement | null> }) {
+export function Shortcuts({ send, canvas }: { send: Send; canvas: HTMLCanvasElement | null }) {
   const helpOpen = useUiStore((s) => s.helpOpen);
   const cam = useUiStore((s) => s.cam);
 
   // Reacts to the state, not the keystroke -- so it covers every way "fly" gets set: the C key,
   // the toolbar button (which never touches focus itself), and a reload that restores
-  // cam === "fly" from persisted state. One rule instead of one per entry point.
+  // cam === "fly" from persisted state before Unity has even mounted its canvas. That last one
+  // needs `canvas` to be React state (App.tsx holds it via a callback ref), not a plain ref object
+  // -- a ref's mutation is invisible to React, so an effect keyed on it would never re-run once
+  // the canvas actually arrives, and mounting already in fly mode would silently focus nothing.
   useEffect(() => {
-    if (cam === "fly") canvasRef.current?.focus();
-  }, [cam, canvasRef]);
+    if (cam === "fly") canvas?.focus();
+  }, [cam, canvas]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -67,14 +70,18 @@ export function Shortcuts({ send, canvasRef }: { send: Send; canvasRef: RefObjec
           // 캔버스는 일부러 포커스는 되지만 탭으로는 못 간다(tabIndex=-1) -- Unity 가 Tab 을 삼키는지는
           // wasm 안이라 알 수 없으므로, 마우스 없이도 빠져나갈 길을 여기서 보장한다. blur() 는 캔버스가
           // 포커스 상태가 아니면 그냥 아무 일도 안 한다.
-          canvasRef.current?.blur();
+          // 대가: 비행 중에 Escape 를 누르면(선택 해제가 목적이었더라도) flyingFocused 가 꺼져서
+          // WASD 가 도구 단축키로 되돌아간다 -- 다시 3D 뷰를 클릭할 때까지. 일부러 그렇게 뒀다: Escape
+          // 가 가장 필요한 사람은 바로 지금 비행 중인, 키보드만 쓰는 사용자다. 여기서 blur 를 건너뛰면
+          // 그 사람에게 탈출구가 없어지므로 이 함정을 막으려던 목적 자체가 무너진다.
+          canvas?.blur();
           break;
         case "help": ui.toggleHelp(); break;
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [send, canvasRef]);
+  }, [send, canvas]);
 
   if (!helpOpen) return null;
   return (
