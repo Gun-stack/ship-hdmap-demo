@@ -21,12 +21,14 @@ export function boxOfPoint(x: number, y: number, r = 1.5): Box { return { x: x -
  * Centre on a target box and zoom until it fills the view, never below the whole deck or above MAX_SCALE.
  * Padding is half the target's own larger side, not a flat distance: a small marker still gets zoomed in
  * tight instead of swimming in a fixed six metres of empty deck, and a big selection still gets margin
- * proportional to its own size.
+ * proportional to its own size. The result is run through clampView so every caller -- today's "전체"
+ * button, tomorrow's "fit to selection" shortcut -- gets a view that's on the deck for free, with nothing
+ * left for a caller to remember.
  */
 export function fitTo(deck: Box, target: Box): PlanView {
   const pad = Math.max(target.w, target.h) * 0.5;
   const s = Math.min(deck.w / Math.max(target.w + pad, 1e-6), deck.h / Math.max(target.h + pad, 1e-6));
-  return { cx: target.x + target.w / 2, cy: target.y + target.h / 2, scale: clamp(s, MIN_SCALE, MAX_SCALE) };
+  return clampView(deck, { cx: target.x + target.w / 2, cy: target.y + target.h / 2, scale: clamp(s, MIN_SCALE, MAX_SCALE) });
 }
 
 /**

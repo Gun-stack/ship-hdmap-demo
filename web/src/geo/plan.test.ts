@@ -38,6 +38,14 @@ describe("fitTo", () => {
     expect(v.cy).toBeCloseTo(0);
     expect(v.scale).toBe(1);
   });
+  /// fitTo 는 스스로 clampView 를 거친다: 호출자가 매번 감싸는 규칙이면 언젠가 한 번은 잊혀지고,
+  /// 그때 배가 화면 밖으로 나가 영구 저장된다 (Task 6 의 "선택에 맞추기" 가 다음 호출자다).
+  /// 이물 훨씬 밖(x=200)을 목표로 잡아, 클램프가 없으면 중심이 갑판 밖(120 초과)으로 나가는 경우로 검증한다.
+  it("목표 중심이 갑판 밖이면 갑판 가장자리로 클램프된다", () => {
+    const v = fitTo(DECK, boxOfPoint(200, 0));   // 갑판은 x 0..120, 200 은 한참 밖
+    expect(v.cx).toBe(120);
+    expect(v.cy).toBe(0);
+  });
 });
 
 describe("zoomAt", () => {
