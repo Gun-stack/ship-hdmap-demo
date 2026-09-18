@@ -10,13 +10,16 @@ export type KeyCmd =
   | { kind: "escape" }
   | { kind: "help" };
 
-type KeyLike = { key: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean; isComposing: boolean };
+type KeyLike = { key: string; code: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean; isComposing: boolean };
 type Ctx = { inField: boolean; flyingFocused: boolean };
 
-/** Keys free flight owns. Unity reads them straight off the focused canvas; the web must not also act on them. */
-export const FLY_KEYS = new Set(["w", "a", "s", "d", "q", "e", "shift", "arrowleft", "arrowright", "arrowup", "arrowdown"]);
+/**
+ * Keys free flight owns, named by PHYSICAL key. Unity reads them straight off the focused canvas;
+ * the web must not also act on them. See the `e.code` note on commandFor for why not `e.key`.
+ */
+export const FLY_KEYS = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "KeyQ", "KeyE", "ShiftLeft", "ShiftRight", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"]);
 
-const TOOL_KEYS: Record<string, Tool> = { v: "select", a: "place", p: "probe" };
+const TOOL_KEYS: Record<string, Tool> = { KeyV: "select", KeyA: "place", KeyP: "probe" };
 
 export function isInField(el: Element | null): boolean {
   if (!el) return false;
@@ -38,15 +41,20 @@ export function commandFor(e: KeyLike, ctx: Ctx): KeyCmd | null {
   if (e.key === "Escape") return { kind: "escape" };      // always a way out, even mid-typing
   if (e.ctrlKey || e.metaKey || e.altKey) return null;    // browser shortcuts stay the browser's
   if (ctx.inField) return null;
+  // LETTERS GO BY e.code, NOT e.key. Measured in Chrome/macOS with the 2-Set Korean IME on and focus
+  // on <body>: KeyV arrives as key "ㅍ" (and W/A/S/D/Q/E/C/F/P likewise), keyCode still 86, code still
+  // "KeyV", isComposing false. Reading e.key would kill every letter shortcut for a user typing Korean --
+  // which is every user of this UI. Digits, brackets, arrows and Escape were measured UNCHANGED by the
+  // IME, so they stay on e.key: that keeps the numpad and non-QWERTY digit rows working.
+  if (ctx.flyingFocused && FLY_KEYS.has(e.code)) return null;
+  if (e.code in TOOL_KEYS) return { kind: "tool", tool: TOOL_KEYS[e.code] };
+  if (e.code === "KeyC") return { kind: "cam" };
   const k = e.key.toLowerCase();
-  if (ctx.flyingFocused && FLY_KEYS.has(k)) return null;
-  if (k in TOOL_KEYS) return { kind: "tool", tool: TOOL_KEYS[k] };
-  if (k === "c") return { kind: "cam" };
   if (k === "1" || k === "2" || k === "3") return { kind: "deck", index: Number(k) - 1 };
   // Not Tab: swallowing it on a focused button strands keyboard users in the toolbar. Brackets are free.
   if (k === "]") return { kind: "tab", dir: 1 };
   if (k === "[") return { kind: "tab", dir: -1 };
-  if (k === "f") return { kind: "fit" };
+  if (e.code === "KeyF") return { kind: "fit" };
   if (k === "0") return { kind: "all" };
   if (e.key === "?") return { kind: "help" };
   return null;

@@ -4,8 +4,16 @@
 import { describe, expect, it } from "vitest";
 import { commandFor, isInField, HELP_ROWS } from "./keys";
 
+/// `code` is derived the way a US-layout QWERTY board would report it, so every case below reads as one
+/// keystroke. A Korean-mode keystroke is the one place key and code DISAGREE -- see `ko()` further down.
+const codeOf = (k: string) =>
+  /^[a-z]$/i.test(k) ? "Key" + k.toUpperCase()
+  : /^[0-9]$/.test(k) ? "Digit" + k
+  : k === "[" ? "BracketLeft" : k === "]" ? "BracketRight" : k === "?" ? "Slash"
+  : k === "Shift" ? "ShiftLeft" : k;
+
 const key = (k: string, mod: Partial<{ ctrlKey: boolean; metaKey: boolean; altKey: boolean; isComposing: boolean }> = {}) =>
-  ({ key: k, ctrlKey: false, metaKey: false, altKey: false, isComposing: false, ...mod });
+  ({ key: k, code: codeOf(k), ctrlKey: false, metaKey: false, altKey: false, isComposing: false, ...mod });
 const FREE = { inField: false, flyingFocused: false };
 
 describe("commandFor", () => {
@@ -48,6 +56,24 @@ describe("commandFor", () => {
     }
     expect(commandFor(key("v"), fly)).toEqual({ kind: "tool", tool: "select" });   // 비행 키가 아닌 것은 그대로
     expect(commandFor(key("Escape"), fly)).toEqual({ kind: "escape" });
+  });
+
+  /// 한글 입력 모드에서 글자 키는 `e.key` 가 자모로 온다. Chrome/macOS 2-벌식, 포커스가 <body> 일 때 실측:
+  /// KeyV → key "ㅍ", keyCode 86, code "KeyV", isComposing false (조합이 아니므로 isComposing 게이트도 못 막는다).
+  /// `e.key` 를 읽으면 한국어 UI 에서 글자 단축키 **전체**가 죽는다. 숫자·괄호·화살표·Escape 는 실측상 그대로다.
+  it("한글 입력 모드에서도 글자 단축키가 먹는다", () => {
+    const ko = (code: string, jamo: string) =>
+      ({ key: jamo, code, ctrlKey: false, metaKey: false, altKey: false, isComposing: false });
+    expect(commandFor(ko("KeyV", "ㅍ"), FREE)).toEqual({ kind: "tool", tool: "select" });
+    expect(commandFor(ko("KeyA", "ㅁ"), FREE)).toEqual({ kind: "tool", tool: "place" });
+    expect(commandFor(ko("KeyP", "ㅔ"), FREE)).toEqual({ kind: "tool", tool: "probe" });
+    expect(commandFor(ko("KeyC", "ㅊ"), FREE)).toEqual({ kind: "cam" });
+    expect(commandFor(ko("KeyF", "ㄹ"), FREE)).toEqual({ kind: "fit" });
+    // 비행 게이트도 자모로 와야 막힌다 -- 안 막으면 한글 모드로 좌로 날다가 ㅁ(KeyA) 이 배치 모드로 튄다.
+    const fly = { inField: false, flyingFocused: true };
+    for (const [c, j] of [["KeyW", "ㅈ"], ["KeyA", "ㅁ"], ["KeyS", "ㄴ"], ["KeyD", "ㅇ"], ["KeyQ", "ㅂ"], ["KeyE", "ㄷ"]]) {
+      expect(commandFor(ko(c, j), fly), `${c} 가 비행 중에 새 나간다`).toBeNull();
+    }
   });
 
   it("수식 키가 눌리면 브라우저에 넘긴다", () => {
