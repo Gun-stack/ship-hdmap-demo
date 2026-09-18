@@ -9,6 +9,7 @@ import { DeckTabs } from "./components/DeckTabs";
 import { LayerTree } from "./components/LayerTree";
 import { PlanDock } from "./components/PlanDock";
 import { RightTabs } from "./components/RightTabs";
+import { Shortcuts } from "./components/Shortcuts";
 import "./App.css";
 
 export default function App() {
@@ -30,6 +31,7 @@ export default function App() {
       </main>
       <aside className="right"><RightTabs send={send} reloadScene={reloadScene} /></aside>
       <PlanDock />
+      <Shortcuts send={send} />
       <StatusBar unityLoaded={isLoaded} />
     </div>
   );

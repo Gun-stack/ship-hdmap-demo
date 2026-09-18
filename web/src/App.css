@@ -46,3 +46,7 @@ html, body, #root { height: 100%; margin: 0; font: 13px/1.4 system-ui, sans-seri
 .decktabs button { display: inline-block; border: 1px solid #999; border-radius: 3px; padding: 1px 8px; margin: 2px; cursor: pointer; font: inherit; background: #fff; color: inherit; }
 .decktabs button.on { background: #1e88e5; color: #fff; border-color: #1e88e5; }
 .err { color: #c62828; }
+.helpcard { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(0,0,0,.45); z-index: 10; color: #eee; }
+.helpcard table { background: #23262b; border-radius: 6px; padding: 14px 18px; border-collapse: collapse; }
+.helpcard th { text-align: right; padding: 3px 14px 3px 0; font-family: monospace; font-weight: 600; white-space: nowrap; }
+.helpcard td { padding: 3px 0; }
