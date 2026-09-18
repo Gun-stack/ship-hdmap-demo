@@ -4,8 +4,15 @@ using UnityEngine;
 
 namespace ShipHdMap
 {
-    /// Play-mode mouse: left click on a marker selects it, left click on ship structure spawns a marker facing the surface normal.
-    /// Deletion happens only from the web form (DB first, then Delete(id)), so there is no right-click delete.
+    /// What a left click does. Sticky: placing a row of markers (12 m apart, 18 of them) is the real job,
+    /// so the tool does not snap back to Select after one placement -- the toolbar says which mode is on instead.
+    public enum PlacerTool { Select, Place, Probe }
+
+    public enum ClickAct { None, SelectMarker, DragMarker, Place, Probe, Clear }
+
+    /// Play-mode mouse. What a left click does depends on `tool` (M5e): Select picks and drags, Place spawns
+    /// on ship structure facing the surface normal, Probe drops the virtual viewpoint. Deletion happens only
+    /// from the web form (DB first, then Delete(id)), so there is no right-click delete.
     public class LandmarkPlacer : MonoBehaviour
     {
         public Camera cam; public Transform landmarksRoot; public float sizeM = 0.3f;
@@ -14,7 +21,9 @@ namespace ShipHdMap
         public string NextId() => $"LM-{nextId++:0000}";
         public List<LandmarkMarker> All = new();
         public List<Deck> decks = new();   // for deckId lookup by height
+        public PlacerTool tool = PlacerTool.Select;
         public event Action<LandmarkMarker> Created; public event Action<LandmarkMarker> Selected; public event Action<LandmarkMarker> Moved;
+        public event Action<RaycastHit> ProbeAt; public event Action Cleared;
         LandmarkMarker _drag; Vector3 _dragStart; bool _moved;
 
         void Update()
@@ -37,12 +46,35 @@ namespace ShipHdMap
 
         public static int StructureMask() { int mask = LayerMask.GetMask("ShipStructure"); return mask == 0 ? ~LayerMask.GetMask("Landmark") : mask; }
 
+        /// The click rule, with no Input or Physics in it so an EditMode test can pin it down.
+        /// A marker under the cursor always wins -- it is the only handle on a marker in any tool.
+        public static ClickAct Decide(PlacerTool tool, bool hitMarker, bool hitStructure)
+        {
+            if (hitMarker) return tool == PlacerTool.Select ? ClickAct.DragMarker : ClickAct.SelectMarker;
+            if (!hitStructure) return tool == PlacerTool.Select ? ClickAct.Clear : ClickAct.None;
+            switch (tool)
+            {
+                case PlacerTool.Place: return ClickAct.Place;
+                case PlacerTool.Probe: return ClickAct.Probe;
+                default: return ClickAct.Clear;
+            }
+        }
+
         void OnLeftDown()
         {
             var ray = cam.ScreenPointToRay(Input.mousePosition);
             int lmMask = LayerMask.GetMask("Landmark");
-            if (lmMask != 0 && Physics.Raycast(ray, out var mh, 500f, lmMask) && mh.collider.TryGetComponent<LandmarkMarker>(out var lm)) { _drag = lm; _dragStart = lm.transform.position; _moved = false; Selected?.Invoke(lm); return; }
-            if (Physics.Raycast(ray, out var hit, 500f, StructureMask())) PlaceAt(hit);
+            LandmarkMarker lm = null;
+            if (lmMask != 0 && Physics.Raycast(ray, out var mh, 500f, lmMask)) mh.collider.TryGetComponent(out lm);
+            bool hitStructure = Physics.Raycast(ray, out var hit, 500f, StructureMask());
+            switch (Decide(tool, lm != null, hitStructure))
+            {
+                case ClickAct.DragMarker: _drag = lm; _dragStart = lm.transform.position; _moved = false; Selected?.Invoke(lm); break;
+                case ClickAct.SelectMarker: Selected?.Invoke(lm); break;
+                case ClickAct.Place: PlaceAt(hit); break;
+                case ClickAct.Probe: ProbeAt?.Invoke(hit); break;
+                case ClickAct.Clear: Cleared?.Invoke(); break;
+            }
         }
 
         void DragTo()
