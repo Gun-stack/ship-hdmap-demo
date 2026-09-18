@@ -36,7 +36,7 @@ namespace ShipHdMap
 
         Transform _seenRing;
 
-        /// Green ring for "the sensor has this marker right now", shown alongside the yellow selection halo above
+        /// Magenta ring for "the sensor has this marker right now", shown alongside the yellow selection halo above
         /// so an operator can tell "which one am I editing" from "which ones is it seeing" at the same time.
         /// Local +z points away from the viewer (into the mounting surface, same fact SetHighlighted relies on),
         /// so whichever quad sits at the SMALLER local z wins the depth test wherever the two overlap. This ring
@@ -44,6 +44,17 @@ namespace ShipHdMap
         /// against 1.6x), so it wins its own footprint and shows as an inner ring with the halo's yellow showing
         /// as an outer frame beyond it. Putting it behind the halo instead (a larger z) would bury it completely:
         /// a smaller quad at a larger z always loses the depth test to the larger quad already in front of it.
+        ///
+        /// The colour has to be unique in this scene, not merely pretty: this ring's entire job is to answer
+        /// "does the sensor have this marker RIGHT NOW", and it cannot answer it while it wears another layer's
+        /// colour. It was (0.2, 1, 0.35) green and therefore indistinguishable from MapOverlay's empty-slot fill
+        /// (0.2, 0.9, 0.4) -- a floor marker sitting on a slot could not be told lit from dark at all, and the
+        /// browser pass could not count what the probe could see. Everything else in the scene is spoken for:
+        /// yellow = selection halo (1, 0.85, 0.1) and lane lines (1, 0.85, 0.2); orange = normal gizmo
+        /// (1, 0.72, 0) and needs_adjust slots (1, 0.6, 0.1); blue = filled slots (0.2, 0.5, 1); cyan = the
+        /// sensor cone (0.3, 0.8, 1); red = lashing points (0.8, 0.2, 0.2); grey = hull, pillars, unreachable
+        /// slots. Magenta is the one hue nothing else uses. Deliberately NOT (1, 0, 1), which is Unity's
+        /// missing-shader colour and would read as a build failure rather than a reading.
         public void SetSeen(bool on)
         {
             if (_seenRing == null)
@@ -54,7 +65,7 @@ namespace ShipHdMap
                 h.transform.SetParent(transform, false);
                 h.transform.localPosition = new Vector3(0, 0, 0.002f);
                 h.transform.localScale = new Vector3(1.3f, 1.3f, 1f);
-                h.GetComponent<Renderer>().sharedMaterial = _seenMat ??= new Material(Shader.Find("Unlit/Color")) { color = new Color(0.2f, 1f, 0.35f) };
+                h.GetComponent<Renderer>().sharedMaterial = _seenMat ??= new Material(Shader.Find("Unlit/Color")) { color = new Color(1f, 0.15f, 0.75f) };
                 _seenRing = h.transform;
             }
             _seenRing.gameObject.SetActive(on);
