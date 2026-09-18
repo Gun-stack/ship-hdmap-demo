@@ -1,11 +1,30 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useUnityContext } from "react-unity-webgl";
 import { api } from "../api/client";
-import { scenarioLine, useEditorStore } from "../store/editor";
-import { useUiStore } from "../store/ui";
+import { scenarioLine, useEditorStore, type NoiseParams } from "../store/editor";
+import { useUiStore, type CamMode, type Tool } from "../store/ui";
 import { pickDeck } from "../geo/deck";
 
 export type BridgeName = "Load" | "SetMode" | "SetDeck" | "Select" | "Confirm" | "Delete" | "SetNoise" | "StartScenario" | "SetPose" | "SetTimeScale" | "SetPrediction" | "SetOccluded" | "SetBeliefParams" | "SetTool" | "SetCamMode" | "SetNormal";
+
+/**
+ * Everything Unity forgets on a fresh Load or a page reload, as the exact messages to replay.
+ * Pure and exported so a test can pin the names and the payload SHAPES without a DOM harness --
+ * `scale` and `ids` are wrapped in objects and `noise` is not, and getting one of those wrong
+ * is silent: sendMessage takes any JSON and Unity's parser leaves the field at its default.
+ */
+export function editorStateMessages(
+  ui: { tool: Tool; cam: CamMode },
+  ed: { noise: NoiseParams; timeScale: number; occluded: string[] },
+): [BridgeName, object][] {
+  return [
+    ["SetTool", { tool: ui.tool }],
+    ["SetCamMode", { mode: ui.cam }],
+    ["SetNoise", ed.noise],
+    ["SetTimeScale", { scale: ed.timeScale }],
+    ["SetOccluded", { ids: ed.occluded }],
+  ];
+}
 
 const URLS = { loaderUrl: "/unity/Build/unity.loader.js", dataUrl: "/unity/Build/unity.data", frameworkUrl: "/unity/Build/unity.framework.js", codeUrl: "/unity/Build/unity.wasm" };
 
@@ -32,13 +51,7 @@ export function useShipUnity() {
 
   /** Everything Unity forgets on a fresh Load or a page reload: the tool, the camera, the sensor and the occlusion set. */
   const sendEditorState = useCallback(() => {
-    const ed = useEditorStore.getState();
-    const ui = useUiStore.getState();
-    send("SetTool", { tool: ui.tool });
-    send("SetCamMode", { mode: ui.cam });
-    send("SetNoise", ed.noise);
-    send("SetTimeScale", { scale: ed.timeScale });
-    send("SetOccluded", { ids: ed.occluded });
+    for (const [name, payload] of editorStateMessages(useUiStore.getState(), useEditorStore.getState())) send(name, payload);
   }, [send]);
 
   /** Re-sends the whole vehicle-map so Unity rebuilds markers and the overlay (after slot generation or a failed move). */

@@ -55,6 +55,41 @@ namespace ShipHdMap.Tests
             Assert.That(Vector3.Distance(z, Vector3.one), Is.LessThan(1e-6f));
         }
 
+        /// A null driverTarget is the probe's contract, not a missing case: Driver mode with nobody to follow
+        /// means "leave the camera where it was put". A helpful orbit fallback here would yank the virtual
+        /// viewpoint away the frame after it was placed.
+        [Test]
+        public void DriverModeWithNoTargetLeavesTheCameraExactlyWhereItWasPut()
+        {
+            var go = new GameObject("cam"); go.AddComponent<Camera>();
+            var orbit = go.AddComponent<OrbitCamera>();
+            var placed = new Vector3(42, 12.4f, -7); var facing = Quaternion.Euler(0, 110, 0);
+            go.transform.SetPositionAndRotation(placed, facing);
+            orbit.mode = CamMode.Driver; orbit.driverTarget = null;
+            orbit.ApplyDriver();
+            Assert.That(Vector3.Distance(go.transform.position, placed), Is.LessThan(1e-4f));
+            Assert.That(Quaternion.Angle(go.transform.rotation, facing), Is.LessThan(1e-3f));
+            Object.DestroyImmediate(go);
+        }
+
+        /// Fly clamps pitch to +-89 and the orbit camera to -5..89, and Focus/AdoptCurrentPose import whatever
+        /// fly left. While the clamp lived inside the right-drag guard the camera could sit below its own floor
+        /// -- under the deck -- until the first right-drag snapped it up in one 84-degree jump.
+        [Test]
+        public void OrbitPitchIsClampedWhateverLeftItOutOfRange()
+        {
+            var go = new GameObject("cam"); go.AddComponent<Camera>();
+            var orbit = go.AddComponent<OrbitCamera>();
+            orbit.pitchDeg = -80f;                       // a fly-mode pitch, legal there and not here
+            orbit.ClampOrbitPitch();
+            Assert.That(orbit.pitchDeg, Is.EqualTo(-5f).Within(1e-4f));
+            orbit.pitchDeg = 120f; orbit.ClampOrbitPitch();
+            Assert.That(orbit.pitchDeg, Is.EqualTo(89f).Within(1e-4f));
+            orbit.pitchDeg = 35f; orbit.ClampOrbitPitch();
+            Assert.That(orbit.pitchDeg, Is.EqualTo(35f).Within(1e-4f), "an in-range pitch must be left alone");
+            Object.DestroyImmediate(go);
+        }
+
         /// Driver's eye is the sensor's eye: same height, same heading. That is the whole reason the overlay
         /// in that view is allowed to claim it shows what the sensor sees (spec §5.2).
         [Test]

@@ -196,6 +196,29 @@ namespace ShipHdMap
                 if (Vehicle.transform.parent != transform) Vehicle.transform.SetParent(transform, false);
                 Time.timeScale = 1f; if (Orbit) Orbit.follow = null;
             }
+            // Leaving edit takes the editor's two handles with it, and neither of them goes through SetTool --
+            // this is the only place that knows the mode changed. A probe left holding the camera would freeze
+            // the whole drive at its own eye (null driverTarget, so ApplyDriver never moves it again) while the
+            // web still believes the camera is orbiting; and a gizmo left attached would let a right-drag turn
+            // a normal and PUT it mid-run.
+            else ReleaseProbe();
+            SyncGizmo();
+        }
+
+        /// Hands the camera back if the probe took it, and nothing otherwise: a Driver mode the WEB asked for
+        /// carries a real driverTarget, so this leaves it alone.
+        void ReleaseProbe()
+        {
+            Probe.Clear();
+            if (Orbit && Orbit.mode == CamMode.Driver && Orbit.driverTarget == null) Orbit.mode = CamMode.Orbit;
+        }
+
+        /// Only the selected marker, only in edit mode, carries a handle. Both Highlight and SetMode call it:
+        /// a selection change and a mode change each re-decide this, and nothing else re-evaluates it.
+        void SyncGizmo()
+        {
+            if (_mode == "edit" && _selected != null && _markers.TryGetValue(_selected, out var m) && m) Gizmo.Attach(m);
+            else Gizmo.Detach();
         }
 
         public void SetTimeScale(string json) => Time.timeScale = Mathf.Clamp((float)MapJson.Parse<SetTimeScaleMsg>(json).scale, 0.1f, 50f);
@@ -222,7 +245,7 @@ namespace ShipHdMap
             if (_selected != null) _markers[_selected].SetHighlighted(true);
             if (_overlay) MapOverlay.Highlight(_overlay, _selected == null ? id : null);   // a slot id highlights its fill; a marker id or null clears fills
             Hud.SetContext(_deck, _selected ?? id);
-            if (_selected != null && _mode == "edit") Gizmo.Attach(_markers[_selected]); else Gizmo.Detach();
+            SyncGizmo();
         }
 
         /// Re-keys both the marker and its LandmarkRef under the confirmed id. The LandmarkRef's own id field has
@@ -285,11 +308,9 @@ namespace ShipHdMap
         {
             var t = MapJson.Parse<SetToolMsg>(json)?.tool;
             Placer.tool = t == "place" ? PlacerTool.Place : t == "probe" ? PlacerTool.Probe : PlacerTool.Select;
-            if (Placer.tool == PlacerTool.Probe) return;
-            Probe.Clear();
-            // The probe drove the camera to its own eye with no driverTarget; leaving the tool must give the
-            // camera back, or the toolbar offers no way out of a first-person view of nothing.
-            if (Orbit && Orbit.mode == CamMode.Driver && Orbit.driverTarget == null) Orbit.mode = CamMode.Orbit;
+            // Leaving the tool must give the camera back, or the toolbar offers no way out of a first-person
+            // view of nothing. SetMode does the same on the other exit from edit mode.
+            if (Placer.tool != PlacerTool.Probe) ReleaseProbe();
         }
 
         public void SetCamMode(string json)
@@ -444,19 +465,22 @@ namespace ShipHdMap
         /// re-localize without re-triggering the 0.2s onLocalization emit, which stays in Step.
         void Localize()
         {
-            var truth = ShipTruth();
+            var (truth, truthZ) = ShipTruthPose();
             var obs = Sensor.Sense(truth, MapRefs, id => _markers[id].transform.position);
             _seen.Clear(); foreach (var o in obs) _seen.Add(o.id);
             _lastRes = Localizer.Solve(obs, MapRefs, Sensor.noise.sigmaR, Sensor.noise.sigmaThetaRad, Sensor.noise.sigmaAlphaRad, _prev);
             if (_lastRes.ok && double.IsFinite(_lastRes.pose.x) && double.IsFinite(_lastRes.pose.y) && double.IsFinite(_lastRes.pose.psiRad)) _prev = _lastRes.pose;
             Hud.Set(_lastRes, truth, "SHIP_AP");
-            // Vehicle.Z, not _targetDeck.z_surface: the target deck is where the car is GOING, and on the quay
-            // and the ramp it is nowhere near that height. Vehicle.Z is the current path point, right every frame.
-            // (_targetDeck would never be null here either -- Step returns early unless a run is under way.)
+            // The height has to come from the same projection as the pose, because the cone is drawn in Ship
+            // Frame. Neither obvious candidate is that: _targetDeck.z_surface is where the car is GOING, not
+            // where it is; and Vehicle.Z is "Ship Frame OR QUAY Frame depending on the parent" (its own comment)
+            // -- on the quay leg the vehicle is unparented, so that number is a quay height and the cone lands
+            // roughly the aft draft too low, under the water. truthZ comes off ShipTruthPose() together with
+            // `truth`, so the two can never describe different places.
             if (Orbit != null && Orbit.mode == CamMode.Driver)
             {
                 Vector3 eye = Sensor.transform.position + Vector3.up * Sensor.eyeHeight;
-                View.Show(truth, Vehicle.Z, Sensor.VisibleFrom(truth, eye, MapRefs, MarkerPos), MarkerOf, Sensor.fovDeg, Sensor.maxDist);
+                View.Show(truth, truthZ, Sensor.VisibleFrom(truth, eye, MapRefs, MarkerPos), MarkerOf, Sensor.fovDeg, Sensor.maxDist);
             }
         }
 

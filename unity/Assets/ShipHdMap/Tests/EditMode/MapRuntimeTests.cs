@@ -291,6 +291,34 @@ namespace ShipHdMap.Tests
             Object.DestroyImmediate(camGo);
         }
 
+        /// Both editor handles are taken by Unity and given back by nothing else: leaving edit mode never passes
+        /// through SetTool. A probe left holding the camera freezes the whole drive at its own eye (null
+        /// driverTarget means ApplyDriver will not move it again) and a gizmo left attached turns normals -- and
+        /// PUTs them -- mid-run.
+        [Test]
+        public void LeavingEditModeGivesBackTheCameraAndTheGizmo()
+        {
+            go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>();
+            rt.InitForTest(); rt.Load(Fixture());
+            var camGo = new GameObject("cam"); camGo.AddComponent<Camera>();
+            rt.Orbit = camGo.AddComponent<OrbitCamera>(); rt.Probe.orbit = rt.Orbit;
+
+            rt.Highlight("LM-0001");
+            Assert.That(rt.Gizmo.Target, Is.Not.Null, "edit mode: the selected marker carries a handle");
+            rt.Probe.PlaceAt(Vector3.zero, 0);                       // the probe parks the camera at its own eye
+            Assert.That(rt.Probe.Active, Is.True);
+            Assert.That(rt.Orbit.mode, Is.EqualTo(CamMode.Driver)); Assert.That(rt.Orbit.driverTarget, Is.Null);
+
+            rt.SetMode("drive");
+            Assert.That(rt.Probe.Active, Is.False, "a drive must not start from the probe's frozen eye");
+            Assert.That(rt.Orbit.mode, Is.EqualTo(CamMode.Orbit), "and the web believes it is orbiting");
+            Assert.That(rt.Gizmo.Target, Is.Null, "a right-drag during a run must not turn a normal");
+
+            rt.SetMode("edit");
+            Assert.That(rt.Gizmo.Target, Is.Not.Null, "back in edit the still-selected marker gets its handle back");
+            Object.DestroyImmediate(camGo);
+        }
+
         [Test]
         public void FeatureCreatedEventCarriesNormal()
         {

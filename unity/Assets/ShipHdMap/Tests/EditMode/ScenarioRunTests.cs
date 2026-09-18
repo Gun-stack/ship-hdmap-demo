@@ -415,6 +415,11 @@ namespace ShipHdMap.Tests
             // vehicle still at the top of the ramp (see the height-match direction fix).
             Assert.That(rt.Vehicle.Z, Is.EqualTo(QuayBuilder.SurfaceZ(rt.Quay)).Within(0.05), "QuayOut must only start once the vehicle has actually reached quay height");
             Assert.That(rt.Vehicle.transform.parent, Is.Null, "back in the Quay Frame on the way out");
+            // ...and that is exactly why the driver's-eye cone cannot be drawn at Vehicle.Z: the cone's points
+            // are Ship Frame, and here Vehicle.Z is a QUAY-Frame height. The gap is the aft draft -- how far
+            // under the water the cone landed before Localize() started taking its height off ShipTruthPose().
+            var shipZ = rt.transform.InverseTransformPoint(rt.Vehicle.transform.position - Vector3.up * (float)VehicleController.RideHeightM).y;
+            Assert.That(shipZ - rt.Vehicle.Z, Is.EqualTo(8.6).Within(0.3), "the two frames' heights differ by the aft draft");
         }
 
         [Test]

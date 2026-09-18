@@ -33,11 +33,22 @@ namespace ShipHdMap
         }
 
         /// The driver's eye is the sensor's eye: same height, same heading (spec §5.2).
+        ///
+        /// A null `driverTarget` is a CONTRACT, not a missing case: it means "Driver mode, but somebody else
+        /// placed this camera -- leave it exactly where it is". ProbeView depends on it to hold the camera at
+        /// the virtual viewpoint it just parked there. Do NOT turn this into an orbit fallback: the only thing
+        /// allowed to take the camera back is MapRuntime.ReleaseProbe, which returns the MODE to Orbit.
         public void ApplyDriver()
         {
             if (!driverTarget) return;
             transform.SetPositionAndRotation(driverTarget.position + Vector3.up * driverEyeM, driverTarget.rotation);
         }
+
+        /// The orbit pitch floor, applied on EVERY orbit frame rather than only inside the right-drag guard.
+        /// Fly clamps to +-89 and both Focus and AdoptCurrentPose import whatever fly left behind, so an orbit
+        /// frame can begin below this floor -- and used to stay there, underneath the deck, until the first
+        /// right-drag snapped it up some 84 degrees in one step.
+        public void ClampOrbitPitch() => pitchDeg = Mathf.Clamp(pitchDeg, -5f, 89f);
 
         public void Focus(Vector3 p, float dist) { mode = CamMode.Orbit; follow = null; target = p; distance = Mathf.Clamp(dist, minDistance, maxDistance); Apply(); }
 
@@ -53,7 +64,8 @@ namespace ShipHdMap
         {
             if (mode == CamMode.Driver) { ApplyDriver(); return; }
             if (mode == CamMode.Fly) { StepFly(); return; }
-            if (Input.GetMouseButton(1)) { yawDeg += Input.GetAxis("Mouse X") * orbitSpeed; pitchDeg = Mathf.Clamp(pitchDeg - Input.GetAxis("Mouse Y") * orbitSpeed, -5f, 89f); }
+            if (Input.GetMouseButton(1)) { yawDeg += Input.GetAxis("Mouse X") * orbitSpeed; pitchDeg -= Input.GetAxis("Mouse Y") * orbitSpeed; }
+            ClampOrbitPitch();
             if (Input.GetMouseButton(2))
             {
                 var flat = Quaternion.Euler(0, yawDeg, 0);
