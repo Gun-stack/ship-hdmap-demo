@@ -2,6 +2,9 @@ using UnityEngine;
 
 namespace ShipHdMap
 {
+    /// Orbit is the editor's camera, Fly walks the deck, Driver rides the vehicle at sensor eye height.
+    public enum CamMode { Orbit, Fly, Driver }
+
     /// Orbit camera on the Main Camera: right-drag orbits, middle-drag pans, wheel zooms. Left button is left to LandmarkPlacer.
     /// Set `follow` to track a transform (drive mode); Focus() jumps to a point and stops following.
     public class OrbitCamera : MonoBehaviour
@@ -11,6 +14,9 @@ namespace ShipHdMap
         public float minDistance = 3f, maxDistance = 300f, orbitSpeed = 3f, panSpeed = 0.02f;
         public Transform follow; public float followLerp = 4f;
 
+        public CamMode mode = CamMode.Orbit;
+        public Transform driverTarget; public float driverEyeM = 1.2f, flySpeed = 12f, flyBoost = 4f;
+
         /// Camera position/rotation for a target, yaw about world up (deg), pitch above the horizon (deg) and distance.
         public static (Vector3 pos, Quaternion rot) Pose(Vector3 target, float yawDeg, float pitchDeg, float distance)
         {
@@ -18,7 +24,22 @@ namespace ShipHdMap
             return (target - rot * Vector3.forward * distance, rot);
         }
 
-        public void Focus(Vector3 p, float dist) { follow = null; target = p; distance = Mathf.Clamp(dist, minDistance, maxDistance); Apply(); }
+        /// Pure translation for one free-flight frame. `axes` is (right, worldUp, forward) in -1..1.
+        /// Forward and right follow where the camera looks; up is world up, so Q/E always mean up and down.
+        public static (Vector3 pos, Quaternion rot) FlyStep(Vector3 pos, Quaternion rot, Vector3 axes, float dt, float speed)
+        {
+            Vector3 d = rot * Vector3.forward * axes.z + rot * Vector3.right * axes.x + Vector3.up * axes.y;
+            return (pos + d * (speed * dt), rot);
+        }
+
+        /// The driver's eye is the sensor's eye: same height, same heading (spec §5.2).
+        public void ApplyDriver()
+        {
+            if (!driverTarget) return;
+            transform.SetPositionAndRotation(driverTarget.position + Vector3.up * driverEyeM, driverTarget.rotation);
+        }
+
+        public void Focus(Vector3 p, float dist) { mode = CamMode.Orbit; follow = null; target = p; distance = Mathf.Clamp(dist, minDistance, maxDistance); Apply(); }
 
         /// Adopts the camera's current transform so the first frame does not jump: yaw/pitch from its rotation, target `distance` ahead along its forward.
         public void AdoptCurrentPose()
@@ -30,6 +51,8 @@ namespace ShipHdMap
 
         void LateUpdate()
         {
+            if (mode == CamMode.Driver) { ApplyDriver(); return; }
+            if (mode == CamMode.Fly) { StepFly(); return; }
             if (Input.GetMouseButton(1)) { yawDeg += Input.GetAxis("Mouse X") * orbitSpeed; pitchDeg = Mathf.Clamp(pitchDeg - Input.GetAxis("Mouse Y") * orbitSpeed, -5f, 89f); }
             if (Input.GetMouseButton(2))
             {
@@ -42,6 +65,29 @@ namespace ShipHdMap
             if (follow) target = Vector3.Lerp(target, follow.position, 1f - Mathf.Exp(-followLerp * Time.deltaTime));
             Apply();
         }
+
+        /// Right-drag looks around, WASD/arrows move, Q/E rise and fall, Shift boosts.
+        /// Unity only receives these when its canvas has focus (WebGLInput.captureAllKeyboardInput = false),
+        /// which is exactly the condition the web's shortcut handler steps aside for.
+        void StepFly()
+        {
+            if (Input.GetMouseButton(1))
+            {
+                yawDeg += Input.GetAxis("Mouse X") * orbitSpeed;
+                pitchDeg = Mathf.Clamp(pitchDeg - Input.GetAxis("Mouse Y") * orbitSpeed, -89f, 89f);
+            }
+            var rot = Quaternion.Euler(pitchDeg, yawDeg, 0);
+            float x = Axis(KeyCode.D, KeyCode.A) + Axis(KeyCode.RightArrow, KeyCode.LeftArrow);
+            float z = Axis(KeyCode.W, KeyCode.S) + Axis(KeyCode.UpArrow, KeyCode.DownArrow);
+            float y = Axis(KeyCode.E, KeyCode.Q);
+            float speed = flySpeed * (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift) ? flyBoost : 1f);
+            var (p, r) = FlyStep(transform.position, rot, new Vector3(Mathf.Clamp(x, -1, 1), Mathf.Clamp(y, -1, 1), Mathf.Clamp(z, -1, 1)), Time.unscaledDeltaTime, speed);
+            transform.SetPositionAndRotation(p, r);
+            // leaving fly mode should not snap back to wherever the orbit target was
+            target = p + r * Vector3.forward * distance;
+        }
+
+        static float Axis(KeyCode plus, KeyCode minus) => (Input.GetKey(plus) ? 1f : 0f) - (Input.GetKey(minus) ? 1f : 0f);
 
         void Apply() { var (p, r) = Pose(target, yawDeg, pitchDeg, distance); transform.SetPositionAndRotation(p, r); }
     }
