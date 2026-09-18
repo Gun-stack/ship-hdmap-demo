@@ -10,10 +10,11 @@ namespace ShipHdMap
         public Vector3 NormalUnity => -transform.forward;
 
         Transform _halo;
-        // One Material each for every marker (MapOverlay.LineMats/FillMats do the same for line/fill colours) --
-        // each marker used to leak its own, 272 materials per Load on Deck 3 alone. Plain `??=`, not MapOverlay's
-        // `|| !m` destroyed-object check, is enough here: nothing in this codebase ever destroys these two, the
-        // same "shared across Loads; nothing destroys these" policy LineMats/FillMats already rely on.
+        // One Material each for every marker (MapOverlay.LineMats/FillMats do the same for line/fill
+        // colours) -- each marker used to leak its own, two per marker on every Load. Plain `??=`, not
+        // MapOverlay's `|| !m` destroyed-object check, is enough here: nothing in this codebase ever
+        // destroys these two, the same "shared across Loads; nothing destroys these" policy that
+        // LineMats/FillMats already rely on.
         static Material _haloMat, _seenMat;
 
         /// Yellow frame behind the tag (4 mm toward the surface, 1.6x) so the selection reads at any camera distance.

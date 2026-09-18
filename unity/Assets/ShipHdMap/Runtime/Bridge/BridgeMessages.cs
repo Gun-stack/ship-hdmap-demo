@@ -7,7 +7,7 @@ namespace ShipHdMap
             SetBeliefParams = "SetBeliefParams", SetTool = "SetTool", SetCamMode = "SetCamMode", SetNormal = "SetNormal";
         public const string OnSeedReady = "onSeedReady", OnFeatureCreated = "onFeatureCreated", OnFeatureMoved = "onFeatureMoved",
             OnSelected = "onSelected", OnSlotFilled = "onSlotFilled", OnLocalization = "onLocalization", OnScenario = "onScenario",
-            OnBelief = "onBelief";
+            OnBelief = "onBelief", OnCamMode = "onCamMode";
     }
     public class FeatureCreatedEvt { public string tempId; public string layer; public double x, y, z; public string deck; public string mounted_on; public double[] normal; }
     public class FeatureMovedEvt { public string id; public double x, y, z; public double[] normal; public string deck; public string mounted_on; }

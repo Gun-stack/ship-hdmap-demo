@@ -41,7 +41,14 @@ namespace ShipHdMap
         public void ApplyDriver()
         {
             if (!driverTarget) return;
-            transform.SetPositionAndRotation(driverTarget.position + Vector3.up * driverEyeM, driverTarget.rotation);
+            // LookRotation down the NOSE, not a copy of the rotation. The vehicle's nose is its local +X
+            // (ShipFrame: "Unity: x fwd"; VehicleController.Apply yaws +X onto the heading, and the body cube
+            // is the long way along x), but a Unity camera looks along its own +Z. Copying the rotation aimed
+            // the eye 90 deg to starboard while the cone, the visibility verdicts and the HUD all faced the bow
+            // -- which is the whole claim spec 5.2 makes for this view. `up` is the vehicle's own, so the ramp's
+            // pitch and any heel tilt the horizon exactly as they tilt the driver.
+            transform.SetPositionAndRotation(driverTarget.position + Vector3.up * driverEyeM,
+                Quaternion.LookRotation(driverTarget.right, driverTarget.up));
         }
 
         /// The orbit pitch floor, applied on EVERY orbit frame rather than only inside the right-drag guard.

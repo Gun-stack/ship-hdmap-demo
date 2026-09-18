@@ -92,8 +92,13 @@ namespace ShipHdMap.Tests
 
         /// Driver's eye is the sensor's eye: same height, same heading. That is the whole reason the overlay
         /// in that view is allowed to claim it shows what the sensor sees (spec §5.2).
+        ///
+        /// Asserted as "the eye looks down the NOSE", not as "the rotation was copied". The old form --
+        /// Quaternion.Angle(camera.rotation, car.rotation) < 1e-3 -- asserted the implementation back to
+        /// itself, so it stayed green while the view pointed 90 deg to starboard: the nose is the vehicle's
+        /// local +X and a Unity camera looks along its own +Z.
         [Test]
-        public void DriverModeSitsAtTheVehicleEyeAndCopiesItsHeading()
+        public void DriverModeLooksDownTheNoseAndNotOutTheStarboardSide()
         {
             var car = new GameObject("car"); car.transform.SetPositionAndRotation(new Vector3(30, 10.6f, -4), Quaternion.Euler(0, 35, 0));
             var go = new GameObject("cam"); go.AddComponent<Camera>();
@@ -102,7 +107,9 @@ namespace ShipHdMap.Tests
             orbit.ApplyDriver();
             Assert.That(go.transform.position.y, Is.EqualTo(10.6f + 1.2f).Within(1e-3f));
             Assert.That(go.transform.position.x, Is.EqualTo(30f).Within(1e-3f));
-            Assert.That(Quaternion.Angle(go.transform.rotation, car.transform.rotation), Is.LessThan(1e-3f));
+            Assert.That(Vector3.Dot(go.transform.forward, car.transform.right), Is.EqualTo(1).Within(1e-3), "the eye looks where the nose points");
+            Assert.That(Vector3.Dot(go.transform.forward, car.transform.forward), Is.EqualTo(0).Within(1e-3), "and not along the body's own +Z, which is starboard");
+            Assert.That(Vector3.Dot(go.transform.up, car.transform.up), Is.EqualTo(1).Within(1e-3), "upright in the vehicle's own frame, so a ramp tilts the horizon with it");
             Object.DestroyImmediate(car); Object.DestroyImmediate(go);
         }
     }

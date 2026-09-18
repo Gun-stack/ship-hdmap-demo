@@ -218,7 +218,9 @@ namespace ShipHdMap
         /// a selection change and a mode change each re-decide this, and nothing else re-evaluates it.
         void SyncGizmo()
         {
-            if (_mode == "edit" && _selected != null && _markers.TryGetValue(_selected, out var m) && m) Gizmo.Attach(m);
+            // activeSelf too: the deck filter hides markers on other decks, and a ring around one of those is
+            // a handle floating in empty space. SetDeck calls this for exactly that reason.
+            if (_mode == "edit" && _selected != null && _markers.TryGetValue(_selected, out var m) && m && m.gameObject.activeSelf) Gizmo.Attach(m);
             else Gizmo.Detach();
         }
 
@@ -227,7 +229,7 @@ namespace ShipHdMap
         {
             _deck = deck; if (Ship) ShipMeshBuilder.SetDeckVisibility(Ship, deck); if (_overlay) MapOverlay.SetDeck(_overlay, deck);
             foreach (var m in _markers.Values) if (m) m.gameObject.SetActive(deck == "all" || m.deckId == deck);
-            Hud.SetContext(_deck, _selected);
+            Hud.SetContext(_deck, _selected); SyncGizmo();
         }
         /// Web-originated selection: highlight and bring the camera to it (edit mode only; drive keeps following the vehicle).
         public void Select(string id)
@@ -318,6 +320,7 @@ namespace ShipHdMap
         {
             var m = MapJson.Parse<SetCamModeMsg>(json)?.mode;
             if (Orbit == null) return;                 // EditMode and the pre-camera frames have no orbit yet
+            ReleaseProbe();                            // the third exit from the probe's camera; SetTool and SetMode are the others
             Orbit.mode = m == "fly" ? CamMode.Fly : m == "driver" ? CamMode.Driver : CamMode.Orbit;
             Orbit.driverTarget = Orbit.mode == CamMode.Driver ? Vehicle.transform : null;
             Orbit.follow = Orbit.mode == CamMode.Orbit && _mode == "drive" ? Vehicle.transform : null;
@@ -330,7 +333,11 @@ namespace ShipHdMap
         {
             var m = MapJson.Parse<SetNormalMsg>(json);
             if (m?.id == null || m.normal == null || m.normal.Length < 3 || !_markers.TryGetValue(m.id, out var mk)) return;
-            var n = LandmarksRoot.TransformDirection(ShipFrame.ToUnity(m.normal[0], m.normal[1], m.normal[2]));
+            var nShip = ShipFrame.ToUnity(m.normal[0], m.normal[1], m.normal[2]);
+            // Free JSON off the wire: a zero vector (or a NaN) leaves MoveTo's LookRotation undefined and the
+            // quad facing wherever Unity's degenerate case lands. Written as !(> eps) so NaN fails it too.
+            if (!(nShip.sqrMagnitude > 1e-12f)) return;
+            var n = LandmarksRoot.TransformDirection(nShip);
             mk.MoveTo(mk.transform.position - mk.NormalUnity * 0.01f, n, mk.deckId, mk.mountedOn);
             MapRefs[m.id] = RefOf(mk.ToModel());
         }
@@ -429,7 +436,22 @@ namespace ShipHdMap
         }
 
         // ---- per frame ----
-        void Update() => Step(Time.deltaTime);
+        CamMode _camMode = CamMode.Orbit;   // last mode the web was told about
+
+        void Update()
+        {
+            Step(Time.deltaTime);
+            // Unity writes Orbit.mode in four places the web never hears about -- Focus, ProbeView.Aim,
+            // ReleaseProbe and StartScenario -- and the toolbar then lies about which camera is live (worse,
+            // the web gates the fly keys on its own copy, so flight silently stops working). Polled rather
+            // than raised from a property setter because `mode` is a public FIELD: making it a property would
+            // take it out of the Inspector and out of scene serialisation to catch four assignments.
+            if (Orbit && Orbit.mode != _camMode)
+            {
+                _camMode = Orbit.mode;
+                Send(BridgeMessages.OnCamMode, "{\"mode\":\"" + _camMode.ToString().ToLowerInvariant() + "\"}");
+            }
+        }
 
         /// One simulation tick: move the vehicle, localize, emit, then run the scenario transitions. Tests call this directly.
         public void Step(float dt)
@@ -467,7 +489,11 @@ namespace ShipHdMap
         void Localize()
         {
             var (truth, truthZ) = ShipTruthPose();
-            var obs = Sensor.Sense(truth, MapRefs, id => _markers[id].transform.position);
+            // One VisibleFrom, used twice: the driver's eye DRAWS these verdicts and Sense observes through
+            // them, and each entry costs a Physics.Linecast. `why` keeps VisibleFrom's own order, so the seeded
+            // noise draws come out in the same sequence the scenario tests pin exact numbers from.
+            var why = Sensor.VisibleFrom(truth, Sensor.Eye, MapRefs, MarkerPos);
+            var obs = Sensor.Sense(truth, MapRefs, why);
             _seen.Clear(); foreach (var o in obs) _seen.Add(o.id);
             _lastRes = Localizer.Solve(obs, MapRefs, Sensor.noise.sigmaR, Sensor.noise.sigmaThetaRad, Sensor.noise.sigmaAlphaRad, _prev);
             if (_lastRes.ok && double.IsFinite(_lastRes.pose.x) && double.IsFinite(_lastRes.pose.y) && double.IsFinite(_lastRes.pose.psiRad)) _prev = _lastRes.pose;
@@ -479,10 +505,7 @@ namespace ShipHdMap
             // roughly the aft draft too low, under the water. truthZ comes off ShipTruthPose() together with
             // `truth`, so the two can never describe different places.
             if (Orbit != null && Orbit.mode == CamMode.Driver)
-            {
-                Vector3 eye = Sensor.transform.position + Vector3.up * Sensor.eyeHeight;
-                View.Show(truth, truthZ, Sensor.VisibleFrom(truth, eye, MapRefs, MarkerPos), MarkerOf, Sensor.fovDeg, Sensor.maxDist);
-            }
+                View.Show(truth, truthZ, why, MarkerOf, Sensor.fovDeg, Sensor.maxDist);
         }
 
         void StepScenario(float dt)

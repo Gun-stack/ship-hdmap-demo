@@ -46,7 +46,13 @@ namespace ShipHdMap
             if (orbit)
             {
                 orbit.mode = CamMode.Driver; orbit.driverTarget = null;
-                orbit.transform.SetPositionAndRotation(eyeWorld, Quaternion.Euler(0, ShipFrame.UnityYawDeg(_pose.psiRad * 180 / Math.PI), 0));
+                // Same trap as ApplyDriver: a yaw rotation puts the HEADING on +X, but the camera looks down
+                // +Z. HeadingVector is the codebase's own ship-heading -> Unity-direction, and it goes through
+                // `root` because the probe's heading is a ship heading and the hull is trimmed and heeled --
+                // the eye position right above takes the same trip.
+                Vector3 look = ShipFrame.HeadingVector(_pose.psiRad * 180 / Math.PI);
+                orbit.transform.SetPositionAndRotation(eyeWorld,
+                    root ? Quaternion.LookRotation(root.TransformDirection(look), root.up) : Quaternion.LookRotation(look, Vector3.up));
             }
         }
     }

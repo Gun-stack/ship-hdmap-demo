@@ -78,12 +78,22 @@ namespace ShipHdMap
             return why;
         }
 
+        /// Where this sensor's own eye is. Named so a caller that has to build the verdicts itself cannot
+        /// drift from what Sense would have used.
+        public Vector3 Eye => transform.position + Vector3.up * eyeHeight;
+
         /// truth: vehicle pose; map: landmark refs; unityPosOf: scene position of a marker (for occlusion linecast).
         public List<Observation> Sense(Pose2D truth, IDictionary<string, LandmarkRef> map, Func<string, Vector3> unityPosOf)
+            => Sense(truth, map, VisibleFrom(truth, Eye, map, unityPosOf));
+
+        /// For a caller that already has the verdicts -- the driver's eye draws them as well as senses through
+        /// them, and every entry costs a Physics.Linecast, so running VisibleFrom twice a frame with identical
+        /// arguments buys nothing. `why` is walked in its own order, which is VisibleFrom's, so the seeded noise
+        /// draws land in exactly the sequence they did before.
+        public List<Observation> Sense(Pose2D truth, IDictionary<string, LandmarkRef> map, List<(string id, Miss miss)> why)
         {
             var result = new List<Observation>();
-            Vector3 eye = transform.position + Vector3.up * eyeHeight;
-            foreach (var (id, miss) in VisibleFrom(truth, eye, map, unityPosOf))
+            foreach (var (id, miss) in why)
             {
                 if (miss != Miss.None) continue;
                 result.Add(AddNoise(Localizer.Observe(truth, map[id]), noise, _rng ??= new System.Random(noise.seed)));

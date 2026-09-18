@@ -83,11 +83,17 @@ export function useShipUnity() {
     };
     const onSlot = (json: string) => { void onSlotFilled(JSON.parse(json)); };
     const onScenario = (json: string) => appendLog(scenarioLine(JSON.parse(json)));
+    // Unity moves the camera itself -- Focus on a web-side selection, the probe, leaving the probe, starting a
+    // run -- and the toolbar would otherwise keep claiming the old mode. Worse, the fly keys are gated on the
+    // store's `cam`, so flight silently stops working after a Focus. No echo guard is needed the way onSelected
+    // needs `fromScene`: nothing sends SetCamMode from an effect keyed on `cam`, only the three explicit call
+    // sites (the toolbar buttons, the shortcut, and the edit-mode correction, which converges).
+    const onCam = (json: string) => { const m = JSON.parse(json).mode; if (m) useUiStore.getState().setCam(m as CamMode); };
     addEventListener("onFeatureCreated", onCreated); addEventListener("onSelected", onSelected); addEventListener("onLocalization", onLoc); addEventListener("onFeatureMoved", onMoved);
-    addEventListener("onSlotFilled", onSlot); addEventListener("onScenario", onScenario); addEventListener("onBelief", onBel);
+    addEventListener("onSlotFilled", onSlot); addEventListener("onScenario", onScenario); addEventListener("onBelief", onBel); addEventListener("onCamMode", onCam);
     return () => {
       removeEventListener("onFeatureCreated", onCreated); removeEventListener("onSelected", onSelected); removeEventListener("onLocalization", onLoc); removeEventListener("onFeatureMoved", onMoved);
-      removeEventListener("onSlotFilled", onSlot); removeEventListener("onScenario", onScenario); removeEventListener("onBelief", onBel);
+      removeEventListener("onSlotFilled", onSlot); removeEventListener("onScenario", onScenario); removeEventListener("onBelief", onBel); removeEventListener("onCamMode", onCam);
     };
   }, [addEventListener, removeEventListener, addDraft, select, setLocalization, moveFeature, reloadScene, onSlotFilled, appendLog, setBelief]);
 

@@ -67,6 +67,9 @@ namespace ShipHdMap
             // Same shape as LandmarkPlacer's own drag (_moved): a press-and-release that never actually turned
             // the normal must not raise Rotated -- that event triggers a PUT, a dataset version bump and a full
             // coverage recomputation on the web side, none of which should happen for a no-op click.
+            // Same 1e-4f as LandmarkPlacer's _moved test, but NOT the same unit: these are unit vectors, so
+            // the threshold is an ANGLE -- sqrMagnitude 1e-4 is a chord of 0.01, about 0.573 deg. There it is
+            // a distance, 1 cm. Matching numbers, unrelated quantities.
             if ((_marker.NormalUnity - _dragStartNormal).sqrMagnitude > 1e-4f) _turned = true;
             DrawRing();
         }
