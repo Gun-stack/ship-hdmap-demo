@@ -41,7 +41,7 @@ export function PlanDock() {
   const box = bbox(deck.outline, 3);
   const feats = visibleFeatures(s);
   const mark = (f: (typeof feats)[number]) => (s.selectedId === f.id ? { stroke: "#1e88e5", strokeWidth: 0.8 } : {});
-  const zoomed = ui.planView.scale >= 4;   // labels only once they would be readable
+  const zoomed = view.scale >= 4;   // `view` is what's on screen right now; the store only catches up 250ms after a wheel gesture ends
   const at = (e: { clientX: number; clientY: number }) => screenToPlan({ x: e.clientX, y: e.clientY }, svgRef.current!);
 
   return (
@@ -67,20 +67,35 @@ export function PlanDock() {
         }}
         onPointerDown={(e) => {
           if (e.button !== 0) return;
+          // A pending wheel-zoom is a real part of the current view that just hasn't reached the store
+          // yet -- flush it now instead of merely cancelling the debounce, or a click's local-state
+          // reset (below) and a drag reseeding itself would each throw it away right after.
+          if (wheelTimer.current && live) ui.setPlanView(live);
+          cancelWheelCommit();
           // Record the anchor and where the gesture started, but do NOT capture yet: capturing here
           // retargets the pointerup/click to this <svg>, so the onClick handlers below never see it and
           // clicking a marker or a slot in the plan view stops working entirely.
           drag.current = { ...at(e), sx: e.clientX, sy: e.clientY };
           dragging.current = false;
-          cancelWheelCommit();
         }}
         onPointerMove={(e) => {
           if (!drag.current) return;
+          if (e.buttons === 0) {
+            // Deferring capture until the drag threshold (below) is what makes this possible: a release
+            // that lands outside this <svg> before that threshold is crossed never reaches onPointerUp
+            // (there is no capture yet to retarget it here), so drag.current can be left set from a
+            // gesture that already ended. A later button-less hover must not resume it as a pan.
+            drag.current = null;
+            dragging.current = false;
+            return;
+          }
           if (!dragging.current) {
             const dx = e.clientX - drag.current.sx, dy = e.clientY - drag.current.sy;
             if (dx * dx + dy * dy < DRAG_PX * DRAG_PX) return;   // still just a click until this crosses
             dragging.current = true;
-            setLive(ui.planView);
+            // A pending zoom (wheel, not yet committed) is part of the current view too -- adopt it as
+            // the drag's baseline instead of dropping back to whatever the store last had.
+            setLive((v) => v ?? ui.planView);
             e.currentTarget.setPointerCapture(e.pointerId);   // now it's really a drag -- own the gesture
           }
           // Grab the plan and pull it: the point under the cursor must not slide, so the window moves the
