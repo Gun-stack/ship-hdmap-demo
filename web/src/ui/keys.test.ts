@@ -13,7 +13,7 @@ const codeOf = (k: string) =>
   : k === "Shift" ? "ShiftLeft" : k;
 
 const key = (k: string, mod: Partial<{ ctrlKey: boolean; metaKey: boolean; altKey: boolean; isComposing: boolean }> = {}) =>
-  ({ key: k, code: codeOf(k), ctrlKey: false, metaKey: false, altKey: false, isComposing: false, ...mod });
+  ({ key: k, code: codeOf(k), timeStamp: 0, ctrlKey: false, metaKey: false, altKey: false, isComposing: false, ...mod });
 const FREE = { inField: false, flyingFocused: false };
 
 describe("commandFor", () => {
@@ -63,7 +63,7 @@ describe("commandFor", () => {
   /// `e.key` 를 읽으면 한국어 UI 에서 글자 단축키 **전체**가 죽는다. 숫자·괄호·화살표·Escape 는 실측상 그대로다.
   it("한글 입력 모드에서도 글자 단축키가 먹는다", () => {
     const ko = (code: string, jamo: string) =>
-      ({ key: jamo, code, ctrlKey: false, metaKey: false, altKey: false, isComposing: false });
+      ({ key: jamo, code, timeStamp: 0, ctrlKey: false, metaKey: false, altKey: false, isComposing: false });
     expect(commandFor(ko("KeyV", "ㅍ"), FREE)).toEqual({ kind: "tool", tool: "select" });
     expect(commandFor(ko("KeyA", "ㅁ"), FREE)).toEqual({ kind: "tool", tool: "place" });
     expect(commandFor(ko("KeyP", "ㅔ"), FREE)).toEqual({ kind: "tool", tool: "probe" });
@@ -86,6 +86,27 @@ describe("commandFor", () => {
   it("조합 중이면 Escape 도 먹지 않는다", () => {
     expect(commandFor(key("Escape", { isComposing: true }), FREE)).toBeNull();
     expect(commandFor(key("v", { isComposing: true }), FREE)).toBeNull();
+  });
+
+  /// 한 번 누른 Escape 가 한글 조합 중에는 **두 번** 온다 (Chrome/macOS 2벌식, 속성 폼 textarea 에서 실측):
+  ///   keydown Escape kc 229 isComposing true  → 위의 조합 게이트가 막는다
+  ///   compositionend "ㄱ"
+  ///   keydown Escape kc  27 isComposing false → 게이트를 통과해 선택을 풀어 버렸다
+  /// 둘은 같은 키 누름이라 `timeStamp` 가 같다. 그 동일성으로만 짝지을 수 있고, 타이머도 허용 오차도 필요 없다.
+  it("조합을 취소한 Escape 는 뒤따르는 평문 Escape 까지 삼킨다", () => {
+    const at = 313779;
+    const esc = (isComposing: boolean) =>
+      ({ key: "Escape", code: "Escape", timeStamp: at, ctrlKey: false, metaKey: false, altKey: false, isComposing });
+    const field = { inField: true, flyingFocused: false };
+    // 1) 조합 중의 Escape — 조합 게이트가 막는다. 핸들러는 이 timeStamp 를 기억한다.
+    expect(commandFor(esc(true), field)).toBeNull();
+    // 2) 같은 누름에서 나온 평문 Escape — 기억한 timeStamp 와 같으므로 삼킨다.
+    expect(commandFor(esc(false), { ...field, composingEscapeAt: at })).toBeNull();
+    // 3) 그 뒤 사람이 진짜로 다시 누른 Escape 는 다른 누름이라 timeStamp 가 다르다 — 반드시 먹어야 한다.
+    expect(commandFor({ ...esc(false), timeStamp: at + 120 }, { ...field, composingEscapeAt: at }))
+      .toEqual({ kind: "escape" });
+    // 4) 조합이 없었으면 기억한 값도 없다 — 평범한 Escape 는 그대로 먹는다.
+    expect(commandFor(esc(false), field)).toEqual({ kind: "escape" });
   });
 
   /// Tab 은 잡지 않는다 — 버튼에 포커스가 있을 때 삼키면 키보드만 쓰는 사람이

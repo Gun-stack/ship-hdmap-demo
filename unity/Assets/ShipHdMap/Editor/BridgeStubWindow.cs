@@ -5,7 +5,9 @@ using UnityEngine;
 
 namespace ShipHdMap.Editor
 {
-    /// Stands in for the React shell while there is no web/ yet. Play mode only.
+    /// Stands in for the React shell: every message the web sends over the bridge, as a button. Play mode only.
+    /// Since M5e the shell also owns the tool, the camera and the virtual viewpoint, so driving the scene from
+    /// the editor without it meant typing JSON or editing inspector fields -- the rows below close that gap.
     public class BridgeStubWindow : EditorWindow
     {
         [MenuItem("ShipHdMap/Bridge Stub")] static void Open() => GetWindow<BridgeStubWindow>("Bridge Stub");
@@ -40,6 +42,20 @@ namespace ShipHdMap.Editor
                 foreach (var k in new[] { 1, 5, 20 }) if (GUILayout.Button($"x{k}")) rt.SetTimeScale($"{{\"scale\":{k}}}");
             using (new EditorGUILayout.HorizontalScope())
                 foreach (var d in new[] { "D1", "D2", "D3", "all" }) if (GUILayout.Button(d)) rt.SetDeck(d);
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUILayout.LabelField("tool", GUILayout.Width(30));
+                foreach (var t in new[] { "select", "place", "probe" }) if (GUILayout.Button(t)) rt.SetTool($"{{\"tool\":\"{t}\"}}");
+                EditorGUILayout.LabelField("cam", GUILayout.Width(28));
+                foreach (var c in new[] { "orbit", "fly", "driver" }) if (GUILayout.Button(c)) rt.SetCamMode($"{{\"mode\":\"{c}\"}}");
+            }
+            // Read off the HUD instead of recomputed here. "What is live" kept being the thing two copies
+            // disagreed about in M5e; this window would have been the second copy.
+            if (rt.Hud)
+            {
+                EditorGUILayout.LabelField(rt.Hud.StatusText ?? "tool -   cam -", EditorStyles.miniLabel);
+                EditorGUILayout.LabelField(rt.Hud.SensorText ?? "seen -   (drive, or drop a probe)", EditorStyles.miniLabel);
+            }
             EditorGUI.BeginChangeCheck();
             _sr = EditorGUILayout.Slider("sigma r (m)", _sr, 0, 1); _st = EditorGUILayout.Slider("sigma theta (deg)", _st, 0, 5); _sa = EditorGUILayout.Slider("sigma alpha (deg)", _sa, 0, 10);
             if (EditorGUI.EndChangeCheck()) rt.SetNoise($"{{\"sigma_r\":{_sr},\"sigma_theta\":{_st},\"sigma_alpha\":{_sa},\"sigma_gps\":0.5}}");
@@ -49,6 +65,9 @@ namespace ShipHdMap.Editor
             EditorGUILayout.LabelField("Events", EditorStyles.boldLabel);
             foreach (var l in _log) EditorGUILayout.LabelField(l, EditorStyles.miniLabel);
         }
+
+        /// The two rows above are live values; without this the window only redraws on mouse-over.
+        void OnInspectorUpdate() { if (Application.isPlaying) Repaint(); }
 
         public static string FixturePath() => Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "docs", "fixtures", "vehicle-map.sample.json"));
     }

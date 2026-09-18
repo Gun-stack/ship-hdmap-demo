@@ -24,6 +24,8 @@ namespace ShipHdMap
         public PlacerTool tool = PlacerTool.Select;
         public event Action<LandmarkMarker> Created; public event Action<LandmarkMarker> Selected; public event Action<LandmarkMarker> Moved;
         public event Action<RaycastHit> ProbeAt; public event Action Cleared;
+        /// ClickAct.None -- Place or Probe aimed past the ship. Nothing happens, and nothing USED to say so.
+        public event Action Missed;
         LandmarkMarker _drag; Vector3 _dragStart; bool _moved;
 
         void Update()
@@ -78,6 +80,7 @@ namespace ShipHdMap
                 case ClickAct.Place: PlaceAt(hit); break;
                 case ClickAct.Probe: ProbeAt?.Invoke(hit); break;
                 case ClickAct.Clear: Cleared?.Invoke(); break;
+                case ClickAct.None: Missed?.Invoke(); break;
             }
         }
 
