@@ -13,7 +13,7 @@ namespace ShipHdMap
     {
         public Camera cam; public Transform root; public OrbitCamera orbit; public float radiusM = 1.6f;
         public event Action<LandmarkMarker> Rotated;
-        LandmarkMarker _marker; LineRenderer _ring; bool _dragging;
+        LandmarkMarker _marker; LineRenderer _ring; bool _dragging, _turned; Vector3 _dragStartNormal;
 
         public LandmarkMarker Target => _marker;
 
@@ -26,17 +26,23 @@ namespace ShipHdMap
             return ShipFrame.WrapRad(Math.Atan2(py - cy, px - cx));
         }
 
-        public void Attach(LandmarkMarker m) { _marker = m; _dragging = false; DrawRing(); }
-        public void Detach() { if (_dragging && orbit) orbit.enabled = true; _marker = null; _dragging = false; if (_ring) _ring.enabled = false; }
+        // EndDrag is the one place that turns the camera back on, and it no-ops when nothing is dragging -- so
+        // every path that can interrupt a drag (picking a new marker, being hidden, being disabled or destroyed
+        // mid-drag) just calls it instead of repeating the restore. Attach calls it BEFORE reassigning _marker,
+        // so a real in-progress rotation on the OLD marker still gets persisted before the new one takes over.
+        public void Attach(LandmarkMarker m) { EndDrag(); _marker = m; DrawRing(); }
+        public void Detach() { EndDrag(); _marker = null; if (_ring) _ring.enabled = false; }
+        void OnDisable() => EndDrag();
+        void OnDestroy() => EndDrag();
 
         void Update()
         {
-            if (_marker == null || cam == null) { if (_dragging) EndDrag(); return; }
+            if (_marker == null || cam == null) { EndDrag(); return; }
             // Right button, so the gizmo never competes with LandmarkPlacer's left-click tools. That means it
             // shares a button with the orbit camera, so a drag that starts on the ring switches the camera off
             // for its duration -- otherwise turning a normal also spins the view. The ring is a thin annulus,
             // so every other right-drag still orbits.
-            if (Input.GetMouseButtonDown(1) && OnRing()) { _dragging = true; if (orbit) orbit.enabled = false; }
+            if (Input.GetMouseButtonDown(1) && OnRing()) { _dragging = true; _turned = false; _dragStartNormal = _marker.NormalUnity; if (orbit) orbit.enabled = false; }
             else if (_dragging && Input.GetMouseButton(1)) DragTo();
             if (_dragging && Input.GetMouseButtonUp(1)) EndDrag();
         }
@@ -58,12 +64,22 @@ namespace ShipHdMap
             // MoveTo takes WORLD; keep the mounting point where it is and turn only the facing
             var n = root ? root.TransformDirection(nLocal) : nLocal;
             _marker.MoveTo(_marker.transform.position - _marker.NormalUnity * 0.01f, n, _marker.deckId, _marker.mountedOn);
+            // Same shape as LandmarkPlacer's own drag (_moved): a press-and-release that never actually turned
+            // the normal must not raise Rotated -- that event triggers a PUT, a dataset version bump and a full
+            // coverage recomputation on the web side, none of which should happen for a no-op click.
+            if ((_marker.NormalUnity - _dragStartNormal).sqrMagnitude > 1e-4f) _turned = true;
             DrawRing();
         }
 
         Vector3 ToRoot(Vector3 world) => root ? root.InverseTransformPoint(world) : world;
 
-        void EndDrag() { bool was = _dragging; _dragging = false; if (was && orbit) orbit.enabled = true; if (was && _marker) Rotated?.Invoke(_marker); }
+        void EndDrag()
+        {
+            if (!_dragging) return;
+            _dragging = false;
+            if (orbit) orbit.enabled = true;
+            if (_turned && _marker) Rotated?.Invoke(_marker);
+        }
 
         /// Mouse ray against the horizontal plane through the marker.
         bool PlanePoint(out Vector3 p)
@@ -79,7 +95,14 @@ namespace ShipHdMap
         {
             if (_ring == null)
             {
-                _ring = gameObject.AddComponent<LineRenderer>();
+                // A LineRenderer added straight to this GameObject would collide with SensorView, which
+                // MapRuntime.InitForTest attaches to this same Map root: Unity allows only one Renderer per
+                // GameObject, so whichever of the two called AddComponent<LineRenderer>() second would get null
+                // back and the very next line would throw. A child sidesteps the collision instead of racing it
+                // (SensorView.EnsureLine and MapOverlay.cs:47 use the same shape).
+                var host = new GameObject("NormalRing");
+                host.transform.SetParent(transform, false);   // false: local transform stays identity -- irrelevant here since useWorldSpace = true reads points in world space regardless
+                _ring = host.AddComponent<LineRenderer>();
                 _ring.useWorldSpace = true; _ring.widthMultiplier = 0.05f; _ring.loop = true;
                 _ring.sharedMaterial = new Material(Shader.Find("Unlit/Color")) { color = new Color(1f, 0.72f, 0f) };
             }

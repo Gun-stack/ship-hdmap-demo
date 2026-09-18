@@ -60,9 +60,11 @@ namespace ShipHdMap.Tests
         }
 
         /// InitForTest attaches both View and Gizmo to this same GameObject, and Unity allows only one Renderer
-        /// per GameObject -- so if SensorView's LineRenderer ever went back onto this transform directly, it
-        /// would be racing NormalGizmo's own for that single slot, and whichever lost would come back null and
-        /// throw on the very next line. SensorView keeps its LineRenderer on a child instead, so the two never compete.
+        /// per GameObject -- so a LineRenderer added straight to this transform by either one would be racing
+        /// the other for that single slot, and whichever lost would come back null and throw on the very next
+        /// line. Both keep their LineRenderer on their own child instead (SensorCone, NormalRing), so neither
+        /// ever competes for a slot on the root, and a third such component in the future has an established
+        /// pattern to follow rather than a trap to rediscover.
         [Test]
         public void ProbeAndGizmoLineRenderersCoexistOnTheSameMapRoot()
         {
@@ -70,13 +72,16 @@ namespace ShipHdMap.Tests
             rt.Load(Fixture());
             Assert.DoesNotThrow(() =>
             {
-                rt.Select("LM-0001");                                    // NormalGizmo.Attach -> DrawRing, straight onto the Map root
+                rt.Select("LM-0001");                                    // NormalGizmo.Attach -> DrawRing, onto its own child
                 rt.Probe.PlaceAt(ShipFrame.ToUnity(5, 0, 11.8), 11.8);    // SensorView.Show -> EnsureLine, onto its own child
             });
             var cone = rt.transform.Find("SensorCone");
             Assert.That(cone, Is.Not.Null);
             Assert.That(cone.GetComponent<LineRenderer>(), Is.Not.Null);
-            Assert.That(rt.GetComponent<LineRenderer>(), Is.Not.Null);    // the gizmo's ring, still directly on the root
+            var ring = rt.transform.Find("NormalRing");
+            Assert.That(ring, Is.Not.Null);
+            Assert.That(ring.GetComponent<LineRenderer>(), Is.Not.Null);
+            Assert.That(rt.GetComponent<LineRenderer>(), Is.Null);       // neither renderer sits on the root itself any more
         }
 
         [Test]
