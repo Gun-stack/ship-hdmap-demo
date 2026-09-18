@@ -1,10 +1,34 @@
 import { create } from "zustand";
+import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
 import { api } from "../api/client";
 import type { BeliefEvt, BeliefParamsIn, Candidate, CoverageMode, CoverageOut, CoverageSensor, Dataset, Deck, Feature, FeatureCreatedEvt, FeatureIn, FeatureMovedEvt, GenerateSlotsIn, GenerateSlotsOut, Geometry, Layer, LocalizationEvt, Pose, RampState, ScenarioEvt, ScenarioLine, SlotFilledEvt, Suggestion } from "../api/types";
 import { SENSOR_DEFAULTS } from "../geo/coverage";
 
 export type Draft = { tempId: string; layer: Layer; deck_id: string; geometry: Geometry; props: Record<string, unknown> };
 export type Mode = "edit" | "drive";
+
+/** Sensor noise on the wire: angles in degrees, matching SetNoiseMsg. Lived in DrivePanel until M5e needed it to survive a reload. */
+export type NoiseParams = { sigma_r: number; sigma_theta: number; sigma_alpha: number; sigma_gps: number };
+export const EDITOR_KEY = "shiphdmap.editor.roro-demo-01";
+export const EDITOR_SCHEMA = 1;
+export const EDITOR_WRITE_MS = 200;
+
+/**
+ * persist writes on EVERY set, and this store takes one at 5 Hz all through a drive
+ * (setLocalization and setBelief, MapRuntime's 0.2 s emit) -- at time scale 20 that is a synchronous
+ * localStorage write most frames, for fields partialize throws away anyway. Coalesce to one trailing
+ * write instead. A write can be lost if the tab closes inside the window; these are view preferences.
+ */
+function coalescing(ms: number): StateStorage {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let pending: { name: string; value: string } | null = null;
+  const flush = () => { timer = undefined; if (pending) localStorage.setItem(pending.name, pending.value); pending = null; };
+  return {
+    getItem: (name) => localStorage.getItem(name),
+    setItem: (name, value) => { pending = { name, value }; timer ??= setTimeout(flush, ms); },
+    removeItem: (name) => { pending = null; localStorage.removeItem(name); },
+  };
+}
 
 export type EditorState = {
   datasetId: string; dataset: Dataset | null; decks: Deck[]; features: Record<string, Feature>; drafts: Record<string, Draft>;
@@ -53,6 +77,10 @@ export type EditorState = {
   toggleOccluded: (id: string) => void;
   setBeliefParams: (p: Partial<BeliefParamsIn>) => void;
   setError: (error: string | null) => void;
+  noise: NoiseParams;
+  timeScale: number;
+  setNoise: (p: Partial<NoiseParams>) => void;
+  setTimeScale: (v: number) => void;
 };
 
 const RAMP_ID = "RAMP-STERN";
@@ -62,7 +90,7 @@ async function refreshVersion(get: () => EditorState) {
   try { const d = await api.getDataset(get().datasetId); get().bumpVersion(d.version); } catch { /* keep the old value */ }
 }
 
-export const useEditorStore = create<EditorState>()((set, get) => ({
+export const useEditorStore = create<EditorState>()(persist((set, get) => ({
   datasetId: "roro-demo-01", dataset: null, decks: [], features: {}, drafts: {}, selectedId: null, deckFilter: "all", mode: "edit",
   pose: null, ramp: null, localization: null, error: null, slotGen: {}, scenarioLog: [],
   coverage: null, coverageMode: "load",
@@ -74,9 +102,12 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   // must match BeliefParams in BeliefMonitor.cs -- the panel showing one number while Unity uses another is the
   // same trap the coverage sliders hit in M5c
   beliefParams: { k: 2.0, frames: 5, drift_rate: 0.05, budget_m: 1.0, max_lost_m: 5.0, trail_m: 20.0 },
+  noise: { sigma_r: 0.2, sigma_theta: 1, sigma_alpha: 2, sigma_gps: 0.5 }, timeScale: 1,
   setBelief: (belief) => set({ belief }),
   setBeliefParams: (p) => set((s) => ({ beliefParams: { ...s.beliefParams, ...p } })),
   setError: (error) => set({ error }),
+  setNoise: (p) => set((s) => ({ noise: { ...s.noise, ...p } })),
+  setTimeScale: (timeScale) => set({ timeScale }),
   toggleOccluded: (id) => set((s) => ({ occluded: s.occluded.includes(id) ? s.occluded.filter((x) => x !== id) : [...s.occluded, id] })),
 
   async load(datasetId) {
@@ -187,7 +218,23 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     await get().runCoverage(deck);
     return n;
   },
-}));
+}),
+  {
+    name: EDITOR_KEY,
+    version: EDITOR_SCHEMA,
+    storage: createJSONStorage(() => coalescing(EDITOR_WRITE_MS)),
+    // Only what the viewer set by hand. Map data, coverage results, drafts, the selection and the live
+    // localization/belief feeds all come back from the server or from Unity -- persisting a stale copy
+    // would put yesterday's numbers next to today's dataset version.
+    partialize: (s) => ({
+      deckFilter: s.deckFilter, mode: s.mode, coverageMode: s.coverageMode, coverageParams: s.coverageParams,
+      beliefParams: s.beliefParams, noise: s.noise, timeScale: s.timeScale, occluded: s.occluded,
+    }),
+    // No migrate: zustand already drops a version mismatch and falls back to the store's own defaults,
+    // and declaring one widens the persisted type to {} -- which stops the compiler checking partialize's
+    // keys at all, so a typo there would persist silently.
+  },
+));
 
 export function visibleFeatures(s: EditorState): Feature[] {
   const all = Object.values(s.features);

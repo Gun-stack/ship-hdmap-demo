@@ -1,5 +1,6 @@
+// @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { useEditorStore, visibleFeatures } from "./editor";
+import { EDITOR_KEY, EDITOR_WRITE_MS, useEditorStore, visibleFeatures } from "./editor";
 import { api } from "../api/client";
 
 vi.mock("../api/client", () => ({
@@ -22,7 +23,7 @@ vi.mock("../api/client", () => ({
 }));
 
 describe("editor store", () => {
-  beforeEach(() => useEditorStore.setState(useEditorStore.getInitialState()));
+  beforeEach(() => { localStorage.clear(); useEditorStore.setState(useEditorStore.getInitialState()); });
 
   it("load fills dataset, decks, features, pose, ramp", async () => {
     await useEditorStore.getState().load("ds1");
@@ -115,6 +116,47 @@ describe("editor store", () => {
     expect(useEditorStore.getState().dataset?.version).toBe(9);
     expect(useEditorStore.getState().slotGen.D3.lashing_coverage).toBe(1);
     expect(Object.keys(useEditorStore.getState().features)).toEqual(["PS-D3-001"]);
+  });
+
+  /// 완료 기준 1. 검증할 때마다 슬라이더를 다시 맞추던 것이 이 마일스톤에서 없어진다.
+  it("갑판·모드·슬라이더·가림 집합이 새로고침을 넘긴다", async () => {
+    const s = () => useEditorStore.getState();
+    s().setDeckFilter("D2");
+    s().setMode("drive");
+    s().setCoverageParams({ max_dist_m: 31 });
+    s().setBeliefParams({ k: 4.5 });
+    s().setNoise({ sigma_r: 0.44 });
+    s().setTimeScale(20);
+    s().toggleOccluded("LM-0003");
+
+    // 쓰기는 디바운스된다(아래 EDITOR_WRITE_MS) — 붙잡기 전에 실제로 나갈 때까지 기다린다
+    await new Promise((r) => setTimeout(r, EDITOR_WRITE_MS + 80));
+    // persist 는 *모든* setState 를 storage 에 쓴다. 그래서 메모리를 비우는 그 동작이 저장본까지
+    // 기본값으로 덮어쓴다 — 붙잡았다가 되돌려 놓지 않으면 어떤 구현으로도 통과할 수 없는 테스트가 된다.
+    const saved = localStorage.getItem(EDITOR_KEY)!;
+    useEditorStore.setState(useEditorStore.getInitialState());   // 새로고침 흉내: 메모리를 비운다
+    expect(s().deckFilter).toBe("all");
+    localStorage.setItem(EDITOR_KEY, saved);
+    await useEditorStore.persist.rehydrate();
+
+    expect(s().deckFilter).toBe("D2");
+    expect(s().mode).toBe("drive");
+    expect(s().coverageParams.max_dist_m).toBe(31);
+    expect(s().beliefParams.k).toBe(4.5);
+    expect(s().noise.sigma_r).toBe(0.44);
+    expect(s().timeScale).toBe(20);
+    expect(s().occluded).toEqual(["LM-0003"]);
+  });
+
+  /// 지도 데이터는 저장하지 않는다 — 서버가 진실이고, 낡은 사본이 되살아나면 버전 표시가 거짓말을 한다.
+  it("지도 데이터는 저장하지 않는다", async () => {
+    await useEditorStore.getState().load("ds1");
+    await new Promise((r) => setTimeout(r, EDITOR_WRITE_MS + 80));
+    const saved = JSON.parse(localStorage.getItem(EDITOR_KEY)!).state;
+    expect(saved.features).toBeUndefined();
+    expect(saved.dataset).toBeUndefined();
+    expect(saved.coverage).toBeUndefined();
+    expect(saved.selectedId).toBeUndefined();
   });
 });
 
