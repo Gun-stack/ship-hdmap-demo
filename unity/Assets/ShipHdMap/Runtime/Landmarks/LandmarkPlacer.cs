@@ -64,10 +64,14 @@ namespace ShipHdMap
         {
             var ray = cam.ScreenPointToRay(Input.mousePosition);
             int lmMask = LayerMask.GetMask("Landmark");
-            LandmarkMarker lm = null;
-            if (lmMask != 0 && Physics.Raycast(ray, out var mh, 500f, lmMask)) mh.collider.TryGetComponent(out lm);
+            LandmarkMarker lm = null; float lmDist = float.MaxValue;
+            if (lmMask != 0 && Physics.Raycast(ray, out var mh, 500f, lmMask)) { mh.collider.TryGetComponent(out lm); lmDist = mh.distance; }
             bool hitStructure = Physics.Raycast(ray, out var hit, 500f, StructureMask());
-            switch (Decide(tool, lm != null, hitStructure))
+            // With the deck filter on "all", every deck's markers are live, so a marker two decks down can sit
+            // behind the hull face the user aimed at. Only count it as "hit" when it is actually the nearer thing --
+            // otherwise a marker anywhere along the ray steals a click meant to place or probe the surface.
+            bool hitMarker = lm != null && (!hitStructure || lmDist <= hit.distance);
+            switch (Decide(tool, hitMarker, hitStructure))
             {
                 case ClickAct.DragMarker: _drag = lm; _dragStart = lm.transform.position; _moved = false; Selected?.Invoke(lm); break;
                 case ClickAct.SelectMarker: Selected?.Invoke(lm); break;
