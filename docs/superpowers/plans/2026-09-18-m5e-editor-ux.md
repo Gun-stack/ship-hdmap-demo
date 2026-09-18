@@ -688,17 +688,21 @@ git commit   # refactor: plan geometry out of the component, plus the pan/zoom m
 - Test: 없음 (그리기 전용. 산수는 Task 3 이 전부 테스트했다)
 
 **Interfaces:**
-- Consumes: Task 1 의 `useUiStore`(`planView`, `setPlanView`, `dockOpen`, `dockTall`, `toggleDock`, `toggleDockTall`), Task 3 의 `geo/deck`·`geo/plan`
+- Consumes: Task 1 의 `useUiStore`(`planView`, `setPlanView`, `dockOpen`, `dockTall`, `toggleDock`, `toggleDockTall`, 타입 `PlanView`), Task 3 의 `geo/deck`·`geo/plan`
 - Produces: `PlanDock()`
+
+**드래그는 스토어에 매 프레임 쓰지 않는다.** `useUiStore` 는 `persist` 라서 `set` 한 번이 곧 동기
+`JSON.stringify` + `localStorage.setItem` 이다. 팬 드래그를 그대로 `setPlanView` 로 흘리면 포인터
+이벤트마다 디스크에 쓴다. 드래그 중에는 컴포넌트 지역 상태로 그리고 **놓을 때 한 번만** 스토어에 넣는다.
 
 - [ ] **Step 1: `PlanDock` 을 만든다**
 
 `web/src/components/PlanDock.tsx`:
 
 ```tsx
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useEditorStore, visibleFeatures } from "../store/editor";
-import { useUiStore } from "../store/ui";
+import { useUiStore, type PlanView } from "../store/ui";
 import { bbox, linePath, pickDeck, ringPath } from "../geo/deck";
 import { LEGEND, fitTo, screenToPlan, viewBoxOf, zoomAt } from "../geo/plan";
 import { cellColor, cellOpacity } from "../geo/coverage";
@@ -708,6 +712,10 @@ export function PlanDock() {
   const ui = useUiStore();
   const svgRef = useRef<SVGSVGElement>(null);
   const drag = useRef<{ x: number; y: number } | null>(null);
+  // The store is persisted, and zustand's persist serialises the whole slice synchronously on EVERY set.
+  // A pan is one set per pointermove, so the drag lives in local state and only the release reaches the store.
+  const [live, setLive] = useState<PlanView | null>(null);
+  const view = live ?? ui.planView;
 
   if (!ui.dockOpen) return <div className="dock collapsed"><button className="btn" onClick={ui.toggleDock}>평면도 펴기</button></div>;
   const deck = pickDeck(s.decks, s.deckFilter);
@@ -721,7 +729,7 @@ export function PlanDock() {
   return (
     <div className={`dock${ui.dockTall ? " tall" : ""}`}>
       <div className="dockbar">
-        <span>{deck.name} 평면도 · ×{ui.planView.scale.toFixed(1)}</span>
+        <span>{deck.name} 평면도 · ×{view.scale.toFixed(1)}</span>
         <button className="btn" onClick={() => ui.setPlanView(fitTo(box, box))}>전체 (0)</button>
         <button className="btn" onClick={ui.toggleDockTall}>{ui.dockTall ? "낮게" : "크게"}</button>
         <button className="btn" onClick={ui.toggleDock}>접기</button>
@@ -729,17 +737,24 @@ export function PlanDock() {
           {LEGEND.map((l) => <span key={l.label}><i style={{ background: l.color }} />{l.label}</span>)}
         </span>
       </div>
-      <svg ref={svgRef} viewBox={viewBoxOf(box, ui.planView)} className="plan" preserveAspectRatio="xMidYMid meet"
-        onWheel={(e) => ui.setPlanView(zoomAt(ui.planView, at(e), e.deltaY < 0 ? 1.2 : 1 / 1.2))}
-        onPointerDown={(e) => { if (e.button !== 0) return; drag.current = at(e); e.currentTarget.setPointerCapture(e.pointerId); }}
+      <svg ref={svgRef} viewBox={viewBoxOf(box, view)} className="plan" preserveAspectRatio="xMidYMid meet"
+        onWheel={(e) => ui.setPlanView(zoomAt(view, at(e), e.deltaY < 0 ? 1.2 : 1 / 1.2))}
+        onPointerDown={(e) => { if (e.button !== 0) return; drag.current = at(e); setLive(ui.planView); e.currentTarget.setPointerCapture(e.pointerId); }}
         onPointerMove={(e) => {
           if (!drag.current) return;
           // Grab the plan and pull it: the point under the cursor must not slide, so the window moves the
           // opposite way. `at()` re-reads the live transform, so this stays right at every zoom level.
-          const p = at(e);
-          ui.setPlanView({ ...ui.planView, cx: ui.planView.cx - (p.x - drag.current.x), cy: ui.planView.cy - (p.y - drag.current.y) });
+          // The anchor stays the plan point that was grabbed. at() re-reads the LIVE transform, so once the
+          // pan is right this delta is zero and nothing more moves -- do NOT re-anchor, that chases its own tail.
+          const p = at(e), a = drag.current;
+          setLive((v) => { const b = v ?? ui.planView; return { ...b, cx: b.cx - (p.x - a.x), cy: b.cy - (p.y - a.y) }; });
         }}
-        onPointerUp={(e) => { drag.current = null; e.currentTarget.releasePointerCapture(e.pointerId); }}>
+        onPointerUp={(e) => {
+          drag.current = null;
+          if (live) ui.setPlanView(live);   // one persisted write per drag, not one per frame
+          setLive(null);
+          e.currentTarget.releasePointerCapture(e.pointerId);
+        }}>
         {s.coverage?.cells.map((c, i) => (
           <rect key={i} x={c.x - s.coverage!.grid_m / 2} y={-c.y - s.coverage!.grid_m / 2}
             width={s.coverage!.grid_m} height={s.coverage!.grid_m}
@@ -986,6 +1001,8 @@ export function Toolbar({ send }: { send: Send }) {
 ```
 
 `:21` 의 `onClick={() => setOpen({ ...open, [layer]: !open[layer] })}` 를 `onClick={() => toggleTree(layer)}` 로 바꾼다. `import { useState }` 는 지운다.
+
+**펼침 여부는 `open[layer]` 를 그대로 읽는다 — `?? true` 를 쓰지 않는다.** `DEFAULTS.treeOpen` 은 `Layer` 일곱 중 넷(`LM A2 B2 C`)만 담고 `toggleTree` 는 없는 키를 `?? false`(닫힘)로 본다. 렌더러가 `?? true` 로 기본 펼침을 그리면 `A1`·`LP`·`MEP` 는 펼쳐 보이는데 첫 클릭이 값을 `true` 로 만들어 **아무 일도 일어나지 않는 죽은 클릭**이 된다. 지금 `LayerTree.tsx:22` 의 `{open[layer] && (…)}` 가 이미 맞는 형태이므로 그 줄은 손대지 않는다.
 
 - [ ] **Step 6: `App.tsx` 와 CSS 를 고친다**
 
