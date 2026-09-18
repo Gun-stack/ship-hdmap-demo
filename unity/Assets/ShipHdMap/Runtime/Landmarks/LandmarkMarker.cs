@@ -28,6 +28,26 @@ namespace ShipHdMap
             _halo.gameObject.SetActive(on);
         }
 
+        Transform _seenRing;
+
+        /// Green frame behind the tag, smaller than the selection halo so both can show at once:
+        /// the halo answers "which one am I editing", this answers "does the sensor have it right now".
+        public void SetSeen(bool on)
+        {
+            if (_seenRing == null)
+            {
+                if (!on) return;
+                var h = GameObject.CreatePrimitive(PrimitiveType.Quad); h.name = "Seen"; h.layer = gameObject.layer;
+                Object.DestroyImmediate(h.GetComponent<Collider>());
+                h.transform.SetParent(transform, false);
+                h.transform.localPosition = new Vector3(0, 0, 0.006f);
+                h.transform.localScale = new Vector3(1.3f, 1.3f, 1f);
+                h.GetComponent<Renderer>().sharedMaterial = new Material(Shader.Find("Unlit/Color")) { color = new Color(0.2f, 1f, 0.35f) };
+                _seenRing = h.transform;
+            }
+            _seenRing.gameObject.SetActive(on);
+        }
+
         /// unityPos/unityNormal are in the parent's local space (Ship Frame mapped by ShipFrame.ToUnity); MoveTo takes world.
         public static LandmarkMarker Spawn(Transform parent, string id, int code, Vector3 unityPos, Vector3 unityNormal, float sizeM, string deckId, string mountedOn)
         {
