@@ -92,4 +92,15 @@ describe("ui store", () => {
     s().openPropsFor();
     expect(JSON.parse(localStorage.getItem(UI_KEY)!).state.tab).toBe("coverage");
   });
+
+  /// 탭바에서 속성 탭을 직접 눌러도 setTab 이 도는 경로다. prevTab 까지 "props" 로 오염되면
+  /// (1) 저장본이 빈 속성 탭을 저장하고 (2) restoreTab 이 되돌아갈 곳을 잃어 갇힌다.
+  it("속성 탭을 직접 눌러도 저장되지 않는다", () => {
+    const s = () => useUiStore.getState();
+    s().setTab("coverage");
+    s().setTab("props");
+    expect(JSON.parse(localStorage.getItem(UI_KEY)!).state.tab).not.toBe("props");
+    s().restoreTab();
+    expect(s().tab).toBe("coverage");   // 갇히지 않는다
+  });
 });

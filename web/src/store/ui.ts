@@ -44,8 +44,9 @@ export const useUiStore = create<UiState>()(
       ...DEFAULTS,
       setTool: (tool) => set({ tool }),
       setCam: (cam) => set({ cam }),
-      // a deliberate tab change also becomes the place we return to after a selection ends
-      setTab: (tab) => set({ tab, prevTab: tab }),
+      // a deliberate tab change also becomes the place we return to after a selection ends —
+      // except landing on 속성 itself (the tab bar allows this), which must never poison prevTab
+      setTab: (tab) => set((s) => ({ tab, prevTab: tab === "props" ? s.prevTab : tab })),
       openPropsFor: () => set((s) => (s.tab === "props" ? {} : { tab: "props" as RightTab, prevTab: s.tab })),
       restoreTab: () => set((s) => (s.tab === "props" ? { tab: s.prevTab } : {})),
       toggleTree: (layer) => set((s) => ({ treeOpen: { ...s.treeOpen, [layer]: !(s.treeOpen[layer] ?? false) } })),
