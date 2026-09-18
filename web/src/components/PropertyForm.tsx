@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ApiError } from "../api/client";
 import { useEditorStore } from "../store/editor";
 import type { BridgeName } from "../bridge/useShipUnity";
+import { pickDeck } from "../geo/deck";
 
 type Send = (name: BridgeName, payload?: string | object) => void;
 
@@ -37,7 +38,13 @@ export function PropertyForm({ send }: { send: Send }) {
           <button className="btn primary" onClick={() => run(async () => { const m = await s.applyDraft(id, { kind, deck_id: deck || undefined, props: parseProps() }); send("Confirm", m); })}>적용(저장)</button>
           <button className="btn" onClick={() => { s.discardDraft(id); send("Delete", id); }}>취소</button>
         </>) : (<>
-          <button className="btn primary" onClick={() => run(() => s.updateFeature(id, { kind, deck_id: deck || undefined, props: parseProps() }))}>적용</button>
+          <button className="btn primary" onClick={() => run(async () => {
+            const props = parseProps();
+            await s.updateFeature(id, { kind, deck_id: deck || undefined, props });
+            // Unity holds its own copy of the normal; without this the quad and MapRefs keep the old facing
+            if (Array.isArray(props.normal)) send("SetNormal", { id, normal: props.normal });
+            const d = pickDeck(s.decks, s.deckFilter)?.id; if (d) void s.runCoverage(d);
+          })}>적용</button>
           <button className="btn" onClick={() => run(async () => { await s.removeFeature(id); send("Delete", id); })}>삭제</button>
         </>)}
       </div>

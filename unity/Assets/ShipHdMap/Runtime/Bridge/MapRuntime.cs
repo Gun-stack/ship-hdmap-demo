@@ -22,6 +22,12 @@ namespace ShipHdMap
         public GameObject Ship { get; private set; }
         public GameObject Quay { get; private set; }
         public OrbitCamera Orbit { get; set; }
+        public SensorView View { get; private set; }
+        public NormalGizmo Gizmo { get; private set; }
+        public ProbeView Probe { get; private set; }
+
+        public LandmarkMarker MarkerOf(string id) => _markers.TryGetValue(id, out var m) ? m : null;
+        public Vector3 MarkerPos(string id) => _markers[id].transform.position;
 
         string _mode = "edit"; string _selected; Pose2D? _prev; LocalizerResult _lastRes; float _emitTimer; SeedData _seed;
         GameObject _overlay; string _deck = "all"; SetPoseMsg _pose;
@@ -53,11 +59,19 @@ namespace ShipHdMap
             AttachShip();
             Placer.decks = _seed?.decks ?? new List<Deck>();
             if (cam == null) cam = Camera.main;
-            if (cam) { Placer.cam = cam; Hud.cam = cam; Orbit = cam.GetComponent<OrbitCamera>(); if (!Orbit) { Orbit = cam.gameObject.AddComponent<OrbitCamera>(); Orbit.AdoptCurrentPose(); } }
+            if (cam)
+            {
+                Placer.cam = cam; Hud.cam = cam; Gizmo.cam = cam;
+                Orbit = cam.GetComponent<OrbitCamera>(); if (!Orbit) { Orbit = cam.gameObject.AddComponent<OrbitCamera>(); Orbit.AdoptCurrentPose(); }
+                Probe.orbit = Orbit; Gizmo.orbit = Orbit;     // after Orbit exists, or both get null
+            }
             Placer.Created += lm => { var m = lm.ToModel(); _markers[lm.id] = lm; MapRefs[lm.id] = RefOf(m);
                 Send(BridgeMessages.OnFeatureCreated, MapJson.Serialize(new FeatureCreatedEvt { tempId = lm.id, layer = "LM", x = m.position[0], y = m.position[1], z = m.position[2], deck = lm.deckId, mounted_on = lm.mountedOn, normal = m.normal })); };
             Placer.Selected += lm => { Highlight(lm.id); Send(BridgeMessages.OnSelected, "{\"id\":\"" + lm.id + "\"}"); };
             Placer.Moved += OnMarkerMoved;
+            Placer.Cleared += () => { Highlight(null); Send(BridgeMessages.OnSelected, "{\"id\":null}"); };
+            Placer.ProbeAt += hit => { var d = CurrentMap?.decks?.Find(x => x.id == Placer.DeckIdForHeight(LandmarksRoot.InverseTransformPoint(hit.point).y)); Probe.PlaceAt(hit.point, d?.z_surface ?? 0); };
+            Gizmo.Rotated += OnMarkerMoved;   // the same path a drag-move takes: onFeatureMoved carries `normal`
             if (_seed != null && Emit != null) Send(BridgeMessages.OnSeedReady, MapJson.Serialize(_seed));
         }
 
@@ -78,6 +92,12 @@ namespace ShipHdMap
             UnityEngine.Object.DestroyImmediate(body.GetComponent<Collider>());
             Placer = gameObject.AddComponent<LandmarkPlacer>(); Placer.landmarksRoot = LandmarksRoot;
             Hud = gameObject.AddComponent<HudView>();
+            // On the MAP ROOT, not on Vehicle: EnsureLine sets useWorldSpace = false, so the cone's points are
+            // read as the parent's local space. VehicleController.Apply() overwrites Vehicle's transform every
+            // frame (and the quay leg unparents it entirely), which would apply the vehicle pose a second time.
+            View = gameObject.AddComponent<SensorView>();
+            Gizmo = gameObject.AddComponent<NormalGizmo>(); Gizmo.root = LandmarksRoot;
+            Probe = gameObject.AddComponent<ProbeView>(); Probe.sensor = Sensor; Probe.view = View; Probe.root = transform;
             Quay = QuayBuilder.Build();   // world space: the Quay Frame, never a child of this root
         }
 
@@ -124,6 +144,7 @@ namespace ShipHdMap
         public void Load(string json)
         {
             ScenarioPhase = Phase.Idle; Vehicle.running = false; _target = null; _retriedSlot = null; Vehicle.gameObject.SetActive(false);
+            Gizmo.Detach(); Probe.Clear(); View.Hide();
             if (Vehicle.transform.parent != transform) Vehicle.transform.SetParent(transform, false);
             CurrentMap = MapJson.Parse<VehicleMap>(json);
             foreach (var m in _markers.Values) if (m) DestroyImmediate(m.gameObject);
@@ -200,6 +221,7 @@ namespace ShipHdMap
             if (_selected != null) _markers[_selected].SetHighlighted(true);
             if (_overlay) MapOverlay.Highlight(_overlay, _selected == null ? id : null);   // a slot id highlights its fill; a marker id or null clears fills
             Hud.SetContext(_deck, _selected ?? id);
+            if (_selected != null && _mode == "edit") Gizmo.Attach(_markers[_selected]); else Gizmo.Detach();
         }
 
         public void Confirm(string json) { var c = MapJson.Parse<ConfirmMsg>(json); if (_markers.TryGetValue(c.tempId, out var m)) { _markers.Remove(c.tempId); m.id = c.id; m.name = c.id; _markers[c.id] = m; MapRefs[c.id] = MapRefs[c.tempId]; MapRefs.Remove(c.tempId); if (_selected == c.tempId) _selected = c.id; } }
@@ -254,6 +276,38 @@ namespace ShipHdMap
             if (m?.ids != null) foreach (var id in m.ids) Sensor.occluded.Add(id);
         }
 
+        public void SetTool(string json)
+        {
+            var t = MapJson.Parse<SetToolMsg>(json)?.tool;
+            Placer.tool = t == "place" ? PlacerTool.Place : t == "probe" ? PlacerTool.Probe : PlacerTool.Select;
+            if (Placer.tool == PlacerTool.Probe) return;
+            Probe.Clear();
+            // The probe drove the camera to its own eye with no driverTarget; leaving the tool must give the
+            // camera back, or the toolbar offers no way out of a first-person view of nothing.
+            if (Orbit && Orbit.mode == CamMode.Driver && Orbit.driverTarget == null) Orbit.mode = CamMode.Orbit;
+        }
+
+        public void SetCamMode(string json)
+        {
+            var m = MapJson.Parse<SetCamModeMsg>(json)?.mode;
+            if (Orbit == null) return;                 // EditMode and the pre-camera frames have no orbit yet
+            Orbit.mode = m == "fly" ? CamMode.Fly : m == "driver" ? CamMode.Driver : CamMode.Orbit;
+            Orbit.driverTarget = Orbit.mode == CamMode.Driver ? Vehicle.transform : null;
+            Orbit.follow = Orbit.mode == CamMode.Orbit && _mode == "drive" ? Vehicle.transform : null;
+            if (Orbit.mode != CamMode.Driver) View.Hide();
+        }
+
+        /// The web edited the normal (gizmo release or the property form) and already persisted it.
+        /// Turning the quad here keeps MapRefs -- and therefore the next drive -- in step with the DB.
+        public void SetNormal(string json)
+        {
+            var m = MapJson.Parse<SetNormalMsg>(json);
+            if (m?.id == null || m.normal == null || m.normal.Length < 3 || !_markers.TryGetValue(m.id, out var mk)) return;
+            var n = LandmarksRoot.TransformDirection(ShipFrame.ToUnity(m.normal[0], m.normal[1], m.normal[2]));
+            mk.MoveTo(mk.transform.position - mk.NormalUnity * 0.01f, n, mk.deckId, mk.mountedOn);
+            MapRefs[m.id] = RefOf(mk.ToModel());
+        }
+
         public PredictionGrid Prediction { get; private set; }
 
         /// The coverage map for the deck being driven. The web fetches it (Unity does not do HTTP) and pushes it
@@ -279,7 +333,9 @@ namespace ShipHdMap
             _scenarioMode = s?.mode == "unload" ? "unload" : "load";
             if (_pose?.ramp != null && _pose.ramp.state == "blocked") { Finish("ramp_blocked"); return; }
             SetMode("drive"); Vehicle.gameObject.SetActive(true);
-            if (Orbit) { Orbit.follow = Vehicle.transform; Orbit.distance = 25f; Orbit.pitchDeg = 35f; }
+            if (Orbit) { Orbit.follow = Vehicle.transform; Orbit.distance = 25f; Orbit.pitchDeg = 35f;
+                // free flight follows nothing; driver's eye is a valid way to watch a run, so keep that one
+                if (Orbit.mode != CamMode.Driver) Orbit.mode = CamMode.Orbit; }
             Send(BridgeMessages.OnScenario, MapJson.Serialize(new ScenarioEvt { evt = "start", mode = _scenarioMode }));
             NextVehicle();
         }
@@ -389,6 +445,14 @@ namespace ShipHdMap
             _lastRes = Localizer.Solve(obs, MapRefs, Sensor.noise.sigmaR, Sensor.noise.sigmaThetaRad, Sensor.noise.sigmaAlphaRad, _prev);
             if (_lastRes.ok && double.IsFinite(_lastRes.pose.x) && double.IsFinite(_lastRes.pose.y) && double.IsFinite(_lastRes.pose.psiRad)) _prev = _lastRes.pose;
             Hud.Set(_lastRes, truth, "SHIP_AP");
+            // Vehicle.Z, not _targetDeck.z_surface: the target deck is where the car is GOING, and on the quay
+            // and the ramp it is nowhere near that height. Vehicle.Z is the current path point, right every frame.
+            // (_targetDeck would never be null here either -- Step returns early unless a run is under way.)
+            if (Orbit != null && Orbit.mode == CamMode.Driver)
+            {
+                Vector3 eye = Sensor.transform.position + Vector3.up * Sensor.eyeHeight;
+                View.Show(truth, Vehicle.Z, Sensor.VisibleFrom(truth, eye, MapRefs, MarkerPos), MarkerOf, Sensor.fovDeg, Sensor.maxDist);
+            }
         }
 
         void StepScenario(float dt)

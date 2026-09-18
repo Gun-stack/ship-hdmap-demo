@@ -2,8 +2,10 @@ import { useCallback, useEffect, useRef } from "react";
 import { useUnityContext } from "react-unity-webgl";
 import { api } from "../api/client";
 import { scenarioLine, useEditorStore } from "../store/editor";
+import { useUiStore } from "../store/ui";
+import { pickDeck } from "../geo/deck";
 
-export type BridgeName = "Load" | "SetMode" | "SetDeck" | "Select" | "Confirm" | "Delete" | "SetNoise" | "StartScenario" | "SetPose" | "SetTimeScale" | "SetPrediction" | "SetOccluded" | "SetBeliefParams" | "SetTool" | "SetCamMode";
+export type BridgeName = "Load" | "SetMode" | "SetDeck" | "Select" | "Confirm" | "Delete" | "SetNoise" | "StartScenario" | "SetPose" | "SetTimeScale" | "SetPrediction" | "SetOccluded" | "SetBeliefParams" | "SetTool" | "SetCamMode" | "SetNormal";
 
 const URLS = { loaderUrl: "/unity/Build/unity.loader.js", dataUrl: "/unity/Build/unity.data", frameworkUrl: "/unity/Build/unity.framework.js", codeUrl: "/unity/Build/unity.wasm" };
 
@@ -28,13 +30,25 @@ export function useShipUnity() {
       ...(ramp ? { ramp: { id: ramp.id, angle_deg: ramp.angle_deg, state: ramp.state } } : {}) });
   }, [send]);
 
+  /** Everything Unity forgets on a fresh Load or a page reload: the tool, the camera, the sensor and the occlusion set. */
+  const sendEditorState = useCallback(() => {
+    const ed = useEditorStore.getState();
+    const ui = useUiStore.getState();
+    send("SetTool", { tool: ui.tool });
+    send("SetCamMode", { mode: ui.cam });
+    send("SetNoise", ed.noise);
+    send("SetTimeScale", { scale: ed.timeScale });
+    send("SetOccluded", { ids: ed.occluded });
+  }, [send]);
+
   /** Re-sends the whole vehicle-map so Unity rebuilds markers and the overlay (after slot generation or a failed move). */
   const reloadScene = useCallback(async () => {
     const r = await fetch(api.vehicleMapUrl(datasetId)); if (!r.ok) throw new Error("vehicle-map HTTP " + r.status);
     send("Load", await r.text()); send("SetDeck", deckFilter);
     // Load clears the scene selection; re-assert the store's
     send("Select", useEditorStore.getState().selectedId ?? "");
-  }, [datasetId, deckFilter, send]);
+    sendEditorState();
+  }, [datasetId, deckFilter, send, sendEditorState]);
 
   // Unity -> store
   useEffect(() => {
@@ -43,7 +57,13 @@ export function useShipUnity() {
     const onLoc = (json: string) => setLocalization(JSON.parse(json));
     const onBel = (json: string) => setBelief(JSON.parse(json));
     const onMoved = (json: string) => {
-      void moveFeature(JSON.parse(json)).catch(async (e) => {
+      void moveFeature(JSON.parse(json)).then(() => {
+        // a normal is worth far more to coverage than a position (M5c/M5d): recompute so the heatmap
+        // answers the gizmo drag that just happened
+        const ed = useEditorStore.getState();
+        const deck = pickDeck(ed.decks, ed.deckFilter)?.id;
+        if (deck) void ed.runCoverage(deck);
+      }).catch(async (e) => {
         useEditorStore.setState({ error: "move failed: " + (e as Error).message });
         try { await reloadScene(); } catch { /* the banner already says it failed */ }
       });
@@ -64,10 +84,10 @@ export function useShipUnity() {
     loading.current = true;
     fetch(api.vehicleMapUrl(datasetId)).then((r) => { if (!r.ok) throw new Error("vehicle-map HTTP " + r.status); return r.text(); }).then((json) => {
       loadedOnce.current = true;
-      send("Load", json); send("SetMode", mode); send("SetDeck", deckFilter); sendPose();
+      send("Load", json); send("SetMode", mode); send("SetDeck", deckFilter); sendPose(); sendEditorState();
     }).catch((e) => useEditorStore.setState({ error: "vehicle-map load failed: " + (e as Error).message }))
       .finally(() => { loading.current = false; });
-  }, [isLoaded, dataset, datasetId, mode, deckFilter, send, sendPose]);
+  }, [isLoaded, dataset, datasetId, mode, deckFilter, send, sendPose, sendEditorState]);
 
   useEffect(() => { if (loadedOnce.current) send("SetDeck", deckFilter); }, [deckFilter, send]);
   useEffect(() => { if (loadedOnce.current) sendPose(); }, [pose, ramp, dataset?.lpp_m, sendPose]);

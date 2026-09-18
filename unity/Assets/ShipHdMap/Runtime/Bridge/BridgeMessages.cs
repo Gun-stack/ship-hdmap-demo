@@ -4,7 +4,7 @@ namespace ShipHdMap
     {
         public const string Load = "Load", SetMode = "SetMode", SetDeck = "SetDeck", Select = "Select", Confirm = "Confirm",
             SetPose = "SetPose", SetNoise = "SetNoise", StartScenario = "StartScenario", SetTimeScale = "SetTimeScale", SetPrediction = "SetPrediction", SetOccluded = "SetOccluded",
-            SetBeliefParams = "SetBeliefParams";
+            SetBeliefParams = "SetBeliefParams", SetTool = "SetTool", SetCamMode = "SetCamMode", SetNormal = "SetNormal";
         public const string OnSeedReady = "onSeedReady", OnFeatureCreated = "onFeatureCreated", OnFeatureMoved = "onFeatureMoved",
             OnSelected = "onSelected", OnSlotFilled = "onSlotFilled", OnLocalization = "onLocalization", OnScenario = "onScenario",
             OnBelief = "onBelief";
@@ -14,6 +14,10 @@ namespace ShipHdMap
     public class LocalizationEvt { public double est_x, est_y, est_psi, true_x, true_y, true_psi, residual_rms; public int n_obs; public string frame; }
     public class SetNoiseMsg { public double sigma_r = 0.2, sigma_theta = 1, sigma_alpha = 2, sigma_gps = 0.5; } // angles in degrees on the wire
     public class SetOccludedMsg { public string[] ids; }
+    public class SetToolMsg { public string tool; }          // select | place | probe
+    public class SetCamModeMsg { public string mode; }       // orbit | fly | driver
+    /// The web already wrote the new normal to the DB; this only turns the quad and the map reference.
+    public class SetNormalMsg { public string id; public double[] normal; }
     public class ConfirmMsg { public string tempId; public string id; }
     public class StartScenarioMsg { public string mode; }   // the map is whatever was Loaded
     public class SetTimeScaleMsg { public double scale = 1; }

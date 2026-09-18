@@ -199,6 +199,57 @@ namespace ShipHdMap.Tests
             Assert.That(MapRuntime.ShipSignature(b), Is.Not.EqualTo(MapRuntime.ShipSignature(a)), "a different deck outline must rebuild the hull");
         }
 
+        /// 완료 기준 5: 편집 모드에서 3D 를 마음대로 클릭해도 마커가 생기지 않는다.
+        /// 도구는 웹이 정하고, Load 가 그것을 지워서는 안 된다 — 지도를 다시 받았다고 배치 모드가 풀리면
+        /// 마커를 줄지어 놓던 사람이 매번 다시 켜야 한다.
+        [Test]
+        public void SetToolReachesThePlacerAndSurvivesAReload()
+        {
+            go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>();
+            rt.InitForTest();
+            Assert.That(rt.Placer.tool, Is.EqualTo(PlacerTool.Select));      // default: clicking must be safe
+            rt.SetTool("{\"tool\":\"place\"}");
+            Assert.That(rt.Placer.tool, Is.EqualTo(PlacerTool.Place));
+            rt.Load(Fixture());
+            Assert.That(rt.Placer.tool, Is.EqualTo(PlacerTool.Place));
+        }
+
+        /// The web saved the normal already; Unity just has to turn the quad and update the map reference,
+        /// or the coverage the web is about to recompute will disagree with what the drive senses.
+        [Test]
+        public void SetNormalTurnsTheMarkerAndTheMapReference()
+        {
+            go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>();
+            rt.InitForTest(); rt.Load(Fixture());
+            var before = rt.MapRefs["LM-0001"].phiRad;
+            Assert.That(before, Is.EqualTo(System.Math.PI / 2).Within(1e-6));
+            rt.SetNormal("{\"id\":\"LM-0001\",\"normal\":[1,0,0]}");
+            Assert.That(rt.MapRefs["LM-0001"].phiRad, Is.EqualTo(0).Within(1e-6));
+            Assert.That(rt.MarkerOf("LM-0001").ToModel().normal[0], Is.EqualTo(1).Within(1e-3));
+        }
+
+        /// Two halves, because the early return is the whole risk: without an Orbit it must not throw, and
+        /// WITH one it must actually set the mode. Asserting only the first half passes even if the body is dead.
+        [Test]
+        public void SetCamModeGuardsAMissingCameraAndOtherwiseSetsTheMode()
+        {
+            go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>();
+            rt.InitForTest();
+            Assert.DoesNotThrow(() => rt.SetCamMode("{\"mode\":\"fly\"}"));   // EditMode has no Orbit; must not NRE
+
+            var camGo = new GameObject("cam"); camGo.AddComponent<Camera>();
+            rt.Orbit = camGo.AddComponent<OrbitCamera>();
+            rt.SetCamMode("{\"mode\":\"fly\"}");
+            Assert.That(rt.Orbit.mode, Is.EqualTo(CamMode.Fly));
+            rt.SetCamMode("{\"mode\":\"driver\"}");
+            Assert.That(rt.Orbit.mode, Is.EqualTo(CamMode.Driver));
+            Assert.That(rt.Orbit.driverTarget, Is.EqualTo(rt.Vehicle.transform));
+            rt.SetCamMode("{\"mode\":\"orbit\"}");
+            Assert.That(rt.Orbit.mode, Is.EqualTo(CamMode.Orbit));
+            Assert.That(rt.Orbit.driverTarget, Is.Null);
+            Object.DestroyImmediate(camGo);
+        }
+
         [Test]
         public void FeatureCreatedEventCarriesNormal()
         {
