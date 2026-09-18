@@ -308,6 +308,8 @@ namespace ShipHdMap.Tests
             rt.Probe.PlaceAt(Vector3.zero, 0);                       // the probe parks the camera at its own eye
             Assert.That(rt.Probe.Active, Is.True);
             Assert.That(rt.Orbit.mode, Is.EqualTo(CamMode.Driver)); Assert.That(rt.Orbit.driverTarget, Is.Null);
+            Assert.That(camGo.transform.position, Is.EqualTo(new Vector3(0, 1.2f, 0)).Using<Vector3>((a, b) => Vector3.Distance(a, b) < 1e-3f ? 0 : 1),
+                "Aim parks the camera at the probe's eye: origin, one eye height up (no pose applied here)");
 
             rt.SetMode("drive");
             Assert.That(rt.Probe.Active, Is.False, "a drive must not start from the probe's frozen eye");
