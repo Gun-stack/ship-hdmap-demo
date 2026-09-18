@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Unity } from "react-unity-webgl";
 import { useShipUnity } from "./bridge/useShipUnity";
 import { useEditorStore } from "./store/editor";
@@ -16,6 +16,7 @@ export default function App() {
   const load = useEditorStore((s) => s.load);
   const datasetId = useEditorStore((s) => s.datasetId);
   const { unityProvider, isLoaded, send, reloadScene } = useShipUnity();
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => { void load(datasetId); }, [load, datasetId]);
   return (
     <div className="app">
@@ -25,17 +26,20 @@ export default function App() {
         <DeckTabs />
         <LayerTree />
       </aside>
-      <main className="center" onContextMenu={(e) => e.preventDefault()}>
+      {/* tabIndex=-1, not 0: the canvas must be focusable so Unity gets the flight keys, but it
+          is deliberately kept OUT of the Tab order. Emscripten's keydown handler runs
+          preventDefault() before we ever see whether it consumed the key, so if it swallows Tab
+          a keyboard user who tabbed onto the canvas would have no way to tab back off -- a trap
+          we cannot rule out by reading wasm. Keeping it -1 means Tab never lands here in the
+          first place; the canvas still gets focus by a click here or by Shortcuts.tsx focusing
+          it the moment C cycles the camera into fly mode. */}
+      <main className="center" onContextMenu={(e) => e.preventDefault()} onPointerDown={() => canvasRef.current?.focus()}>
         {!isLoaded && <div className="loading">Unity 로딩 중…</div>}
-        {/* tabIndex=0, not -1: a click must focus the canvas (flyingFocused in Shortcuts checks
-            document.activeElement === this canvas), and a keyboard user reaching for free flight
-            needs to Tab onto it too. 0 keeps it in normal DOM order rather than jumping the queue
-            ahead of the panels around it -- a positive index would; -1 would drop it from Tab entirely. */}
-        <Unity unityProvider={unityProvider} tabIndex={0} style={{ width: "100%", height: "100%" }} />
+        <Unity ref={canvasRef} unityProvider={unityProvider} tabIndex={-1} style={{ width: "100%", height: "100%" }} />
       </main>
       <aside className="right"><RightTabs send={send} reloadScene={reloadScene} /></aside>
       <PlanDock />
-      <Shortcuts send={send} />
+      <Shortcuts send={send} canvasRef={canvasRef} />
       <StatusBar unityLoaded={isLoaded} />
     </div>
   );

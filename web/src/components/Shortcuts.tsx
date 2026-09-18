@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, type RefObject } from "react";
 import { useEditorStore } from "../store/editor";
 import { useUiStore, type CamMode } from "../store/ui";
 import { commandFor, isInField, HELP_ROWS } from "../ui/keys";
@@ -10,7 +10,7 @@ import type { BridgeName } from "../bridge/useShipUnity";
 type Send = (name: BridgeName, payload?: string | object) => void;
 const CAM_CYCLE: CamMode[] = ["orbit", "fly", "driver"];
 
-export function Shortcuts({ send }: { send: Send }) {
+export function Shortcuts({ send, canvasRef }: { send: Send; canvasRef: RefObject<HTMLCanvasElement | null> }) {
   const helpOpen = useUiStore((s) => s.helpOpen);
 
   useEffect(() => {
@@ -22,6 +22,9 @@ export function Shortcuts({ send }: { send: Send }) {
       const cmd = commandFor(e, { inField: isInField(active), flyingFocused: ui.cam === "fly" && active?.tagName === "CANVAS" });
       if (!cmd) return;
       // Escape keeps its native behaviour -- it is what closes an open <select> dropdown, and the panels have several.
+      // Unconditional otherwise, even for "tool" in drive mode where it ends up a no-op: plain
+      // letters and brackets have no browser default worth preserving, so gating this per case
+      // that happens to be a no-op would add a branch for nothing observable.
       if (cmd.kind !== "escape") e.preventDefault();
 
       switch (cmd.kind) {
@@ -32,6 +35,9 @@ export function Shortcuts({ send }: { send: Send }) {
           const pool = ed.mode === "drive" ? CAM_CYCLE : CAM_CYCLE.filter((c) => c !== "driver");
           const next = pool[(pool.indexOf(ui.cam) + 1) % pool.length] ?? "orbit";
           ui.setCam(next); send("SetCamMode", { mode: next });
+          // 캔버스는 탭 순서 밖(tabIndex=-1)이라 클릭 없이 C 만으로 비행에 들어가면 포커스가 안 옮겨진다.
+          // 여기서 직접 옮기지 않으면 flyingFocused 게이트가 안 켜져서, 좌로 날다가 A 가 배치 모드로 튄다.
+          if (next === "fly") canvasRef.current?.focus();
           break;
         }
         case "deck": { const d = ed.decks[cmd.index]; if (d) ed.setDeckFilter(d.id); break; }

@@ -30,8 +30,10 @@ export function isInField(el: Element | null): boolean {
  */
 export function commandFor(e: KeyLike, ctx: Ctx): KeyCmd | null {
   // Composing (한글 입력 중) owns every key, Escape included -- that Escape is what cancels the
-  // composition itself. Not also checking legacy keyCode === 229: modern engines set isComposing
-  // correctly even on the Escape keydown that ends composition, and keyCode is deprecated on top.
+  // composition itself. Not also checking legacy keyCode === 229: it only ever attaches to
+  // character keys during composition, never to the Escape that ends one (that arrives as 27),
+  // so it could not have guarded this case anyway -- and the character keys it does cover are
+  // already stopped by the inField gate below.
   if (e.isComposing) return null;
   if (e.key === "Escape") return { kind: "escape" };      // always a way out, even mid-typing
   if (e.ctrlKey || e.metaKey || e.altKey) return null;    // browser shortcuts stay the browser's
