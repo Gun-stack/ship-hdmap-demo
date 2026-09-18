@@ -17,9 +17,14 @@ export function viewBoxOf(deck: Box, v: PlanView): string {
 /** A tiny box around a plan-space point, so fitTo has something with extent to frame. */
 export function boxOfPoint(x: number, y: number, r = 1.5): Box { return { x: x - r, y: y - r, w: 2 * r, h: 2 * r }; }
 
-/** Centre on a target box and zoom until it fills the view, never below the whole deck or above MAX_SCALE. */
+/**
+ * Centre on a target box and zoom until it fills the view, never below the whole deck or above MAX_SCALE.
+ * Padding is half the target's own larger side, not a flat distance: a small marker still gets zoomed in
+ * tight instead of swimming in a fixed six metres of empty deck, and a big selection still gets margin
+ * proportional to its own size.
+ */
 export function fitTo(deck: Box, target: Box): PlanView {
-  const pad = 6;
+  const pad = Math.max(target.w, target.h) * 0.5;
   const s = Math.min(deck.w / Math.max(target.w + pad, 1e-6), deck.h / Math.max(target.h + pad, 1e-6));
   return { cx: target.x + target.w / 2, cy: target.y + target.h / 2, scale: clamp(s, MIN_SCALE, MAX_SCALE) };
 }
@@ -35,11 +40,22 @@ export function zoomAt(v: PlanView, anchor: { x: number; y: number }, k: number)
   return { cx: anchor.x - (anchor.x - v.cx) * f, cy: anchor.y - (anchor.y - v.cy) * f, scale };
 }
 
-/** Screen point -> the SVG's own user units, via its live transform so pan and zoom need no duplicate maths. */
+/** Keep the window's centre inside the deck box, so a pan can never lose the ship off-screen for good. */
+export function clampView(deck: Box, v: PlanView): PlanView {
+  return { ...v, cx: clamp(v.cx, deck.x, deck.x + deck.w), cy: clamp(v.cy, deck.y, deck.y + deck.h) };
+}
+
+/**
+ * Screen point -> the SVG's own user units, via its live transform so pan and zoom need no duplicate
+ * maths. Two fallbacks return the screen point unchanged rather than throw: jsdom has neither
+ * createSVGPoint nor getScreenCTM at all, and a real browser returns a null CTM before the SVG has been
+ * laid out (e.g. a collapsed dock). Neither case has a real drag position to get wrong.
+ */
 export function screenToPlan(pt: { x: number; y: number }, svg: SVGSVGElement): { x: number; y: number } {
+  if (typeof svg.createSVGPoint !== "function" || typeof svg.getScreenCTM !== "function") return { x: pt.x, y: pt.y };
   const p = svg.createSVGPoint(); p.x = pt.x; p.y = pt.y;
   const m = svg.getScreenCTM();
-  if (!m) return { x: pt.x, y: pt.y };      // not laid out yet (jsdom, or a hidden dock)
+  if (!m) return { x: pt.x, y: pt.y };      // not laid out yet (a hidden dock)
   const u = p.matrixTransform(m.inverse());
   return { x: u.x, y: u.y };
 }

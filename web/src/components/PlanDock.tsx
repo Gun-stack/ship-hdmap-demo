@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { useEditorStore, visibleFeatures } from "../store/editor";
 import { useUiStore, type PlanView } from "../store/ui";
 import { bbox, linePath, pickDeck, ringPath } from "../geo/deck";
-import { LEGEND, fitTo, screenToPlan, viewBoxOf, zoomAt } from "../geo/plan";
+import { LEGEND, clampView, fitTo, screenToPlan, viewBoxOf, zoomAt } from "../geo/plan";
 import { cellColor, cellOpacity } from "../geo/coverage";
 
 export function PlanDock() {
@@ -36,7 +36,7 @@ export function PlanDock() {
         </span>
       </div>
       <svg ref={svgRef} viewBox={viewBoxOf(box, view)} className="plan" preserveAspectRatio="xMidYMid meet"
-        onWheel={(e) => ui.setPlanView(zoomAt(view, at(e), e.deltaY < 0 ? 1.2 : 1 / 1.2))}
+        onWheel={(e) => ui.setPlanView(clampView(box, zoomAt(view, at(e), e.deltaY < 0 ? 1.2 : 1 / 1.2)))}
         onPointerDown={(e) => { if (e.button !== 0) return; drag.current = at(e); setLive(ui.planView); e.currentTarget.setPointerCapture(e.pointerId); }}
         onPointerMove={(e) => {
           if (!drag.current) return;
@@ -49,7 +49,7 @@ export function PlanDock() {
         }}
         onPointerUp={(e) => {
           drag.current = null;
-          if (live) ui.setPlanView(live);   // one persisted write per drag, not one per frame
+          if (live) ui.setPlanView(clampView(box, live));   // one persisted write per drag, not one per frame
           setLive(null);
           e.currentTarget.releasePointerCapture(e.pointerId);
         }}>
