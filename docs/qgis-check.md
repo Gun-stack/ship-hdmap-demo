@@ -1,5 +1,9 @@
 # QGIS 검증 절차
 
+![QGIS에서 확인한 갑판 윤곽·차로·주차구획](img/qgis-export-overview.png)
+
+*기하 구조를 읽기 쉽도록 점 레이어(LP·LM)는 잠시 끈 화면이다. 선 레이어에는 중앙 차로가, 면 레이어에는 겹친 갑판 윤곽과 Deck 3 주차구획이 함께 보인다.*
+
 - 목적: API 가 내보낸 WGS84 GeoJSON 이 갑판 윤곽 안에 기둥·랜드마크·차로·구획을 올바른 상대 위치로 놓는지 눈으로 확인
 - 설치(macOS): `brew install --cask qgis` → `/Applications/QGIS-final-4_2_2.app`. 번들 GDAL 은 `…/Contents/MacOS/ogrinfo` 로 직접 부를 수 있다
 - 내보내기: API 만 띄우고 `curl -s localhost:8081/api/datasets/roro-demo-01/export.geojson -o api/build/export.geojson`.

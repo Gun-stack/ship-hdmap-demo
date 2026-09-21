@@ -132,16 +132,36 @@ export async function main() {
   if (!canvas) throw new Error("no canvas");
   // The HUD box is anchored 10 px from the canvas's bottom-left and grows upward; during a drive it runs to
   // ten lines. Derived from the live canvas rect, not hardcoded: the window is not the same size everywhere.
-  const HUD = { x: canvas.x, y: canvas.y + canvas.h - 210, width: Math.min(560, canvas.w), height: 205 };
+  // 370 px contains the longest live line (the sensor verdict) plus the HUD's padding. The old 560 px clip
+  // committed roughly 190 px of unrelated scene/white margin to every enlargement.
+  const HUD = { x: canvas.x, y: canvas.y + canvas.h - 210, width: Math.min(370, canvas.w), height: 205 };
   // Full-frame figures are non-delta PNGs that get committed permanently on every re-capture; a clip
   // covering the whole page reproduces the old no-clip capture pixel-for-pixel at scale 1 (checked against
   // a live run), so shooting it at scale 0.5 halves the file size for free. The HUD clips keep their own
   // scale (3) -- they're deliberately enlarged there to stay legible, the one place resolution earns its cost.
   const { cssContentSize: page } = await d.send("Page.getLayoutMetrics");
   const FRAME = { x: 0, y: 0, width: page.width, height: page.height };
+  // A moving chapter used to call captureScreenshot twice. Unity kept stepping between those calls, so the
+  // full frame and its HUD enlargement described different poses. Take one immutable PNG and derive both
+  // files from it in off-screen canvases. The raw image's measured CSS-to-source ratio includes the device
+  // pixel ratio; the full figure keeps the old 0.5 capture scale and the HUD keeps the old 3x enlargement.
+  const chapterShots = async (frameFile, hudFile) => {
+    const raw = await d.send("Page.captureScreenshot", { format: "png", clip: { ...FRAME, scale: 1 } });
+    const pair = await d.ev(`new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>{try{
+      const sx=im.naturalWidth/${FRAME.width},sy=im.naturalHeight/${FRAME.height};
+      const full=document.createElement("canvas");full.width=Math.round(im.naturalWidth*.5);full.height=Math.round(im.naturalHeight*.5);
+      const fc=full.getContext("2d");fc.imageSmoothingEnabled=true;fc.imageSmoothingQuality="high";fc.drawImage(im,0,0,full.width,full.height);
+      const hud=document.createElement("canvas");hud.width=Math.round(${HUD.width}*sx*3);hud.height=Math.round(${HUD.height}*sy*3);
+      const hc=hud.getContext("2d");hc.imageSmoothingEnabled=true;hc.imageSmoothingQuality="high";
+      hc.drawImage(im,(${HUD.x}-${FRAME.x})*sx,(${HUD.y}-${FRAME.y})*sy,${HUD.width}*sx,${HUD.height}*sy,0,0,hud.width,hud.height);
+      resolve({full:full.toDataURL("image/png"),hud:hud.toDataURL("image/png")});
+    }catch(e){reject(e)}};im.onerror=()=>reject(new Error("chapter source PNG did not decode"));im.src="data:image/png;base64,${raw.data}";})`);
+    const bytes = (url) => Buffer.from(url.slice(url.indexOf(",") + 1), "base64");
+    fs.writeFileSync(path.join(OUT, frameFile), bytes(pair.full));
+    fs.writeFileSync(path.join(OUT, hudFile), bytes(pair.hud));
+  };
   const chapter = async (n, name, text) => {
-    await shot(`${n}-${name}.png`, FRAME, 0.5);
-    await shot(`${n}-${name}-hud.png`, HUD, 3);
+    await chapterShots(`${n}-${name}.png`, `${n}-${name}-hud.png`);
     note(`${n}-${name}`, text);
   };
   const coverageText = () => d.ev(`[...document.querySelectorAll("aside.right .row")]
@@ -227,8 +247,14 @@ export async function main() {
   // in the SAME frame as the verdict, so by the time anything can be photographed the HUD already describes
   // that next car on the quay. This third clip, the scenario log, is the only place the parking error of the
   // car that just parked is legible. It is taken before 정지 on purpose: edit mode has no drive panel.
-  const log = await d.ev(`(()=>{const h=[...document.querySelectorAll("aside.right h4")].find(x=>x.textContent.includes("시나리오 로그"));if(!h)return null;const a=h.getBoundingClientRect(),b=h.nextElementSibling.getBoundingClientRect();return{x:Math.min(a.x,b.x),y:a.y,width:Math.max(a.width,b.width),height:b.bottom-a.top};})()`);
-  if (log) await shot("07-parked-log.png", log, 3);
+  // The live panel intentionally uses `pre` and horizontal scrolling. Documentation has no scrollbar to
+  // reveal the hidden suffix, so temporarily wrap this one capture, wait for layout, then measure the taller
+  // body. Restore the inline style afterwards; the application itself remains unchanged.
+  const log = await d.ev(`(()=>{const h=[...document.querySelectorAll("aside.right h4")].find(x=>x.textContent.includes("시나리오 로그"));if(!h)return null;const b=h.nextElementSibling,css=b.style.cssText;b.style.whiteSpace="pre-wrap";b.style.overflowWrap="anywhere";b.style.overflowX="visible";return new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>{const a=h.getBoundingClientRect(),r=b.getBoundingClientRect();resolve({clip:{x:Math.min(a.x,r.x),y:a.y,width:Math.max(a.width,r.width),height:r.bottom-a.top},css});})));})()`);
+  try { if (log) await shot("07-parked-log.png", log.clip, 3); }
+  finally {
+    if (log) await d.ev(`(()=>{const h=[...document.querySelectorAll("aside.right h4")].find(x=>x.textContent.includes("시나리오 로그"));if(h)h.nextElementSibling.style.cssText=${JSON.stringify(log?.css ?? "")};})()`);
+  }
 
   // 정지: in drive mode the right pane is the drive panel and has no coverage tab at all. It also stops the
   // scenario, which otherwise drives on to the next slot for as long as the page is open. The camera needs
@@ -242,7 +268,33 @@ export async function main() {
   // the exact silent-stale case waitFreshCoverage exists to catch, just moved one click later. clickOnly,
   // not press, for the same reason as chapter 02: poll before the settle delay eats the busy flash.
   await clickOnly("정지");
-  await chapter("08", "promise-vs-measured", await waitFreshCoverage("chapter 08 coverage"));
+  let finalCoverage = await waitFreshCoverage("chapter 08 coverage after edit mode");
+
+  // The driver camera was looking into the hull when the run stopped. Select the slot that was just filled:
+  // the web-originated Select reaches MapRuntime.Select, whose Orbit.Focus centres the parked result. Do this
+  // only after the remounted coverage panel has completed its fresh request; selecting opens the property tab
+  // and would otherwise unmount the panel while that request is still in flight.
+  const parkedSlotId = "PS-D3-001";
+  if (filled.v.slot_id !== parkedSlotId) throw new Error(`first verdict was for ${filled.v.slot_id}, not ${parkedSlotId}`);
+  const parked = await d.ev(`(()=>{const e=[...document.querySelectorAll("aside.left .tree li")].find(x=>x.textContent.trim().startsWith(${JSON.stringify(parkedSlotId + " ")}));if(!e)return null;const r=e.getBoundingClientRect();return{cx:r.x+r.width/2,cy:r.y+r.height/2};})()`);
+  if (!parked) throw new Error(`no tree item "${parkedSlotId}"`);
+  await click(parked.cx, parked.cy); await sleep(900);
+  if (!(await d.ev(`document.querySelector("aside.left .tree li.sel")?.textContent?.trim().startsWith(${JSON.stringify(parkedSlotId + " ")}) ?? false`)))
+    throw new Error(`tree item "${parkedSlotId}" did not become selected`);
+
+  // Selection opens 속성. Put the comparison panel back for the figure; remounting it starts another request,
+  // so this visit gets its own true-then-false freshness gate too. Orbit.Focus is not undone by changing tabs.
+  await clickOnly("커버리지");
+  finalCoverage = await waitFreshCoverage("chapter 08 coverage after slot focus");
+  await chapter("08", "promise-vs-measured", finalCoverage);
+  // Orbit.Focus preserves the driver's yaw/pitch, so the hull can still obscure the selected slot. This
+  // chapter proves that coverage was freshly recomputed: replace its main figure with a readable crop that
+  // includes the v4 top bar and the complete panel. chapter() above still provides the matching HUD detail.
+  const coveragePanel = await rect("aside.right .panel");
+  if (!coveragePanel) throw new Error("no coverage panel for chapter 08");
+  await shot("08-promise-vs-measured.png", {
+    x: coveragePanel.x, y: 0, width: coveragePanel.w, height: coveragePanel.y + coveragePanel.h,
+  }, 2);
 
   console.error("\n  this run only, and NOT reproducible: the sensor's noise is drawn once per RENDERED frame, so how");
   console.error("  many draws separate two events depends on the frame rate. The map, the coverage numbers and");

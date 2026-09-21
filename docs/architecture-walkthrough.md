@@ -15,7 +15,7 @@
 | [4 프레임 전환](#4-프레임-전환) | `frame_switch` 이벤트 | `04-frame-switch` |
 | [5 램프](#5-램프) | `Phase.OnRamp` | `05-ramp` |
 | [6 차로](#6-차로) | `Phase.OnLane` | `06-lane` |
-| [7 주차](#7-주차) | `Phase.Parking` → 판정 | `07-parked` |
+| [7 주차](#7-주차) | `Phase.Parking` → 판정 | `07-parked-log` |
 | [8 약속과 실측의 대조](#8-약속과-실측의-대조) | (정지) | `08-promise-vs-measured` |
 
 **램프는 `frame_switch` 뒤, `leave_lane` 앞이다.** 순서를 거꾸로 기억하기 쉬운 자리라 미리 적는다 — 차는 안벽에서 이미 선박 프레임으로 넘어간 뒤에 램프를 오른다. 그리고 램프는 자기 로그 줄이 없다: `프레임 전환` 줄과 `차로 이탈` 줄 사이의 구간이 램프다.
@@ -94,7 +94,7 @@ Deck 3 만 남기고 커버리지 탭을 연 화면이다. 평면도의 색이 �
 
 차량 시선으로 바꾼 첫 장이다. 배는 아직 멀고, 화면에 마커 링은 하나도 없다.
 
-HUD([`03-quay-hud.png`](img/03-quay-hud.png))가 그것을 숫자로 말한다 — `seen 0 / 23   fov 0  range 23`: 마커 23 개가 전부 **거리** 때문에 탈락했다. 해가 없으니 `N 0   RMS 0.000   iter 0   (holding previous)` 이고, `est x 0.00 y 0.00` 는 추정이 원점에 있다는 뜻이 아니라 **직전 해가 없어 초기값을 들고 있다**는 뜻이다. 그래서 `err 36.02 m` 도 추정 오차가 아니다. 오른쪽 믿음 패널의 `σxy 실측 — · 예측 —` 도 같은 사실의 다른 표현이다.
+HUD([`03-quay-hud.png`](img/03-quay-hud.png))가 그것을 숫자로 말한다 — `seen 0 / 23   fov 0  range 23`: 마커 23 개가 전부 **거리** 때문에 탈락했다. 해가 없으니 `N 0   RMS 0.000   iter 0   (holding previous)` 이고, `est x 0.00 y 0.00` 는 추정이 원점에 있다는 뜻이 아니라 **직전 해가 없어 초기값을 들고 있다**는 뜻이다. 그래서 `err 35.88 m` 도 추정 오차가 아니다. 오른쪽 믿음 패널의 `σxy 실측 — · 예측 —` 도 같은 사실의 다른 표현이다.
 
 **좌표계는 Quay Frame 이다.** 차는 `Vehicle.transform.SetParent(null, true)` 로 Map 루트에서 떼어져 Unity 월드에 놓인다.
 
@@ -118,7 +118,7 @@ HUD 가 `frame SHIP_AP` 라고 적는 것은 모순이 아니다. 지도와 센�
 
 이 데모에서 "선내 좌표는 부두 좌표와 무관하다"는 주장이 실제로 값을 내는 **유일한 순간**이다.
 
-HUD([`04-frame-switch-hud.png`](img/04-frame-switch-hud.png))에 마커 두 개가 처음 잡혔다 — `seen 2 / 23   fov 0  range 21`. 해가 나오기 시작한다: `N 2   RMS 0.108   iter 3`, 이번 실행의 값으로 `est x -23.42 y 0.70 psi -0.9` 대 `true x -23.61 y -0.07 psi 0.4`, `err 0.79 m  -1.2 deg`.
+HUD([`04-frame-switch-hud.png`](img/04-frame-switch-hud.png))에 마커 두 개가 처음 잡혔다 — `seen 2 / 23   fov 0  range 21`. 해가 나오기 시작한다: `N 2   RMS 0.024   iter 3`, 이번 실행의 값으로 `est x -23.78 y -0.58 psi 0.9` 대 `true x -23.81 y -0.07 psi 0.4`, `err 0.50 m  0.5 deg`.
 
 **트리거는 시계가 아니라 사건이다.** 램프가 지정한 `transition_landmarks` 두 개(`LM-0022`, `LM-0023`)를 **같은 프레임에 둘 다** 봤을 때 넘어간다(`SawEntrancePair()`). 하나만 보이는 동안은 넘어가지 않는다.
 
@@ -140,7 +140,7 @@ HUD([`04-frame-switch-hud.png`](img/04-frame-switch-hud.png))에 마커 두 개�
 
 램프는 안벽 발치(x ≈ −24)에서 차로 시작점(x = 2)까지 오른다. 이 그림은 그 중간을 고정하려고 **`true x ≥ -12 m` 인 첫 추정**에서 찍었다 — 시각이 아니라 **장소**로 정했기 때문에 프레임률이 달라도 같은 갑판 위치가 찍힌다.
 
-HUD([`05-ramp-hud.png`](img/05-ramp-hud.png)): `est x -11.54 y -0.15` / `true x -11.51 y 0.01` / `err 0.16 m  -0.4 deg`, `seen 2 / 23`, `ramp 2.9 deg  deployed`.
+HUD([`05-ramp-hud.png`](img/05-ramp-hud.png)): `est x -11.97 y -0.03` / `true x -11.88 y 0.00` / `err 0.10 m  -0.9 deg`, `seen 2 / 23`, `ramp 2.9 deg  deployed`.
 
 **이 장의 요점은 오른쪽 믿음 패널에 있다.**
 
@@ -162,7 +162,7 @@ HUD([`05-ramp-hud.png`](img/05-ramp-hud.png)): `est x -11.54 y -0.15` / `true x 
 
 차로 중간, **`true x ≥ 50 m` 인 첫 추정**이다. 기둥에 달린 마커 두 개가 자홍색 링으로 표시돼 있다 — 지금 해에 실제로 들어간 관측이다.
 
-HUD([`06-lane-hud.png`](img/06-lane-hud.png)): `N 2   RMS 0.064   iter 3`, `est x 51.20 y 0.20` / `true x 50.87 y 0.00`, `seen 2 / 23   fov 5  range 14  facing 2`. 23 개 중 21 개가 탈락한 이유까지 적혀 있다.
+HUD([`06-lane-hud.png`](img/06-lane-hud.png)): `N 2   RMS 0.037   iter 3`, `est x 50.43 y -0.12` / `true x 50.53 y 0.00`, `seen 2 / 23   fov 5  range 14  facing 2`. 23 개 중 21 개가 탈락한 이유까지 적혀 있다.
 
 **좌표계는 Ship Frame 이고, 매 렌더 프레임 네 단계가 돈다**(`MapRuntime.Localize`).
 
@@ -188,15 +188,9 @@ HUD([`06-lane-hud.png`](img/06-lane-hud.png)): `N 2   RMS 0.064   iter 3`, `est 
 
 ## 7. 주차
 
-![주차 판정](img/07-parked.png)
+![주차 판정 로그](img/07-parked-log.png)
 
-**이 그림의 HUD 와 3D 화면은 방금 주차한 차가 아니다.** 판정(`onSlotFilled`)과 다음 차의 `target` 이 **같은 프레임**에 나오기 때문에(`NextVehicle`), 찍을 수 있는 가장 이른 프레임에는 이미 다음 차가 안벽에 서 있다. HUD([`07-parked-hud.png`](img/07-parked-hud.png))의 `true x -44.33`, `seen 0 / 23` 이 그 다음 차다. 상단바 버전도 `v3` → `v4` 로 올라갔다 — 주행이 구획 상태를 DB 에 되썼기 때문이다.
-
-그래서 방금 끝난 차의 판정은 로그 클립에만 있다.
-
-![시나리오 로그](img/07-parked-log.png)
-
-이번 실행: `PS-D3-001 filled  lat +0.10 lon -0.04 h…`
+판정(`onSlotFilled`)과 다음 차의 `target`은 `NextVehicle`의 같은 프레임에서 발생한다. 따라서 방금 주차한 차의 판정값을 그대로 남긴 시나리오 로그 클립을 이 장의 주 그림으로 삼는다. 캡처할 때만 로그 본문을 줄바꿈해 `lat` · `lon` · `hdg` 판정값이 한 그림 안에 모두 보인다.
 
 **무엇이 계산되는가.** 차로를 뜨는 순간이 전부다.
 
@@ -208,8 +202,6 @@ HUD([`06-lane-hud.png`](img/06-lane-hud.png)): `N 2   RMS 0.064   iter 3`, `est 
 
 또 하나, 이탈이 정확히 이탈 지점에서 일어나도록 한 프레임을 되감는다(`Vehicle.Rewind(_exitS)`). 시간 배율이 높으면 한 프레임에 수 미터를 지나가고, 그 초과분이 고스란히 주차 오차에 얹히기 때문이다.
 
-> **클립에서 줄이 잘려 보이는 이유**: 로그 컨테이너가 `whiteSpace: "pre"` 에 폭 319 px 이라 이 줄(371 px)이 넘친다. 다만 **읽을 수는 있다** — 인라인 스타일이 지정하는 것은 `overflowY: "auto"` 뿐이고, 한 축만 지정되면 나머지 축의 `visible` 은 `auto` 로 계산되므로(CSS Overflow 3) 컨테이너가 가로로도 스크롤된다. Chrome 실측으로 `overflow-x: auto` · `clientWidth 319` · `scrollWidth 371` · 최대 `scrollLeft 52` 이다. macOS 오버레이 스크롤바는 스크롤하는 동안에만 보이므로 그림에는 단서가 남지 않는다.
-
 **파일** — `MapRuntime.StepScenario` 의 `case Phase.OnLane when …` 와 `case Phase.Parking when Vehicle.AtEnd` · `ScenarioPlanner.cs`(`ExitS` / `ApproachPath` / `Judge` / `FinalRunM`) · `MapOverlay.SetStatus` / `SpawnParked`
 
 ---
@@ -218,7 +210,7 @@ HUD([`06-lane-hud.png`](img/06-lane-hud.png)): `N 2   RMS 0.064   iter 3`, `est 
 
 ![약속과 실측](img/08-promise-vs-measured.png)
 
-`정지` 를 눌러 편집 모드로 나오면 커버리지 패널이 다시 뜬다. 3D 뷰가 회색 벽인 것은 궤도 카메라가 차가 있던 자리에 남아 있어서다 — **이 장은 오른쪽 패널만 보면 된다.**
+`정지` 를 눌러 편집 모드로 나온 뒤 커버리지가 새로 계산될 때까지 기다린다. 이후 트리의 `PS-D3-001`을 선택해 방금 주차한 결과를 확인하고, 커버리지 패널을 다시 열어 상단 버전과 최종 계산이 함께 보이도록 확대해 찍는다.
 
 패널의 숫자는 2장과 글자 하나까지 같다: 사각지대 16.8 % · 반대 모드 25.6 % · 허용오차 미달 83.2 % · 1,236 / 2,880 셀 · 최악 지점 σxy 0.99 m. 커버리지는 주행 결과와 무관한 정적 계산이므로 같은 것이 맞다. 달라진 것은 상단바의 `v3` → `v4` 뿐이다.
 
