@@ -121,6 +121,9 @@ export async function main() {
   // Buttons are found by their label and re-measured on every press: they shift with the tool hint's text,
   // and a click that lands on a label instead of a button fails in silence.
   const press = async (label) => { const p = await btn(label); if (!p) throw new Error(`no button "${label}"`); await click(p.cx, p.cy); await sleep(900); };
+  // Same click, no trailing settle. Used only where what happens in the next few ms is itself being watched
+  // for (waitFreshCoverage) -- press()'s 900 ms would swallow that window before the caller ever gets to look.
+  const clickOnly = async (label) => { const p = await btn(label); if (!p) throw new Error(`no button "${label}"`); await click(p.cx, p.cy); };
   const shot = async (file, clip, scale = 1) => {
     const r = await d.send("Page.captureScreenshot", clip ? { format: "png", clip: { ...clip, scale } } : { format: "png" });
     fs.writeFileSync(path.join(OUT, file), Buffer.from(r.data, "base64"));
@@ -130,14 +133,46 @@ export async function main() {
   // The HUD box is anchored 10 px from the canvas's bottom-left and grows upward; during a drive it runs to
   // ten lines. Derived from the live canvas rect, not hardcoded: the window is not the same size everywhere.
   const HUD = { x: canvas.x, y: canvas.y + canvas.h - 210, width: Math.min(560, canvas.w), height: 205 };
+  // Full-frame figures are non-delta PNGs that get committed permanently on every re-capture; a clip
+  // covering the whole page reproduces the old no-clip capture pixel-for-pixel at scale 1 (checked against
+  // a live run), so shooting it at scale 0.5 halves the file size for free. The HUD clips keep their own
+  // scale (3) -- they're deliberately enlarged there to stay legible, the one place resolution earns its cost.
+  const { cssContentSize: page } = await d.send("Page.getLayoutMetrics");
+  const FRAME = { x: 0, y: 0, width: page.width, height: page.height };
   const chapter = async (n, name, text) => {
-    await shot(`${n}-${name}.png`);
+    await shot(`${n}-${name}.png`, FRAME, 0.5);
     await shot(`${n}-${name}-hud.png`, HUD, 3);
     note(`${n}-${name}`, text);
   };
   const coverageText = () => d.ev(`[...document.querySelectorAll("aside.right .row")]
     .filter(r=>/사각지대|허용오차 미달|대상/.test(r.querySelector("label")?.textContent??""))
     .map(r=>[...r.children].map(e=>e.textContent.replace(/\\s+/g," ").trim()).join(" ")).join(" · ")`);
+  // CoveragePanel.tsx:28 appends " …" to its own <h4> for exactly as long as an api.coverage() call is in
+  // flight (set true just before the call, cleared in the call's `finally`). s.coverage itself is store
+  // state, so it survives the panel unmounting -- chapter 08 opens the tab already showing chapter 02's
+  // numbers, before its own recompute has even started, so waiting for "the rows are there" can pass on a
+  // STALE render (harmless only because the two chapters happen to compute the same numbers by design).
+  // Watching the busy flag flip true-then-false is the only way to know THIS visit produced what's on
+  // screen. Measured against a live run, that flag is up for about 20-35 ms -- so this polls at 10 ms, and
+  // the caller has to start polling within a few ms of the click that mounts the panel (clickOnly, not
+  // press), or the flash is over before the first poll ever runs.
+  const coverageBusy = () => d.ev(`document.querySelector("aside.right h4")?.textContent?.includes("…") ?? false`);
+  const waitFreshCoverage = async (what, timeoutMs = 10000) => {
+    const started = Date.now();
+    while (!(await coverageBusy())) {
+      if (Date.now() - started > timeoutMs)
+        throw new Error(`timed out waiting for ${what}: the coverage panel never went busy -- no new computation was observed`);
+      await sleep(10);
+    }
+    while (await coverageBusy()) {
+      if (Date.now() - started > timeoutMs) throw new Error(`timed out waiting for ${what}: the coverage panel stayed busy`);
+      await sleep(10);
+    }
+    const text = await coverageText();
+    if (!text.includes("사각지대"))
+      throw new Error(`timed out waiting for ${what}: coverage rows never rendered after the busy flag cleared`);
+    return text;
+  };
 
   note("build", `unity.wasm ${BUILD}`);
   note("dataset", `${DS} · v${SLOTS.version ?? SEED.version} · ${SEED.decks} decks · ${SEED.features} features`);
@@ -150,9 +185,11 @@ export async function main() {
   // The per-layer counts of what is actually on the deck being photographed -- the one number the stale
   // docs/qgis-check.md got wrong in both directions, and the app's own count of it.
   note("D3 레이어", await d.ev(`[...document.querySelectorAll("aside.left .tree > ul > li")].map(e=>e.textContent.replace(/^[\u25be\u25b8]\\s*/,"").trim()).join(" · ")`));
-  await press("커버리지");
-  for (let i = 0; i < 60 && !(await coverageText()).includes("사각지대"); i++) await sleep(500);
-  await chapter("02", "coverage", await coverageText());
+  // clickOnly, not press: this click is the one that mounts CoveragePanel (first visit, tab defaults to
+  // 적재), and waitFreshCoverage has to start polling before press()'s 900 ms settle would already have
+  // swallowed the busy flash.
+  await clickOnly("커버리지");
+  await chapter("02", "coverage", await waitFreshCoverage("chapter 02 coverage"));
 
   await press("주행");
   // Only now: the time-scale select lives in the drive panel, and edit mode's right pane has a deck select
@@ -193,12 +230,19 @@ export async function main() {
   const log = await d.ev(`(()=>{const h=[...document.querySelectorAll("aside.right h4")].find(x=>x.textContent.includes("시나리오 로그"));if(!h)return null;const a=h.getBoundingClientRect(),b=h.nextElementSibling.getBoundingClientRect();return{x:Math.min(a.x,b.x),y:a.y,width:Math.max(a.width,b.width),height:b.bottom-a.top};})()`);
   if (log) await shot("07-parked-log.png", log, 3);
 
-  // 정지 first: in drive mode the right pane is the drive panel and has no coverage tab at all. It also stops
-  // the scenario, which otherwise drives on to the next slot for as long as the page is open. The camera
-  // needs no press back to 궤도: the toolbar's own edit-mode correction does that (Toolbar.tsx:30).
-  await press("정지"); await press("커버리지");
-  for (let i = 0; i < 60 && !(await coverageText()).includes("사각지대"); i++) await sleep(500);
-  await chapter("08", "promise-vs-measured", await coverageText());
+  // 정지: in drive mode the right pane is the drive panel and has no coverage tab at all. It also stops the
+  // scenario, which otherwise drives on to the next slot for as long as the page is open. The camera needs
+  // no press back to 궤도: the toolbar's own edit-mode correction does that (Toolbar.tsx:30).
+  //
+  // 정지 is also what remounts CoveragePanel here -- RightTabs swaps its whole tab body out for DrivePanel
+  // for the duration of drive mode and back, but never resets which tab was selected (setTab only runs from
+  // an explicit tab click or the Tab shortcut, neither of which this script uses between chapter 02 and
+  // here), so the tab is still "coverage" from chapter 02 the moment 정지 flips the mode back. A further
+  // click on 커버리지 would land on an already-selected tab: no unmount, no new mount, no new computation --
+  // the exact silent-stale case waitFreshCoverage exists to catch, just moved one click later. clickOnly,
+  // not press, for the same reason as chapter 02: poll before the settle delay eats the busy flash.
+  await clickOnly("정지");
+  await chapter("08", "promise-vs-measured", await waitFreshCoverage("chapter 08 coverage"));
 
   console.error("\n  this run only, and NOT reproducible: the sensor's noise is drawn once per RENDERED frame, so how");
   console.error("  many draws separate two events depends on the frame rate. The map, the coverage numbers and");
