@@ -310,6 +310,20 @@ namespace ShipHdMap
             if (m?.ids != null) foreach (var id in m.ids) Sensor.occluded.Add(id);
         }
 
+        /// The web owns the sensor's geometry (M6 spec §3). Until this arrives Unity runs on LandmarkSensor's
+        /// own field defaults, which is the only reason those defaults must stay equal to the API's --
+        /// docs/api-contract.md states that equality and nothing but this message enforces it.
+        public void SetSensor(string json)
+        {
+            var m = MapJson.Parse<SetSensorMsg>(json); if (m == null) return;
+            Sensor.fovDeg = (float)m.fov_deg;
+            Sensor.maxDist = (float)m.max_dist_m;
+            Sensor.maxViewAngleDeg = (float)m.max_view_angle_deg;
+            // Drive: VisibleFrom reads these every frame, nothing to do. Probe: Aim() runs only on a click or an
+            // arrow key, so without this it keeps drawing and counting through the old cone.
+            if (Probe.Active) Probe.Aim();
+        }
+
         public void SetTool(string json)
         {
             var t = MapJson.Parse<SetToolMsg>(json)?.tool;

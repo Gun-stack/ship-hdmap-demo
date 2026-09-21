@@ -364,5 +364,33 @@ namespace ShipHdMap.Tests
             var json = MapJson.Serialize(new FeatureCreatedEvt { tempId = "LM-0002", layer = "LM", x = 1, y = 2, z = 3, deck = "D3", mounted_on = "P", normal = new[] { 0.0, -1.0, 0.0 } });
             Assert.That(json, Does.Contain("normal"));
         }
+
+        [Test]
+        public void SetSensorMovesTheThreeGeometryFields()
+        {
+            go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>(); rt.InitForTest(); rt.Load(Fixture());
+            rt.SetSensor("{\"fov_deg\":55,\"max_dist_m\":12,\"max_view_angle_deg\":40}");
+            Assert.That(rt.Sensor.fovDeg, Is.EqualTo(55f).Within(1e-4f));
+            Assert.That(rt.Sensor.maxDist, Is.EqualTo(12f).Within(1e-4f));
+            Assert.That(rt.Sensor.maxViewAngleDeg, Is.EqualTo(40f).Within(1e-4f));
+        }
+
+        [Test]
+        public void SetSensorReAimsALiveProbeInsteadOfWaitingForTheNextClick()
+        {
+            // The drive re-reads the three fields every frame through VisibleFrom, so it needs nothing. The probe
+            // only recomputes in PlaceAt and on an arrow key -- without the re-aim its cone and its count keep the
+            // old angle until the operator happens to touch it, which is exactly the disagreement M6 exists to end.
+            go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>(); rt.InitForTest(); rt.Load(Fixture());
+            var d3 = rt.CurrentMap.decks.Find(d => d.id == "D3");
+            Assert.That(d3, Is.Not.Null, "fixture must carry Deck 3");
+            rt.Probe.PlaceAt(rt.transform.TransformPoint(ShipFrame.ToUnity(60, 0, d3.z_surface)), d3.z_surface);
+            string wide = rt.Hud.SensorText;
+            Assert.That(wide, Does.StartWith("seen "), "placing the probe should already have produced a count");
+
+            rt.SetSensor("{\"fov_deg\":10,\"max_dist_m\":25,\"max_view_angle_deg\":70}");
+
+            Assert.That(rt.Hud.SensorText, Is.Not.EqualTo(wide), "narrowing the cone to 10 deg must re-aim the live probe");
+        }
     }
 }
