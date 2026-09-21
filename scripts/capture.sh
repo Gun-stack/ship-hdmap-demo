@@ -12,16 +12,26 @@
 #   - Chrome with --remote-debugging-port=9333 and a tab open on http://localhost:5399/
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-API="http://localhost:${API_PORT:-8081}/api"; DS="${CAPTURE_DS:-roro-demo-cap}"; PORT="${WEB_PORT:-5399}"
+CAPTURE_ONLY="roro-demo-cap"                    # the ONLY id this script is ever allowed to drop
+API="http://localhost:${API_PORT:-8081}/api"; DS="${CAPTURE_DS:-$CAPTURE_ONLY}"; PORT="${WEB_PORT:-5399}"
 WASM="$ROOT/web/public/unity/Build/unity.wasm"
 [ -f "$WASM" ] || { echo "no WebGL build at web/public/unity -- build it first" >&2; exit 1; }
 BUILD_MTIME="$(date -r "$WASM" '+%Y-%m-%d %H:%M:%S')"
 
 # The capture dataset is disposable by design: drop and re-seed every run so the numbers cannot drift.
+#
 # Dropped with SQL, not with the API: there is no DELETE /datasets/{id}. Everything else hangs off the
-# dataset row with ON DELETE CASCADE (V1__init.sql), so one row is the whole drop. POST /seed alone would
-# not do -- it upserts, so anything a previous run's hand poke added would survive into the figures, and
-# the drive itself writes slot statuses back (PUT /slots/{id}/status) as it parks.
+# dataset row with ON DELETE CASCADE (V1__init.sql), so one row is the whole drop.
+#
+# Re-seeding alone will NOT do, and this was measured rather than assumed: POST /{id}/seed upserts by
+# (dataset_id, id) and deletes nothing, so a marker somebody added by hand survives it -- LM went 23 -> 24
+# across a re-seed and the deck's blind ratio moved 16.8 % -> 16.5 % with it. A re-seed also writes the
+# fixture's two hand-made parking slots back over the generated ones, which moves the cell count. And the
+# drive writes slot statuses back as it parks (PUT /slots/{id}/status). Only a drop gives one state.
+#
+# The guard is not ceremony: this is the one destructive statement in the repo's scripts, and it takes an
+# id. Nothing may reach the DELETE except the literal capture dataset.
+[ "$DS" = "$CAPTURE_ONLY" ] || { echo "refusing to drop \"$DS\": this script may only touch $CAPTURE_ONLY" >&2; exit 1; }
 command -v psql >/dev/null || { echo "psql not found -- needed to drop the capture dataset" >&2; exit 1; }
 PGPASSWORD="${DB_PASSWORD:-shiphdmap}" psql -h "${DB_HOST:-localhost}" -p "${DB_PORT:-5433}" -U shiphdmap -d shiphdmap \
   -v ON_ERROR_STOP=1 -Atc "DELETE FROM dataset WHERE id = '$DS'" >/dev/null

@@ -14,19 +14,17 @@
 //     then aim at a different slot.
 //  4. Stamp unity.wasm's mtime on everything. Without it a browser report is rumour, not evidence (M5e).
 //
-// Two things this file has to do that the app does not offer by itself:
-//  - The app hardcodes datasetId "roro-demo-01" (store/editor.ts) and reads no URL parameter, so the
-//    capture dataset is reached by rewriting the API path in flight (CDP Fetch domain). Every number and
-//    every pixel below therefore comes from the capture dataset -- but the top bar still PRINTS the
-//    literal string "roro-demo-01", so the label in the full-frame figures is the app's, not the data's.
-//    The version guard below is what proves which dataset is actually on screen.
-//  - The HUD is WebGL canvas pixels; the DOM cannot read it. A clipped, scaled capture is the only way in.
+// The dataset is chosen with ?ds=, which store/editor.ts reads for exactly this reason, so the top bar in
+// every figure names the dataset the figure is actually of. The version guard below re-checks that against
+// what the API just returned -- a figure whose label and content disagree is the defect this milestone is
+// about, and a person can open the same URL and see the same screen.
+//
+// The HUD is WebGL canvas pixels; the DOM cannot read it. A clipped, scaled capture is the only way in.
 import fs from "node:fs";
 import path from "node:path";
 
 const PORT = process.env.WEB_PORT ?? "5399";
 const DS = process.env.CAPTURE_DS ?? "roro-demo-cap";
-const APP_DS = "roro-demo-01";                      // what the app asks for; rewritten to DS on the wire
 const BUILD = process.env.BUILD_MTIME ?? "unknown";
 const SEED = JSON.parse(process.env.SEED_JSON ?? "{}");
 const SLOTS = JSON.parse(process.env.SLOTS_JSON ?? "{}");
@@ -41,12 +39,11 @@ async function connect() {
   const t = list.find((x) => x.type === "page" && x.url.includes(`localhost:${PORT}`));
   if (!t) throw new Error(`no page on localhost:${PORT} -- open it in the debugging Chrome first`);
   const ws = new WebSocket(t.webSocketDebuggerUrl);
-  let id = 0; const pend = new Map(); const on = new Map();
+  let id = 0; const pend = new Map();
   await new Promise((r) => ws.addEventListener("open", r));
   ws.addEventListener("message", (m) => {
     const d = JSON.parse(m.data);
-    if (d.id && pend.has(d.id)) { pend.get(d.id)(d); pend.delete(d.id); return; }
-    if (d.method && on.has(d.method)) on.get(d.method)(d.params);
+    if (d.id && pend.has(d.id)) { pend.get(d.id)(d); pend.delete(d.id); }
   });
   const send = (method, params = {}) => new Promise((res, rej) => {
     const i = ++id; pend.set(i, (d) => (d.error ? rej(new Error(method + ": " + JSON.stringify(d.error))) : res(d.result)));
@@ -58,22 +55,17 @@ async function connect() {
     return r.result.value;
   };
   await send("Page.enable"); await send("Runtime.enable");
-  return { send, ev, on };
+  return { send, ev };
 }
 
 export async function main() {
   const d = await connect();
 
-  // --- point the app at the capture dataset, before anything loads ---
-  d.on.set("Fetch.requestPaused", (p) => {
-    void d.send("Fetch.continueRequest", { requestId: p.requestId, url: p.request.url.replaceAll(APP_DS, DS) });
-  });
-  await d.send("Fetch.enable", { patterns: [{ urlPattern: `*${APP_DS}*` }] });
-
   // Rule 2: the persisted blob carries timeScale, the coverage sliders and the occlusion set -- every input
-  // to the numbers below. A capture that inherits yesterday's sliders is not reproducible.
-  await d.ev(`localStorage.removeItem("shiphdmap.editor.${APP_DS}");localStorage.removeItem("shiphdmap.ui.${APP_DS}");window.__reloading=1`);
-  await d.send("Page.navigate", { url: `http://localhost:${PORT}/` });
+  // to the numbers below. A capture that inherits yesterday's sliders is not reproducible. The two keys are
+  // fixed strings in the app (EDITOR_KEY, UI_KEY); they do not follow ?ds=.
+  await d.ev(`localStorage.removeItem("shiphdmap.editor.roro-demo-01");localStorage.removeItem("shiphdmap.ui.roro-demo-01");window.__reloading=1`);
+  await d.send("Page.navigate", { url: `http://localhost:${PORT}/?ds=${DS}` });
   for (let i = 0; ; i++) {
     await sleep(1000);
     if (i > 120) throw new Error("the app never finished loading");
@@ -82,7 +74,8 @@ export async function main() {
   await sleep(4000);                                 // Unity's Load/SetDeck/SetPose round trip
 
   const shown = await d.ev(`document.querySelector("header.topbar")?.textContent ?? ""`);
-  if (!shown.includes(`v${SLOTS.version ?? SEED.version}`)) throw new Error(`the page is not on ${DS}: top bar reads "${shown}"`);
+  if (!shown.includes(DS) || !shown.includes(`v${SLOTS.version ?? SEED.version}`))
+    throw new Error(`the page is not on ${DS} at v${SLOTS.version ?? SEED.version}: top bar reads "${shown}"`);
 
   // --- watch the bridge instead of the log panel ---
   // The DOM log stamps every line with the wall clock, and it renders scenarioLine()'s prose rather than the

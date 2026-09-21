@@ -98,7 +98,12 @@ async function refreshVersion(get: () => EditorState) {
 }
 
 export const useEditorStore = create<EditorState>()(persist((set, get) => ({
-  datasetId: "roro-demo-01", dataset: null, decks: [], features: {}, drafts: {}, selectedId: null, deckFilter: "all", mode: "edit",
+  // ?ds= exists for scripts/capture.sh: the figures in the docs have to come from a dataset the script can
+  // drop and re-seed on every run, and roro-demo-01 is the one people actually edit. No query string is the
+  // normal case and lands exactly where it always did. globalThis.location, not location: this initializer
+  // runs at import time and the vitest environment is "node", where there is no location at all.
+  datasetId: new URLSearchParams(globalThis.location?.search ?? "").get("ds") ?? "roro-demo-01",
+  dataset: null, decks: [], features: {}, drafts: {}, selectedId: null, deckFilter: "all", mode: "edit",
   pose: null, ramp: null, localization: null, error: null, slotGen: {}, scenarioLog: [],
   coverage: null, coverageMode: "load",
   // seeded with the API defaults: an empty object would leave the sliders at their minimum while the server
