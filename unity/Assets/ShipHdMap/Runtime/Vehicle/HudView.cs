@@ -16,6 +16,7 @@ namespace ShipHdMap
         /// What tool and camera are live, and what the visible eye currently sees. Public so the editor's
         /// Bridge Stub window can show the same two lines without recomputing them from a second source.
         public string StatusText { get; private set; }
+        public string SensorConfigText { get; private set; }
         public string SensorText { get; private set; }
         readonly List<(Label label, Vector3 local)> _deckLabels = new();
         LocalizerResult _last; Pose2D _truth; string _frame = "SHIP_AP", _deck = "all", _selected;
@@ -25,6 +26,7 @@ namespace ShipHdMap
         public void SetRamp(string line) { _ramp = line; }
         public void SetStatus(string line) { StatusText = line; }
         public void SetSensor(string line) { SensorText = line; }
+        public void SetSensorConfig(string line) { SensorConfigText = line; }
 
         /// A click that did nothing has to say so. LandmarkPlacer.Decide returns ClickAct.None when Place or
         /// Probe misses the ship entirely, and the cursor readout keeps updating from a DIFFERENT raycast --
@@ -49,6 +51,15 @@ namespace ShipHdMap
                 : cam == CamMode.Fly ? "   [WASD] move  [QE] up/down  [shift] faster" : "";
             return $"tool {t}   cam {c}{hint}";
         }
+
+        /// What the eye is SET TO, as opposed to what it found. It sits directly above SensorLine so the counts
+        /// are read next to the numbers that produced them -- "seen 1 / 23" means nothing without "fov 55".
+        ///
+        /// ASCII only, for the reason StatusLine gives. "0.#" rather than "F0" because the coverage sliders step
+        /// in whole units today but nothing stops a future one from landing on 55.5, and a rounded line that
+        /// disagrees with the panel beside it would be worse than no line.
+        public static string SensorConfigLine(double fovDeg, double maxDist, double maxViewAngleDeg)
+            => $"sensor  fov {fovDeg:0.#}  range {maxDist:0.#} m  view {maxViewAngleDeg:0.#}";
 
         /// How many mapped markers this eye actually sees, and why the rest are dark.
         ///
@@ -125,7 +136,7 @@ namespace ShipHdMap
             if (_info == null) return;
             if (_flash != null && Time.unscaledTime > _flashUntil) _flash = null;
             _info.text = string.Join("\n", Lines(_deck, _selected, CursorShip(), _last, _truth, _frame))
-                + Extra(_ramp) + Extra(StatusText) + Extra(SensorText) + Extra(_flash);
+                + Extra(_ramp) + Extra(StatusText) + Extra(SensorConfigText) + Extra(SensorText) + Extra(_flash);
             if (cam == null) return;
             var panel = _doc.rootVisualElement.panel;
             foreach (var (label, local) in _deckLabels)

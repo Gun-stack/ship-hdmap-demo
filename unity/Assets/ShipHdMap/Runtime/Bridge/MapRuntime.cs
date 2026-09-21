@@ -462,6 +462,7 @@ namespace ShipHdMap
             // four writers (and Focus is easy to forget), and a status line that drifts from the thing it
             // reports is worse than none.
             Hud.SetStatus(HudView.StatusLine(Placer.tool, Orbit ? Orbit.mode : CamMode.Orbit, Probe.Active));
+            Hud.SetSensorConfig(HudView.SensorConfigLine(Sensor.fovDeg, Sensor.maxDist, Sensor.maxViewAngleDeg));
             // Localize() fills SensorText while driving and ProbeView.Aim while probing; this clears it the
             // moment neither eye is live. The drive half is Step's own guard negated, deliberately -- `_mode
             // == "drive"` alone is not the same test, because Finish() parks the vehicle and DEACTIVATES it
