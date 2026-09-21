@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -363,6 +364,73 @@ namespace ShipHdMap.Tests
         {
             var json = MapJson.Serialize(new FeatureCreatedEvt { tempId = "LM-0002", layer = "LM", x = 1, y = 2, z = 3, deck = "D3", mounted_on = "P", normal = new[] { 0.0, -1.0, 0.0 } });
             Assert.That(json, Does.Contain("normal"));
+        }
+
+        [Test]
+        public void SetSensorMovesTheThreeGeometryFields()
+        {
+            go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>(); rt.InitForTest(); rt.Load(Fixture());
+            rt.SetSensor("{\"fov_deg\":55,\"max_dist_m\":12,\"max_view_angle_deg\":40}");
+            Assert.That(rt.Sensor.fovDeg, Is.EqualTo(55f).Within(1e-4f));
+            Assert.That(rt.Sensor.maxDist, Is.EqualTo(12f).Within(1e-4f));
+            Assert.That(rt.Sensor.maxViewAngleDeg, Is.EqualTo(40f).Within(1e-4f));
+        }
+
+        [Test]
+        public void SetSensorReAimsALiveProbeInsteadOfWaitingForTheNextClick()
+        {
+            // The drive re-reads the three fields every frame through VisibleFrom, so it needs nothing. The probe
+            // only recomputes in PlaceAt and on an arrow key -- without the re-aim its cone and its count keep the
+            // old angle until the operator happens to touch it, which is exactly the disagreement M6 exists to end.
+            go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>(); rt.InitForTest(); rt.Load(Fixture());
+            var d3 = rt.CurrentMap.decks.Find(d => d.id == "D3");
+            Assert.That(d3, Is.Not.Null, "fixture must carry Deck 3");
+            rt.Probe.PlaceAt(rt.transform.TransformPoint(ShipFrame.ToUnity(60, 0, d3.z_surface)), d3.z_surface);
+            string wide = rt.Hud.SensorText;
+            Assert.That(wide, Does.StartWith("seen "), "placing the probe should already have produced a count");
+
+            rt.SetSensor("{\"fov_deg\":10,\"max_dist_m\":25,\"max_view_angle_deg\":70}");
+
+            Assert.That(rt.Hud.SensorText, Is.Not.EqualTo(wide), "narrowing the cone to 10 deg must re-aim the live probe");
+        }
+
+        [Test]
+        public void EveryBridgeMessageNameIsClaimedByAtMostOneComponent()
+        {
+            // GameObject.SendMessage(name, arg) invokes EVERY component's method of that name on the GameObject,
+            // not just one intended handler -- a collision silently double-fires instead of erroring. M6 found
+            // exactly this: HudView.SetSensor(string) sat on the same "Map" root as MapRuntime.SetSensor(string),
+            // so every web SetSensor call also clobbered the HUD's marker-count line. The direct-call tests above
+            // cannot see this class of bug -- they call rt.SetSensor(...) as a plain C# method, never through
+            // SendMessage -- so this walks every incoming message name against every component instead.
+            go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>(); rt.InitForTest();
+            var incoming = typeof(BridgeMessages)
+                .GetFields(BindingFlags.Public | BindingFlags.Static)
+                .Where(f => f.FieldType == typeof(string))
+                .Select(f => (string)f.GetValue(null))
+                .Where(v => char.IsUpper(v[0]))   // web->Unity names only; outgoing on* events are never SendMessage targets
+                .ToList();
+            // A floor, not just non-empty: if the filter above ever stops matching BridgeMessages (a field
+            // becomes non-const, the BindingFlags stop applying, ...), this loop would silently check nothing
+            // and pass green having tested nothing -- the exact failure mode this test exists to prevent.
+            // 17 is today's count of incoming names -- the same 17 the web's BridgeName union lists, since
+            // "Delete" joined BridgeMessages. It may only rise, so a failure here means the reflection stopped
+            // finding names, not that someone innocently added an 18th.
+            Assert.That(incoming.Count, Is.GreaterThanOrEqualTo(17),
+                $"found only {incoming.Count} incoming message names -- the filter in this test has stopped matching BridgeMessages");
+
+            var components = go.GetComponents<MonoBehaviour>();
+            Assert.That(components.Length, Is.GreaterThan(0),
+                "found no components on the Map root -- InitForTest stopped attaching anything, so there is nothing left to check");
+            foreach (var name in incoming)
+            {
+                var owners = components.Where(c => c.GetType()
+                    .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+                    .Any(m => m.Name == name)).ToList();
+                Assert.That(owners.Count, Is.LessThanOrEqualTo(1),
+                    $"\"{name}\" is claimed by {owners.Count} components ({string.Join(", ", owners.Select(c => c.GetType().Name))}) " +
+                    "-- SendMessage would invoke all of them");
+            }
         }
     }
 }

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { EDITOR_KEY, EDITOR_WRITE_MS, useEditorStore, visibleFeatures } from "./editor";
+import { EDITOR_KEY, EDITOR_SCHEMA, EDITOR_WRITE_MS, useEditorStore, visibleFeatures } from "./editor";
 import { api } from "../api/client";
 
 vi.mock("../api/client", () => ({
@@ -125,7 +125,7 @@ describe("editor store", () => {
     s().setMode("drive");
     s().setCoverageParams({ max_dist_m: 31 });
     s().setBeliefParams({ k: 4.5 });
-    s().setNoise({ sigma_r: 0.44 });
+    s().setSigmaGps(0.44);
     s().setTimeScale(20);
     s().toggleOccluded("LM-0003");
 
@@ -143,7 +143,7 @@ describe("editor store", () => {
     expect(s().mode).toBe("drive");
     expect(s().coverageParams.max_dist_m).toBe(31);
     expect(s().beliefParams.k).toBe(4.5);
-    expect(s().noise.sigma_r).toBe(0.44);
+    expect(s().sigmaGps).toBe(0.44);
     expect(s().timeScale).toBe(20);
     expect(s().occluded).toEqual(["LM-0003"]);
   });
@@ -165,7 +165,7 @@ describe("editor store", () => {
     useEditorStore.getState().setDeckFilter("D2");
     await new Promise((r) => setTimeout(r, EDITOR_WRITE_MS + 80));
     expect(Object.keys(JSON.parse(localStorage.getItem(EDITOR_KEY)!).state).sort()).toEqual(
-      ["beliefParams", "coverageMode", "coverageParams", "deckFilter", "mode", "noise", "occluded", "timeScale"],
+      ["beliefParams", "coverageMode", "coverageParams", "deckFilter", "mode", "occluded", "sigmaGps", "timeScale"],
     );
   });
 });
@@ -217,4 +217,48 @@ describe("scenario log and slot status", () => {
     expect(scenarioLine({ event: "frame_switch", detail: "est x 1.20 y -0.30 psi 0.4" })).toBe("프레임 전환 · est x 1.20 y -0.30 psi 0.4");
     expect(scenarioLine({ event: "finished", detail: "ramp_blocked" })).toBe("종료 (ramp_blocked)");
   });
+});
+
+import { noiseMsg, predictionMsg, sensorMsg } from "./editor";
+
+describe("bridge payload assembly", () => {
+  const s = {
+    coverageParams: { fov_deg: 55, max_dist_m: 12, max_view_angle_deg: 40, sigma_r: 0.4, sigma_theta: 2, sigma_alpha: 3, grid_m: 2 },
+    sigmaGps: 0.7,
+  };
+
+  it("SetNoise takes its three sigmas from coverageParams and sigma_gps from the store", () => {
+    expect(noiseMsg(s)).toEqual({ sigma_r: 0.4, sigma_theta: 2, sigma_alpha: 3, sigma_gps: 0.7 });
+  });
+
+  it("SetSensor carries the API's three names and nothing else", () => {
+    // grid_m and the sigmas must not ride along: SetSensorMsg has no field for them and Newtonsoft drops
+    // unknown keys without a word, so a spread would look fine and quietly send a shape nobody reads.
+    expect(sensorMsg(s)).toEqual({ fov_deg: 55, max_dist_m: 12, max_view_angle_deg: 40 });
+  });
+
+  it("the prediction POST carries the sliders' sensor, and a 1 m grid whatever the panel's is", () => {
+    // The response of this POST becomes SetPrediction -- the promise BeliefMonitor judges the live drive
+    // against. Computed with the API's defaults it would judge a 55 deg drive against a 90 deg promise,
+    // and a slot that fails twice is written `unreachable`. grid_m is the one field that must NOT follow
+    // the panel: SetPrediction's 2880-cell trim assumes 1 m, and coverageParams.grid_m is 2 here.
+    expect(predictionMsg({ ...s, occluded: ["LM-7"] }, "load")).toEqual({
+      fov_deg: 55, max_dist_m: 12, max_view_angle_deg: 40, sigma_r: 0.4, sigma_theta: 2, sigma_alpha: 3,
+      grid_m: 1.0, mode: "load", omit: ["LM-7"],
+    });
+  });
+});
+
+describe("persisted schema", () => {
+  it("drops a v1 blob instead of restoring it without sigmaGps", async () => {
+    // A v1 blob has `noise` and no `sigmaGps`. Restoring it would leave sigmaGps undefined, and the first
+    // noiseMsg() would put `sigma_gps: undefined` on the wire -- Newtonsoft then leaves the field at
+    // SetNoiseMsg's default and the quay leg silently drives on a sigma nobody chose.
+    localStorage.setItem(EDITOR_KEY, JSON.stringify({ version: 1, state: { noise: { sigma_r: 9, sigma_theta: 9, sigma_alpha: 9, sigma_gps: 9 }, deckFilter: "D2" } }));
+    await useEditorStore.persist.rehydrate();
+    expect(useEditorStore.getState().sigmaGps).toBe(0.5);
+    expect(useEditorStore.getState().deckFilter).not.toBe("D2");
+  });
+
+  it("is on version 2", () => { expect(EDITOR_SCHEMA).toBe(2); });
 });

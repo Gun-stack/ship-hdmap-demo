@@ -310,6 +310,20 @@ namespace ShipHdMap
             if (m?.ids != null) foreach (var id in m.ids) Sensor.occluded.Add(id);
         }
 
+        /// The web owns the sensor's geometry (M6 spec §3). Until this arrives Unity runs on LandmarkSensor's
+        /// own field defaults, which is the only reason those defaults must stay equal to the API's --
+        /// docs/api-contract.md states that equality and nothing but this message enforces it.
+        public void SetSensor(string json)
+        {
+            var m = MapJson.Parse<SetSensorMsg>(json); if (m == null) return;
+            Sensor.fovDeg = (float)m.fov_deg;
+            Sensor.maxDist = (float)m.max_dist_m;
+            Sensor.maxViewAngleDeg = (float)m.max_view_angle_deg;
+            // Drive: VisibleFrom reads these every frame, nothing to do. Probe: Aim() runs only on a click or an
+            // arrow key, so without this it keeps drawing and counting through the old cone.
+            if (Probe.Active) Probe.Aim();
+        }
+
         public void SetTool(string json)
         {
             var t = MapJson.Parse<SetToolMsg>(json)?.tool;
@@ -448,12 +462,13 @@ namespace ShipHdMap
             // four writers (and Focus is easy to forget), and a status line that drifts from the thing it
             // reports is worse than none.
             Hud.SetStatus(HudView.StatusLine(Placer.tool, Orbit ? Orbit.mode : CamMode.Orbit, Probe.Active));
+            Hud.SetSensorConfig(HudView.SensorConfigLine(Sensor.fovDeg, Sensor.maxDist, Sensor.maxViewAngleDeg));
             // Localize() fills SensorText while driving and ProbeView.Aim while probing; this clears it the
             // moment neither eye is live. The drive half is Step's own guard negated, deliberately -- `_mode
             // == "drive"` alone is not the same test, because Finish() parks the vehicle and DEACTIVATES it
             // without leaving drive mode, and the count would then sit there describing an eye that is no
             // longer in the scene. Any new reason Localize() stops running has to be mirrored here too.
-            if (!Probe.Active && !(_mode == "drive" && Vehicle.running)) Hud.SetSensor(null);
+            if (!Probe.Active && !(_mode == "drive" && Vehicle.running)) Hud.SetSensorCounts(null);
         }
 
         /// Unity writes Orbit.mode in places the web never hears about -- Focus, ProbeView.Aim, ReleaseProbe
@@ -523,7 +538,7 @@ namespace ShipHdMap
             _lastRes = Localizer.Solve(obs, MapRefs, Sensor.noise.sigmaR, Sensor.noise.sigmaThetaRad, Sensor.noise.sigmaAlphaRad, _prev);
             if (_lastRes.ok && double.IsFinite(_lastRes.pose.x) && double.IsFinite(_lastRes.pose.y) && double.IsFinite(_lastRes.pose.psiRad)) _prev = _lastRes.pose;
             Hud.Set(_lastRes, truth, "SHIP_AP");
-            Hud.SetSensor(HudView.SensorLine(why));   // the same verdicts Sense observed through, counted
+            Hud.SetSensorCounts(HudView.SensorLine(why));   // the same verdicts Sense observed through, counted
             // The height has to come from the same projection as the pose, because the cone is drawn in Ship
             // Frame. Neither obvious candidate is that: _targetDeck.z_surface is where the car is GOING, not
             // where it is; and Vehicle.Z is "Ship Frame OR QUAY Frame depending on the parent" (its own comment)

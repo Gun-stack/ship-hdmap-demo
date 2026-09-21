@@ -50,6 +50,15 @@ namespace ShipHdMap.Tests
         }
 
         [Test]
+        public void SensorConfigLineDropsTrailingZerosButKeepsAHalfStep()
+        {
+            // The sliders step in whole degrees and metres, so the common case must not read "90.0"; a value
+            // that is not whole still has to survive, or the line would quietly lie about what the drive uses.
+            Assert.That(HudView.SensorConfigLine(90, 25, 70), Is.EqualTo("sensor  fov 90  range 25 m  view 70"));
+            Assert.That(HudView.SensorConfigLine(55.5, 12.5, 70), Is.EqualTo("sensor  fov 55.5  range 12.5 m  view 70"));
+        }
+
+        [Test]
         public void HudAssetsExistInResources()
         {
             var ps = Resources.Load<PanelSettings>("HudPanelSettings");

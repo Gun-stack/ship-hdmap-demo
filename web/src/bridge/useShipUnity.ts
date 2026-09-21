@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useUnityContext } from "react-unity-webgl";
 import { api } from "../api/client";
-import { scenarioLine, useEditorStore, type NoiseParams } from "../store/editor";
+import { noiseMsg, scenarioLine, sensorMsg, useEditorStore } from "../store/editor";
+import type { EditorState } from "../store/editor";
 import { useUiStore, type CamMode, type Tool } from "../store/ui";
 import { pickDeck } from "../geo/deck";
 
-export type BridgeName = "Load" | "SetMode" | "SetDeck" | "Select" | "Confirm" | "Delete" | "SetNoise" | "StartScenario" | "SetPose" | "SetTimeScale" | "SetPrediction" | "SetOccluded" | "SetBeliefParams" | "SetTool" | "SetCamMode" | "SetNormal";
+export type BridgeName = "Load" | "SetMode" | "SetDeck" | "Select" | "Confirm" | "Delete" | "SetNoise" | "SetSensor" | "StartScenario" | "SetPose" | "SetTimeScale" | "SetPrediction" | "SetOccluded" | "SetBeliefParams" | "SetTool" | "SetCamMode" | "SetNormal";
 
 /**
  * Everything Unity forgets on a fresh Load or a page reload, as the exact messages to replay.
@@ -15,12 +16,15 @@ export type BridgeName = "Load" | "SetMode" | "SetDeck" | "Select" | "Confirm" |
  */
 export function editorStateMessages(
   ui: { tool: Tool; cam: CamMode },
-  ed: { noise: NoiseParams; timeScale: number; occluded: string[] },
+  ed: Pick<EditorState, "coverageParams" | "sigmaGps" | "timeScale" | "occluded">,
 ): [BridgeName, object][] {
   return [
     ["SetTool", { tool: ui.tool }],
     ["SetCamMode", { mode: ui.cam }],
-    ["SetNoise", ed.noise],
+    // Before SetNoise on purpose: both end up in LandmarkSensor, and a reader of the replay should meet the
+    // geometry before the noise that is measured through it.
+    ["SetSensor", sensorMsg(ed)],
+    ["SetNoise", noiseMsg(ed)],
     ["SetTimeScale", { scale: ed.timeScale }],
     ["SetOccluded", { ids: ed.occluded }],
   ];
@@ -30,7 +34,7 @@ const URLS = { loaderUrl: "/unity/Build/unity.loader.js", dataUrl: "/unity/Build
 
 export function useShipUnity() {
   const { unityProvider, isLoaded, sendMessage, addEventListener, removeEventListener } = useUnityContext(URLS);
-  const { datasetId, dataset, deckFilter, selectedId, mode, pose, ramp, addDraft, select, setLocalization, moveFeature, onSlotFilled, appendLog, setBelief } = useEditorStore();
+  const { datasetId, dataset, deckFilter, selectedId, mode, pose, ramp, coverageParams, addDraft, select, setLocalization, moveFeature, onSlotFilled, appendLog, setBelief } = useEditorStore();
   const loadedOnce = useRef(false);
   const loading = useRef(false);
   const fromScene = useRef<string | null>(null);
@@ -49,7 +53,8 @@ export function useShipUnity() {
       ...(ramp ? { ramp: { id: ramp.id, angle_deg: ramp.angle_deg, state: ramp.state } } : {}) });
   }, [send]);
 
-  /** Everything Unity forgets on a fresh Load or a page reload: the tool, the camera, the sensor and the occlusion set. */
+  /** Everything Unity forgets on a fresh Load or a page reload: the tool, the camera, the sensor's geometry,
+   *  its noise and the occlusion set. */
   const sendEditorState = useCallback(() => {
     for (const [name, payload] of editorStateMessages(useUiStore.getState(), useEditorStore.getState())) send(name, payload);
   }, [send]);
@@ -111,6 +116,16 @@ export function useShipUnity() {
   useEffect(() => { if (loadedOnce.current) send("SetDeck", deckFilter); }, [deckFilter, send]);
   useEffect(() => { if (loadedOnce.current) sendPose(); }, [pose, ramp, dataset?.lpp_m, sendPose]);
   useEffect(() => { if (loadedOnce.current) send("SetMode", mode); }, [mode, send]);
+  // Sent on every change, not on release like the coverage POST. Three doubles over the bridge cost nothing,
+  // and a release-only trigger has a hole in it -- moving the slider with the arrow keys never fires mouseup.
+  // The visible effect is that the 3D cone narrows while the drag is still happening and the heatmap catches
+  // up when it ends, which is the two screens showing that they are wired to one number.
+  useEffect(() => {
+    if (!loadedOnce.current) return;
+    const ed = useEditorStore.getState();
+    send("SetSensor", sensorMsg(ed));
+    send("SetNoise", noiseMsg(ed));
+  }, [coverageParams, send]);
   useEffect(() => {
     if (!loadedOnce.current) return;
     if (!selectedId) { fromScene.current = null; send("Select", ""); return; }

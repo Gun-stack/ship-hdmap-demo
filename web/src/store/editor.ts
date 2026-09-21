@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
 import { api } from "../api/client";
-import type { BeliefEvt, BeliefParamsIn, Candidate, CoverageMode, CoverageOut, CoverageSensor, Dataset, Deck, Feature, FeatureCreatedEvt, FeatureIn, FeatureMovedEvt, GenerateSlotsIn, GenerateSlotsOut, Geometry, Layer, LocalizationEvt, Pose, RampState, ScenarioEvt, ScenarioLine, SlotFilledEvt, Suggestion } from "../api/types";
+import type { BeliefEvt, BeliefParamsIn, Candidate, CoverageIn, CoverageMode, CoverageOut, CoverageSensor, Dataset, Deck, Feature, FeatureCreatedEvt, FeatureIn, FeatureMovedEvt, GenerateSlotsIn, GenerateSlotsOut, Geometry, Layer, LocalizationEvt, Pose, RampState, ScenarioEvt, ScenarioLine, SlotFilledEvt, Suggestion } from "../api/types";
 import { SENSOR_DEFAULTS } from "../geo/coverage";
 
 export type Draft = { tempId: string; layer: Layer; deck_id: string; geometry: Geometry; props: Record<string, unknown> };
@@ -10,7 +10,10 @@ export type Mode = "edit" | "drive";
 /** Sensor noise on the wire: angles in degrees, matching SetNoiseMsg. Lived in DrivePanel until M5e needed it to survive a reload. */
 export type NoiseParams = { sigma_r: number; sigma_theta: number; sigma_alpha: number; sigma_gps: number };
 export const EDITOR_KEY = "shiphdmap.editor.roro-demo-01";
-export const EDITOR_SCHEMA = 1;
+// 2: M6 moved sigma r/theta/alpha into coverageParams and left only sigma_gps behind, so a v1 blob has
+// `noise` and no `sigmaGps`. zustand drops a version mismatch outright (see the persist block's comment),
+// which is the wanted behaviour here -- there is nothing in a v1 blob worth migrating.
+export const EDITOR_SCHEMA = 2;
 export const EDITOR_WRITE_MS = 200;
 
 /**
@@ -81,9 +84,9 @@ export type EditorState = {
   toggleOccluded: (id: string) => void;
   setBeliefParams: (p: Partial<BeliefParamsIn>) => void;
   setError: (error: string | null) => void;
-  noise: NoiseParams;
+  sigmaGps: number;
   timeScale: number;
-  setNoise: (p: Partial<NoiseParams>) => void;
+  setSigmaGps: (v: number) => void;
   setTimeScale: (v: number) => void;
 };
 
@@ -95,7 +98,12 @@ async function refreshVersion(get: () => EditorState) {
 }
 
 export const useEditorStore = create<EditorState>()(persist((set, get) => ({
-  datasetId: "roro-demo-01", dataset: null, decks: [], features: {}, drafts: {}, selectedId: null, deckFilter: "all", mode: "edit",
+  // ?ds= exists for scripts/capture.sh: the figures in the docs have to come from a dataset the script can
+  // drop and re-seed on every run, and roro-demo-01 is the one people actually edit. No query string is the
+  // normal case and lands exactly where it always did. globalThis.location, not location: this initializer
+  // runs at import time and the vitest environment is "node", where there is no location at all.
+  datasetId: new URLSearchParams(globalThis.location?.search ?? "").get("ds") ?? "roro-demo-01",
+  dataset: null, decks: [], features: {}, drafts: {}, selectedId: null, deckFilter: "all", mode: "edit",
   pose: null, ramp: null, localization: null, error: null, slotGen: {}, scenarioLog: [],
   coverage: null, coverageMode: "load",
   // seeded with the API defaults: an empty object would leave the sliders at their minimum while the server
@@ -106,11 +114,11 @@ export const useEditorStore = create<EditorState>()(persist((set, get) => ({
   // must match BeliefParams in BeliefMonitor.cs -- the panel showing one number while Unity uses another is the
   // same trap the coverage sliders hit in M5c
   beliefParams: { k: 2.0, frames: 5, drift_rate: 0.05, budget_m: 1.0, max_lost_m: 5.0, trail_m: 20.0 },
-  noise: { sigma_r: 0.2, sigma_theta: 1, sigma_alpha: 2, sigma_gps: 0.5 }, timeScale: 1,
+  sigmaGps: 0.5, timeScale: 1,
   setBelief: (belief) => set({ belief }),
   setBeliefParams: (p) => set((s) => ({ beliefParams: { ...s.beliefParams, ...p } })),
   setError: (error) => set({ error }),
-  setNoise: (p) => set((s) => ({ noise: { ...s.noise, ...p } })),
+  setSigmaGps: (v) => set({ sigmaGps: v }),
   setTimeScale: (timeScale) => set({ timeScale }),
   toggleOccluded: (id) => set((s) => ({ occluded: s.occluded.includes(id) ? s.occluded.filter((x) => x !== id) : [...s.occluded, id] })),
 
@@ -232,7 +240,7 @@ export const useEditorStore = create<EditorState>()(persist((set, get) => ({
     // would put yesterday's numbers next to today's dataset version.
     partialize: (s) => ({
       deckFilter: s.deckFilter, mode: s.mode, coverageMode: s.coverageMode, coverageParams: s.coverageParams,
-      beliefParams: s.beliefParams, noise: s.noise, timeScale: s.timeScale, occluded: s.occluded,
+      beliefParams: s.beliefParams, sigmaGps: s.sigmaGps, timeScale: s.timeScale, occluded: s.occluded,
     }),
     // No migrate: zustand already drops a version mismatch and falls back to the store's own defaults.
     // Nothing here backstops the key list above, though -- partialize's return type is inferred as a
@@ -241,6 +249,44 @@ export const useEditorStore = create<EditorState>()(persist((set, get) => ({
     // 이것뿐이다") -- that is the only thing that fails if this list drifts.
   },
 ));
+
+/**
+ * The SetNoise payload, assembled. sigma r/theta/alpha live in coverageParams so the heatmap's PREDICTION and
+ * the drive's MEASUREMENT cannot be set to different numbers (M6 spec §4); sigma_gps has no coverage
+ * counterpart -- the quay leg has no landmarks -- so it stays on its own.
+ *
+ * Four places send SetNoise: the reload replay, the sigma-GPS slider's release, the scenario start, and the
+ * coverage slider effect. They all come through here, or the four drift.
+ */
+export function noiseMsg(s: Pick<EditorState, "coverageParams" | "sigmaGps">): NoiseParams {
+  const { sigma_r, sigma_theta, sigma_alpha } = s.coverageParams;
+  return { sigma_r, sigma_theta, sigma_alpha, sigma_gps: s.sigmaGps };
+}
+
+/**
+ * The SetSensor payload: the same three names the coverage API takes, and nothing else (M6 spec §3.1).
+ * Picked field by field on purpose -- coverageParams also carries grid_m and the three sigmas, and spreading
+ * it would hand Unity keys SetSensorMsg has no field for, which Newtonsoft drops in silence.
+ */
+export function sensorMsg(s: Pick<EditorState, "coverageParams">) {
+  const { fov_deg, max_dist_m, max_view_angle_deg } = s.coverageParams;
+  return { fov_deg, max_dist_m, max_view_angle_deg };
+}
+
+/**
+ * The coverage POST body behind SetPrediction -- the drive's "map promise", which BeliefMonitor compares the
+ * live sigma against. It has to be computed with the SAME sensor the scene is running (M6 §3), or a normal
+ * drive is judged Degraded against a promise it never made and a twice-failed slot is written `unreachable`.
+ * Third assembler, same reason as the other two: three senders of these numbers, one place that builds them.
+ *
+ * grid_m is the one field that does NOT follow the panel: SetPrediction trims the response to 2880 cells of
+ * {x, y, s} on the assumption of a 1 m grid, so it overrides coverageParams.grid_m rather than the reverse.
+ * extra_landmarks stays out on purpose -- candidates are in neither the DB nor the scene, so predicting with
+ * them would split the two the other way.
+ */
+export function predictionMsg(s: Pick<EditorState, "coverageParams" | "occluded">, mode: CoverageMode): CoverageIn {
+  return { ...s.coverageParams, mode, omit: s.occluded, grid_m: 1.0 };
+}
 
 export function visibleFeatures(s: EditorState): Feature[] {
   const all = Object.values(s.features);
