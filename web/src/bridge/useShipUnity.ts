@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useUnityContext } from "react-unity-webgl";
 import { api } from "../api/client";
-import { scenarioLine, useEditorStore, type NoiseParams } from "../store/editor";
+import { noiseMsg, scenarioLine, sensorMsg, useEditorStore } from "../store/editor";
+import type { EditorState } from "../store/editor";
 import { useUiStore, type CamMode, type Tool } from "../store/ui";
 import { pickDeck } from "../geo/deck";
 
-export type BridgeName = "Load" | "SetMode" | "SetDeck" | "Select" | "Confirm" | "Delete" | "SetNoise" | "StartScenario" | "SetPose" | "SetTimeScale" | "SetPrediction" | "SetOccluded" | "SetBeliefParams" | "SetTool" | "SetCamMode" | "SetNormal";
+export type BridgeName = "Load" | "SetMode" | "SetDeck" | "Select" | "Confirm" | "Delete" | "SetNoise" | "SetSensor" | "StartScenario" | "SetPose" | "SetTimeScale" | "SetPrediction" | "SetOccluded" | "SetBeliefParams" | "SetTool" | "SetCamMode" | "SetNormal";
 
 /**
  * Everything Unity forgets on a fresh Load or a page reload, as the exact messages to replay.
@@ -15,12 +16,15 @@ export type BridgeName = "Load" | "SetMode" | "SetDeck" | "Select" | "Confirm" |
  */
 export function editorStateMessages(
   ui: { tool: Tool; cam: CamMode },
-  ed: { noise: NoiseParams; timeScale: number; occluded: string[] },
+  ed: Pick<EditorState, "coverageParams" | "sigmaGps" | "timeScale" | "occluded">,
 ): [BridgeName, object][] {
   return [
     ["SetTool", { tool: ui.tool }],
     ["SetCamMode", { mode: ui.cam }],
-    ["SetNoise", ed.noise],
+    // Before SetNoise on purpose: both end up in LandmarkSensor, and a reader of the replay should meet the
+    // geometry before the noise that is measured through it.
+    ["SetSensor", sensorMsg(ed)],
+    ["SetNoise", noiseMsg(ed)],
     ["SetTimeScale", { scale: ed.timeScale }],
     ["SetOccluded", { ids: ed.occluded }],
   ];
@@ -49,7 +53,8 @@ export function useShipUnity() {
       ...(ramp ? { ramp: { id: ramp.id, angle_deg: ramp.angle_deg, state: ramp.state } } : {}) });
   }, [send]);
 
-  /** Everything Unity forgets on a fresh Load or a page reload: the tool, the camera, the sensor and the occlusion set. */
+  /** Everything Unity forgets on a fresh Load or a page reload: the tool, the camera, the sensor's geometry,
+   *  its noise and the occlusion set. */
   const sendEditorState = useCallback(() => {
     for (const [name, payload] of editorStateMessages(useUiStore.getState(), useEditorStore.getState())) send(name, payload);
   }, [send]);
