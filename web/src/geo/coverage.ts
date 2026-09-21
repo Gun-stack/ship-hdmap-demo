@@ -1,7 +1,13 @@
 import type { CoverageCell, CoverageSensor } from "../api/types";
 
 export const BLIND_COLOR = "#d32f2f";
-/** Must match CoverageAnalyzer.DEFAULTS. Seeding the sliders with these keeps the UI and the server in step. */
+/**
+ * The three geometry names are also Unity's (LandmarkSensor) and the API's (CoverageAnalyzer.DEFAULTS), so
+ * three copies of 90/25/70 exist in three languages. Nothing generates them from one source -- that would be
+ * heavier than this demo needs. What keeps them from mattering is that the web SENDS these to both sides
+ * (SetSensor over the bridge, the POST body to the API), so only one value is ever live at once. These
+ * defaults decide what the sliders start at, and what Unity runs on for the moment before the first Load.
+ */
 export const SENSOR_DEFAULTS: CoverageSensor = {
   fov_deg: 90, max_dist_m: 25, max_view_angle_deg: 70, sigma_r: 0.2, sigma_theta: 1, sigma_alpha: 2,
 };
