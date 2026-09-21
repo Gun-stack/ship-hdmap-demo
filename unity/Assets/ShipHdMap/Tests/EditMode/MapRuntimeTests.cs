@@ -408,9 +408,19 @@ namespace ShipHdMap.Tests
                 .GetFields(BindingFlags.Public | BindingFlags.Static)
                 .Where(f => f.FieldType == typeof(string))
                 .Select(f => (string)f.GetValue(null))
-                .Where(v => char.IsUpper(v[0]));   // web->Unity names only; outgoing on* events are never SendMessage targets
+                .Where(v => char.IsUpper(v[0]))   // web->Unity names only; outgoing on* events are never SendMessage targets
+                .ToList();
+            // A floor, not just non-empty: if the filter above ever stops matching BridgeMessages (a field
+            // becomes non-const, the BindingFlags stop applying, ...), this loop would silently check nothing
+            // and pass green having tested nothing -- the exact failure mode this test exists to prevent.
+            // 16 is today's count of incoming names; it may only rise, so a failure here means the reflection
+            // stopped finding names, not that someone innocently added a 17th.
+            Assert.That(incoming.Count, Is.GreaterThanOrEqualTo(16),
+                $"found only {incoming.Count} incoming message names -- the filter in this test has stopped matching BridgeMessages");
 
             var components = go.GetComponents<MonoBehaviour>();
+            Assert.That(components.Length, Is.GreaterThan(0),
+                "found no components on the Map root -- InitForTest stopped attaching anything, so there is nothing left to check");
             foreach (var name in incoming)
             {
                 var owners = components.Where(c => c.GetType()
