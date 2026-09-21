@@ -2,7 +2,7 @@ import { api } from "../api/client";
 import type { BeliefParamsIn } from "../api/types";
 import { beliefBadge, fmtRatioOf } from "../geo/belief";
 import { wrapDeg } from "../geo/shipFrame";
-import { noiseMsg, useEditorStore } from "../store/editor";
+import { noiseMsg, predictionMsg, useEditorStore } from "../store/editor";
 import type { BridgeName } from "../bridge/useShipUnity";
 import { pickDeck } from "../geo/deck";
 
@@ -30,7 +30,7 @@ export function DrivePanel({ send }: { send: Send }) {
     const deck = pickDeck(decks, deckFilter)?.id;
     if (deck) {
       try {
-        const cov = await api.coverage(datasetId, deck, { mode, grid_m: 1.0, omit: occluded });
+        const cov = await api.coverage(datasetId, deck, predictionMsg(useEditorStore.getState(), mode));
         // trim to what the vehicle needs: 2880 cells of {x, y, s} instead of the full response
         send("SetPrediction", { grid_m: cov.grid_m, bbox: cov.bbox, cells: cov.cells.map((c) => ({ x: c.x, y: c.y, s: c.sigma_xy ?? null })) });
       } catch (e) {

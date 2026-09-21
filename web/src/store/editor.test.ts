@@ -219,7 +219,7 @@ describe("scenario log and slot status", () => {
   });
 });
 
-import { noiseMsg, sensorMsg } from "./editor";
+import { noiseMsg, predictionMsg, sensorMsg } from "./editor";
 
 describe("bridge payload assembly", () => {
   const s = {
@@ -235,6 +235,17 @@ describe("bridge payload assembly", () => {
     // grid_m and the sigmas must not ride along: SetSensorMsg has no field for them and Newtonsoft drops
     // unknown keys without a word, so a spread would look fine and quietly send a shape nobody reads.
     expect(sensorMsg(s)).toEqual({ fov_deg: 55, max_dist_m: 12, max_view_angle_deg: 40 });
+  });
+
+  it("the prediction POST carries the sliders' sensor, and a 1 m grid whatever the panel's is", () => {
+    // The response of this POST becomes SetPrediction -- the promise BeliefMonitor judges the live drive
+    // against. Computed with the API's defaults it would judge a 55 deg drive against a 90 deg promise,
+    // and a slot that fails twice is written `unreachable`. grid_m is the one field that must NOT follow
+    // the panel: SetPrediction's 2880-cell trim assumes 1 m, and coverageParams.grid_m is 2 here.
+    expect(predictionMsg({ ...s, occluded: ["LM-7"] }, "load")).toEqual({
+      fov_deg: 55, max_dist_m: 12, max_view_angle_deg: 40, sigma_r: 0.4, sigma_theta: 2, sigma_alpha: 3,
+      grid_m: 1.0, mode: "load", omit: ["LM-7"],
+    });
   });
 });
 

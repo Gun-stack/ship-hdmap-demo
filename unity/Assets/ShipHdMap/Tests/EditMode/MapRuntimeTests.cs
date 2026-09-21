@@ -413,9 +413,10 @@ namespace ShipHdMap.Tests
             // A floor, not just non-empty: if the filter above ever stops matching BridgeMessages (a field
             // becomes non-const, the BindingFlags stop applying, ...), this loop would silently check nothing
             // and pass green having tested nothing -- the exact failure mode this test exists to prevent.
-            // 16 is today's count of incoming names; it may only rise, so a failure here means the reflection
-            // stopped finding names, not that someone innocently added a 17th.
-            Assert.That(incoming.Count, Is.GreaterThanOrEqualTo(16),
+            // 17 is today's count of incoming names -- the same 17 the web's BridgeName union lists, since
+            // "Delete" joined BridgeMessages. It may only rise, so a failure here means the reflection stopped
+            // finding names, not that someone innocently added an 18th.
+            Assert.That(incoming.Count, Is.GreaterThanOrEqualTo(17),
                 $"found only {incoming.Count} incoming message names -- the filter in this test has stopped matching BridgeMessages");
 
             var components = go.GetComponents<MonoBehaviour>();

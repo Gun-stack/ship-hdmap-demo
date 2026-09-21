@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
 import { api } from "../api/client";
-import type { BeliefEvt, BeliefParamsIn, Candidate, CoverageMode, CoverageOut, CoverageSensor, Dataset, Deck, Feature, FeatureCreatedEvt, FeatureIn, FeatureMovedEvt, GenerateSlotsIn, GenerateSlotsOut, Geometry, Layer, LocalizationEvt, Pose, RampState, ScenarioEvt, ScenarioLine, SlotFilledEvt, Suggestion } from "../api/types";
+import type { BeliefEvt, BeliefParamsIn, Candidate, CoverageIn, CoverageMode, CoverageOut, CoverageSensor, Dataset, Deck, Feature, FeatureCreatedEvt, FeatureIn, FeatureMovedEvt, GenerateSlotsIn, GenerateSlotsOut, Geometry, Layer, LocalizationEvt, Pose, RampState, ScenarioEvt, ScenarioLine, SlotFilledEvt, Suggestion } from "../api/types";
 import { SENSOR_DEFAULTS } from "../geo/coverage";
 
 export type Draft = { tempId: string; layer: Layer; deck_id: string; geometry: Geometry; props: Record<string, unknown> };
@@ -271,6 +271,21 @@ export function noiseMsg(s: Pick<EditorState, "coverageParams" | "sigmaGps">): N
 export function sensorMsg(s: Pick<EditorState, "coverageParams">) {
   const { fov_deg, max_dist_m, max_view_angle_deg } = s.coverageParams;
   return { fov_deg, max_dist_m, max_view_angle_deg };
+}
+
+/**
+ * The coverage POST body behind SetPrediction -- the drive's "map promise", which BeliefMonitor compares the
+ * live sigma against. It has to be computed with the SAME sensor the scene is running (M6 §3), or a normal
+ * drive is judged Degraded against a promise it never made and a twice-failed slot is written `unreachable`.
+ * Third assembler, same reason as the other two: three senders of these numbers, one place that builds them.
+ *
+ * grid_m is the one field that does NOT follow the panel: SetPrediction trims the response to 2880 cells of
+ * {x, y, s} on the assumption of a 1 m grid, so it overrides coverageParams.grid_m rather than the reverse.
+ * extra_landmarks stays out on purpose -- candidates are in neither the DB nor the scene, so predicting with
+ * them would split the two the other way.
+ */
+export function predictionMsg(s: Pick<EditorState, "coverageParams" | "occluded">, mode: CoverageMode): CoverageIn {
+  return { ...s.coverageParams, mode, omit: s.occluded, grid_m: 1.0 };
 }
 
 export function visibleFeatures(s: EditorState): Feature[] {

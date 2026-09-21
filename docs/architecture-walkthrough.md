@@ -208,7 +208,7 @@ HUD([`06-lane-hud.png`](img/06-lane-hud.png)): `N 2   RMS 0.064   iter 3`, `est 
 
 또 하나, 이탈이 정확히 이탈 지점에서 일어나도록 한 프레임을 되감는다(`Vehicle.Rewind(_exitS)`). 시간 배율이 높으면 한 프레임에 수 미터를 지나가고, 그 초과분이 고스란히 주차 오차에 얹히기 때문이다.
 
-> **앱 결함(미수정)**: 로그 클립에서 보이듯 줄이 패널 폭을 넘으면 가로로 잘려 **방향각 오차가 화면 어디에서도 읽히지 않는다**(`h…`). 로그 컨테이너가 `whiteSpace: "pre"` 에 세로 스크롤만 갖고 있어서다.
+> **클립에서 줄이 잘려 보이는 이유**: 로그 컨테이너가 `whiteSpace: "pre"` 에 폭 319 px 이라 이 줄(371 px)이 넘친다. 다만 **읽을 수는 있다** — 인라인 스타일이 지정하는 것은 `overflowY: "auto"` 뿐이고, 한 축만 지정되면 나머지 축의 `visible` 은 `auto` 로 계산되므로(CSS Overflow 3) 컨테이너가 가로로도 스크롤된다. Chrome 실측으로 `overflow-x: auto` · `clientWidth 319` · `scrollWidth 371` · 최대 `scrollLeft 52` 이다. macOS 오버레이 스크롤바는 스크롤하는 동안에만 보이므로 그림에는 단서가 남지 않는다.
 
 **파일** — `MapRuntime.StepScenario` 의 `case Phase.OnLane when …` 와 `case Phase.Parking when Vehicle.AtEnd` · `ScenarioPlanner.cs`(`ExitS` / `ApproachPath` / `Judge` / `FinalRunM`) · `MapOverlay.SetStatus` / `SpawnParked`
 
@@ -231,7 +231,7 @@ HUD([`06-lane-hud.png`](img/06-lane-hud.png)): `N 2   RMS 0.064   iter 3`, `est 
 | 기하 | 커버리지 슬라이더 — 시야각 **90**° · 인식거리 **25** m · 시야한계 **70**° | HUD 의 `sensor fov 90  range 25 m  view 70` ([`08-…-hud.png`](img/08-promise-vs-measured-hud.png), [`02-…-hud.png`](img/02-coverage-hud.png) 에도 같은 줄) |
 | 잡음 | 커버리지 슬라이더 — σr **0.20** m · σθ **1.0**° · σα **2.0**° | 주행 패널 σ 행 — `거리 0.20 m · 방위 1.0° · 방향각 2.0°` |
 
-여섯 값이 같은 데서 그치지 않는다. **출처가 하나다.** 웹 스토어의 `coverageParams` 객체 하나가 커버리지 POST 본문이 되고, 동시에 `sensorMsg()` 와 `noiseMsg()` 를 거쳐 브리지의 `SetSensor` / `SetNoise` 로 씬에 들어간다. 슬라이더를 움직이면 히트맵과 차가 **같이** 바뀐다.
+여섯 값이 같은 데서 그치지 않는다. **출처가 하나다.** 웹 스토어의 `coverageParams` 객체 하나가 세 갈래로 나간다 — 히트맵의 커버리지 POST 본문, `sensorMsg()` / `noiseMsg()` 를 거친 브리지의 `SetSensor` / `SetNoise`, 그리고 주행 시작 시 `predictionMsg()` 가 조립하는 예측 격자 POST(그 응답이 `SetPrediction` 으로 들어가 8.2 의 "지도의 약속"이 된다). 슬라이더를 움직이면 히트맵과 차와 약속이 **같이** 바뀐다.
 
 이 문서를 쓸 수 있게 된 게 그 지점이다. 그 전까지 히트맵은 웹 슬라이더를 읽고 씬 안의 센서는 Unity 쪽 상수를 읽었으며, **둘을 잇는 코드가 없었다.** 두 σ 가 우연히 같은 값일 수는 있어도 같은 값이라는 보장이 없었으니, 나란히 놓는 것 자체가 의미가 없었다.
 

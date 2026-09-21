@@ -4,7 +4,8 @@ namespace ShipHdMap
     {
         public const string Load = "Load", SetMode = "SetMode", SetDeck = "SetDeck", Select = "Select", Confirm = "Confirm",
             SetPose = "SetPose", SetNoise = "SetNoise", StartScenario = "StartScenario", SetTimeScale = "SetTimeScale", SetPrediction = "SetPrediction", SetOccluded = "SetOccluded",
-            SetBeliefParams = "SetBeliefParams", SetTool = "SetTool", SetCamMode = "SetCamMode", SetNormal = "SetNormal", SetSensor = "SetSensor";
+            SetBeliefParams = "SetBeliefParams", SetTool = "SetTool", SetCamMode = "SetCamMode", SetNormal = "SetNormal", SetSensor = "SetSensor",
+            Delete = "Delete";   // MapRuntime.Delete(string); listed here so the collision guard in MapRuntimeTests sees it too
         public const string OnSeedReady = "onSeedReady", OnFeatureCreated = "onFeatureCreated", OnFeatureMoved = "onFeatureMoved",
             OnSelected = "onSelected", OnSlotFilled = "onSlotFilled", OnLocalization = "onLocalization", OnScenario = "onScenario",
             OnBelief = "onBelief", OnCamMode = "onCamMode";
@@ -15,7 +16,9 @@ namespace ShipHdMap
     /// Sensor geometry. The field names are the coverage API's own (`POST /datasets/{id}/decks/{deck}/coverage`)
     /// and that is the whole point: the heatmap and the probe have to read the same three numbers, and identical
     /// names are what lets a person check that by eye. Noise is NOT here -- SetNoise owns it, one owner per number.
-    /// The defaults match LandmarkSensor's own fields, so a message with a missing key leaves the value where it was.
+    /// The defaults match LandmarkSensor's own fields -- but Parse builds a FRESH SetSensorMsg, so an omitted key
+    /// RESETS that field to the default instead of preserving the sensor's current value. There is no partial
+    /// update here. Safe today because every sender goes through sensorMsg() and always carries all three.
     public class SetSensorMsg { public double fov_deg = 90, max_dist_m = 25, max_view_angle_deg = 70; }
     public class SetNoiseMsg { public double sigma_r = 0.2, sigma_theta = 1, sigma_alpha = 2, sigma_gps = 0.5; } // angles in degrees on the wire
     public class SetOccludedMsg { public string[] ids; }
