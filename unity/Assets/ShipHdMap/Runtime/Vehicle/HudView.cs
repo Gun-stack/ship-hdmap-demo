@@ -25,7 +25,12 @@ namespace ShipHdMap
         public void SetContext(string deck, string selected) { _deck = deck ?? "all"; _selected = selected; }
         public void SetRamp(string line) { _ramp = line; }
         public void SetStatus(string line) { StatusText = line; }
-        public void SetSensor(string line) { SensorText = line; }
+        /// Named SetSensorCounts, never SetSensor: GameObject.SendMessage("Map", "SetSensor", json) invokes
+        /// EVERY component on the Map root whose method is named SetSensor, not just one -- and MapRuntime.SetSensor
+        /// is the intended target for that wire message. A method here called SetSensor would silently also fire
+        /// on every web SetSensor call, clobbering this line with the raw sensor-geometry JSON (M6 found this live).
+        /// Do not rename this back to SetSensor.
+        public void SetSensorCounts(string line) { SensorText = line; }
         public void SetSensorConfig(string line) { SensorConfigText = line; }
 
         /// A click that did nothing has to say so. LandmarkPlacer.Decide returns ClickAct.None when Place or

@@ -468,7 +468,7 @@ namespace ShipHdMap
             // == "drive"` alone is not the same test, because Finish() parks the vehicle and DEACTIVATES it
             // without leaving drive mode, and the count would then sit there describing an eye that is no
             // longer in the scene. Any new reason Localize() stops running has to be mirrored here too.
-            if (!Probe.Active && !(_mode == "drive" && Vehicle.running)) Hud.SetSensor(null);
+            if (!Probe.Active && !(_mode == "drive" && Vehicle.running)) Hud.SetSensorCounts(null);
         }
 
         /// Unity writes Orbit.mode in places the web never hears about -- Focus, ProbeView.Aim, ReleaseProbe
@@ -538,7 +538,7 @@ namespace ShipHdMap
             _lastRes = Localizer.Solve(obs, MapRefs, Sensor.noise.sigmaR, Sensor.noise.sigmaThetaRad, Sensor.noise.sigmaAlphaRad, _prev);
             if (_lastRes.ok && double.IsFinite(_lastRes.pose.x) && double.IsFinite(_lastRes.pose.y) && double.IsFinite(_lastRes.pose.psiRad)) _prev = _lastRes.pose;
             Hud.Set(_lastRes, truth, "SHIP_AP");
-            Hud.SetSensor(HudView.SensorLine(why));   // the same verdicts Sense observed through, counted
+            Hud.SetSensorCounts(HudView.SensorLine(why));   // the same verdicts Sense observed through, counted
             // The height has to come from the same projection as the pose, because the cone is drawn in Ship
             // Frame. Neither obvious candidate is that: _targetDeck.z_surface is where the car is GOING, not
             // where it is; and Vehicle.Z is "Ship Frame OR QUAY Frame depending on the parent" (its own comment)

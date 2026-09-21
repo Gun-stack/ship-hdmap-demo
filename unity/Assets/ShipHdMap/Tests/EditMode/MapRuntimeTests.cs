@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -391,6 +392,34 @@ namespace ShipHdMap.Tests
             rt.SetSensor("{\"fov_deg\":10,\"max_dist_m\":25,\"max_view_angle_deg\":70}");
 
             Assert.That(rt.Hud.SensorText, Is.Not.EqualTo(wide), "narrowing the cone to 10 deg must re-aim the live probe");
+        }
+
+        [Test]
+        public void EveryBridgeMessageNameIsClaimedByAtMostOneComponent()
+        {
+            // GameObject.SendMessage(name, arg) invokes EVERY component's method of that name on the GameObject,
+            // not just one intended handler -- a collision silently double-fires instead of erroring. M6 found
+            // exactly this: HudView.SetSensor(string) sat on the same "Map" root as MapRuntime.SetSensor(string),
+            // so every web SetSensor call also clobbered the HUD's marker-count line. The direct-call tests above
+            // cannot see this class of bug -- they call rt.SetSensor(...) as a plain C# method, never through
+            // SendMessage -- so this walks every incoming message name against every component instead.
+            go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>(); rt.InitForTest();
+            var incoming = typeof(BridgeMessages)
+                .GetFields(BindingFlags.Public | BindingFlags.Static)
+                .Where(f => f.FieldType == typeof(string))
+                .Select(f => (string)f.GetValue(null))
+                .Where(v => char.IsUpper(v[0]));   // web->Unity names only; outgoing on* events are never SendMessage targets
+
+            var components = go.GetComponents<MonoBehaviour>();
+            foreach (var name in incoming)
+            {
+                var owners = components.Where(c => c.GetType()
+                    .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+                    .Any(m => m.Name == name)).ToList();
+                Assert.That(owners.Count, Is.LessThanOrEqualTo(1),
+                    $"\"{name}\" is claimed by {owners.Count} components ({string.Join(", ", owners.Select(c => c.GetType().Name))}) " +
+                    "-- SendMessage would invoke all of them");
+            }
         }
     }
 }
