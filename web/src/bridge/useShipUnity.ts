@@ -34,7 +34,7 @@ const URLS = { loaderUrl: "/unity/Build/unity.loader.js", dataUrl: "/unity/Build
 
 export function useShipUnity() {
   const { unityProvider, isLoaded, sendMessage, addEventListener, removeEventListener } = useUnityContext(URLS);
-  const { datasetId, dataset, deckFilter, selectedId, mode, pose, ramp, addDraft, select, setLocalization, moveFeature, onSlotFilled, appendLog, setBelief } = useEditorStore();
+  const { datasetId, dataset, deckFilter, selectedId, mode, pose, ramp, coverageParams, addDraft, select, setLocalization, moveFeature, onSlotFilled, appendLog, setBelief } = useEditorStore();
   const loadedOnce = useRef(false);
   const loading = useRef(false);
   const fromScene = useRef<string | null>(null);
@@ -116,6 +116,16 @@ export function useShipUnity() {
   useEffect(() => { if (loadedOnce.current) send("SetDeck", deckFilter); }, [deckFilter, send]);
   useEffect(() => { if (loadedOnce.current) sendPose(); }, [pose, ramp, dataset?.lpp_m, sendPose]);
   useEffect(() => { if (loadedOnce.current) send("SetMode", mode); }, [mode, send]);
+  // Sent on every change, not on release like the coverage POST. Three doubles over the bridge cost nothing,
+  // and a release-only trigger has a hole in it -- moving the slider with the arrow keys never fires mouseup.
+  // The visible effect is that the 3D cone narrows while the drag is still happening and the heatmap catches
+  // up when it ends, which is the two screens showing that they are wired to one number.
+  useEffect(() => {
+    if (!loadedOnce.current) return;
+    const ed = useEditorStore.getState();
+    send("SetSensor", sensorMsg(ed));
+    send("SetNoise", noiseMsg(ed));
+  }, [coverageParams, send]);
   useEffect(() => {
     if (!loadedOnce.current) return;
     if (!selectedId) { fromScene.current = null; send("Select", ""); return; }

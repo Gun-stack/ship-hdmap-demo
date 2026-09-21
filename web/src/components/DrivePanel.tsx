@@ -2,17 +2,14 @@ import { api } from "../api/client";
 import type { BeliefParamsIn } from "../api/types";
 import { beliefBadge, fmtRatioOf } from "../geo/belief";
 import { wrapDeg } from "../geo/shipFrame";
-import { useEditorStore, type NoiseParams } from "../store/editor";
+import { noiseMsg, useEditorStore } from "../store/editor";
 import type { BridgeName } from "../bridge/useShipUnity";
 import { pickDeck } from "../geo/deck";
 
 type Send = (name: BridgeName, payload?: string | object) => void;
-const SLIDERS: { key: keyof NoiseParams; label: string; max: number; step: number; digits: number }[] = [
-  { key: "sigma_r", label: "σ 거리 (m)", max: 1, step: 0.05, digits: 2 },
-  { key: "sigma_theta", label: "σ 방위 (°)", max: 5, step: 0.5, digits: 1 },
-  { key: "sigma_alpha", label: "σ 방향각 (°)", max: 10, step: 0.5, digits: 1 },
+const SIGMAS = [
   { key: "sigma_gps", label: "σ GPS (m)", max: 3, step: 0.1, digits: 1 },   // quay leg only: decides how squarely the vehicle enters the ramp
-];
+] as const;
 const BELIEF_SLIDERS: { key: keyof BeliefParamsIn; label: string; min: number; max: number; step: number; digits: number }[] = [
   { key: "k", label: "허용 배수", min: 1, max: 6, step: 0.5, digits: 1 },
   { key: "frames", label: "연속 프레임", min: 1, max: 20, step: 1, digits: 0 },
@@ -25,8 +22,8 @@ const SCALES = [1, 5, 20];
 
 export function DrivePanel({ send }: { send: Send }) {
   const { localization: l, setMode, scenarioLog, clearLog, datasetId, decks, deckFilter, occluded, belief: b,
-    beliefParams: bp, setBeliefParams, setError, noise: sig, setNoise, timeScale: scale, setTimeScale } = useEditorStore();
-  const commit = () => send("SetNoise", sig); // on release only — Unity's SetNoise is cheap but the bridge is not a slider event bus
+    beliefParams: bp, setBeliefParams, setError, sigmaGps, setSigmaGps, coverageParams, timeScale: scale, setTimeScale } = useEditorStore();
+  const commit = () => send("SetNoise", noiseMsg(useEditorStore.getState())); // on release only — Unity's SetNoise is cheap but the bridge is not a slider event bus
   const commitBelief = () => send("SetBeliefParams", bp);
   const start = async (mode: "load" | "unload") => {
     clearLog();
@@ -49,7 +46,7 @@ export function DrivePanel({ send }: { send: Send }) {
     }
     send("SetOccluded", { ids: occluded });
     send("SetBeliefParams", bp);
-    send("SetNoise", sig); // reload can restore a saved value while Unity still holds SetNoiseMsg's default -- resend it every start
+    send("SetNoise", noiseMsg(useEditorStore.getState())); // reload can restore a saved value while Unity still holds SetNoiseMsg's default -- resend it every start
     send("SetTimeScale", { scale });
     send("StartScenario", { mode });
   };
@@ -65,11 +62,16 @@ export function DrivePanel({ send }: { send: Send }) {
           {SCALES.map((k) => <option key={k} value={k}>×{k}</option>)}
         </select>
       </div>
-      {SLIDERS.map((s) => (
+      <div className="row">
+        <label>σ</label>
+        <span>거리 {coverageParams.sigma_r.toFixed(2)} m · 방위 {coverageParams.sigma_theta.toFixed(1)}° · 방향각 {coverageParams.sigma_alpha.toFixed(1)}°
+          {" "}<span style={{ color: "#888" }}>(커버리지 탭에서 조정)</span></span>
+      </div>
+      {SIGMAS.map((s) => (
         <div className="row" key={s.key}><label>{s.label}</label>
-          <input type="range" min={0} max={s.max} step={s.step} value={sig[s.key]} onChange={(e) => setNoise({ [s.key]: Number(e.target.value) })}
+          <input type="range" min={0} max={s.max} step={s.step} value={sigmaGps} onChange={(e) => setSigmaGps(Number(e.target.value))}
             onMouseUp={commit} onKeyUp={commit} onTouchEnd={commit} />
-          <span>{sig[s.key].toFixed(s.digits)}</span></div>
+          <span>{sigmaGps.toFixed(s.digits)}</span></div>
       ))}
       <h4 style={{ marginTop: 8 }}>위치 추정</h4>
       {!l ? <span style={{ color: "#888" }}>추정 없음</span> : (
