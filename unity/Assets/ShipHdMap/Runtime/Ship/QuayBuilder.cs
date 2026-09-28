@@ -16,7 +16,7 @@ namespace ShipHdMap
             g.name = "Quay";
             Object.DestroyImmediate(g.GetComponent<Collider>());   // never catches a placement raycast or a sensor linecast
             g.transform.localScale = new Vector3((float)LengthM, (float)ThickM, (float)WidthM);
-            if (!_mat) _mat = new Material(Shader.Find("Standard")) { color = new Color(0.62f, 0.6f, 0.56f), name = "quay" };
+            if (!_mat) _mat = Mats.Lit(Palette.C(Palette.Quay), 0.1f, 0f, "quay");
             g.GetComponent<Renderer>().sharedMaterial = _mat;
             Place(g, 0, 0);
             return g;

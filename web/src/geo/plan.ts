@@ -1,4 +1,5 @@
 import { cellColor } from "./coverage";
+import { PALETTE } from "../theme/palette";
 import type { Box } from "./deck";
 import type { PlanView } from "../store/ui";
 
@@ -62,13 +63,20 @@ export function screenToPlan(pt: { x: number; y: number }, svg: SVGSVGElement): 
   return { x: u.x, y: u.y };
 }
 
+/** Largest 1-2-5 length (m) that fits in `maxM`: a scale bar reads "10 m", never "13.7 m". */
+export function niceLength(maxM: number): number {
+  if (!(maxM > 0)) return 0;
+  const p = 10 ** Math.floor(Math.log10(maxM));
+  return [5, 2, 1].map((k) => k * p).find((v) => v <= maxM)!;
+}
+
 /// The legend pulls its colours from cellColor so the key and the heatmap cannot drift apart.
 /// The two ratios the panel prints share this vocabulary: blind = the 사각지대 number, weak = 허용오차 미달.
-export const LEGEND: { label: string; color: string }[] = [
+export const LEGEND: { label: string; color: string; faint?: boolean }[] = [
   { label: "blind · 자세를 잡을 수 없다", color: cellColor({ x: 0, y: 0, n: 0 }) },
   { label: "weak · 허용오차 미달", color: cellColor({ x: 0, y: 0, n: 2, stability: 0.5 }) },
   { label: "ok · 허용오차 충족", color: cellColor({ x: 0, y: 0, n: 3, stability: 2 }) },
-  // out-of-scope 셀은 cellOpacity 가 0.18 로 흐리게 칠할 뿐 색은 그 셀의 색 그대로다. 범례의 이 칸만
-  // 예외적으로 고정 회색인 이유는 "무슨 색이냐"가 아니라 "왜 흐리냐"를 설명하는 항목이기 때문이다.
-  { label: "흐림 · 차가 갈 일이 없어 숫자에서 뺀 곳", color: "#bbb" },
+  // out-of-scope 셀은 cellOpacity 가 0.18 로 흐리게 칠할 뿐 색은 그 셀의 색 그대로다. 이 칸은 "무슨 색이냐"가
+  // 아니라 "왜 흐리냐"를 설명하는 항목이라, ok 색을 흐리게(faint) 칠해 그 모양 자체를 보여 준다.
+  { label: "흐림 · 차가 갈 일이 없어 숫자에서 뺀 곳", color: PALETTE.CoverageOk, faint: true },
 ];

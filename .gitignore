@@ -30,3 +30,7 @@ web/public/unity/
 
 # personal study notes (never committed)
 docs/learning/
+
+# written into Assets/Resources by the performance-testing package (a URP dependency) on every test run
+unity/Assets/Resources/PerformanceTestRun*
+unity/Assets/Resources.meta

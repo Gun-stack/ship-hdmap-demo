@@ -257,7 +257,7 @@ namespace ShipHdMap.Tests
             Assert.That(rt.CurrentMap.parking_slots.First(s => s.id == "PS-D3-001").status, Is.EqualTo("filled"));
             Assert.That(rt.transform.Find("Overlay/D3/PARKED-PS-D3-001"), Is.Not.Null);
             var fill = rt.transform.Find("Overlay/D3/PS-D3-001/Fill").GetComponent<MeshRenderer>().sharedMaterial.color;
-            Assert.That(fill.b, Is.EqualTo(1f).Within(1e-3));                    // "filled" blue
+            Assert.That("#" + ColorUtility.ToHtmlStringRGB(fill).ToLower(), Is.EqualTo(Palette.SlotFilled));   // "filled", the plan view's colour too
             // next vehicle spawned back on the quay, heading for PS-D3-002 (M5b: every load run starts at the ramp)
             Assert.That(rt.ScenarioPhase, Is.EqualTo(MapRuntime.Phase.OnQuay));
             Assert.That(rt.TargetSlotId, Is.EqualTo("PS-D3-002"));

@@ -6,7 +6,7 @@ import { api } from "../api/client";
 vi.mock("../api/client", () => ({
   api: {
     getDataset: vi.fn(async () => ({ id: "ds1", name: "d", version: 3, ap_lat: 0, ap_lon: 0, heading_deg: 0, lpp_m: 120 })),
-    listDecks: vi.fn(async () => [{ id: "D3", name: "Deck 3", z_surface: 10.6, z_clear: 2.2, movable: false, outline: [] }]),
+    mapMeta: vi.fn(async () => ({ decks: [{ id: "D3", name: "Deck 3", z_surface: 10.6, z_clear: 2.2, movable: false, outline: [] }], slotStatus: { "PS-D3-001": "filled" } })),
     listFeatures: vi.fn(async () => [
       { id: "LM-0001", deck_id: "D3", layer: "LM", kind: "apriltag", geometry: { type: "Point", coordinates: [12, -6.2, 11.8] }, props: { code: 1 } },
       { id: "A2-D1-0001", deck_id: "D1", layer: "A2", kind: "centerline", geometry: { type: "LineString", coordinates: [[2, 0, 5.4], [118, 0, 5.4]] }, props: {} },
@@ -33,6 +33,7 @@ describe("editor store", () => {
     expect(Object.keys(s.features)).toEqual(["LM-0001", "A2-D1-0001"]);
     expect(s.pose?.tide_m).toBe(0);
     expect(s.ramp?.state).toBe("deployed");
+    expect(s.slotStatus).toEqual({ "PS-D3-001": "filled" });   // from the vehicle map, the one place statuses live
   });
 
   it("deck filter selects visible features", async () => {
@@ -182,6 +183,7 @@ describe("scenario log and slot status", () => {
     const s = useEditorStore.getState();
     expect(s.scenarioLog[0].text).toBe("PS-D3-012 filled  lat +0.04 lon -0.11 hdg +0.6°");
     expect(s.scenarioLog[0].t).toMatch(/^\d\d:\d\d:\d\d$/);
+    expect(s.slotStatus["PS-D3-012"]).toBe("filled");   // the plan view repaints without a reload, as the 3D fill does
     expect(s.error).toBeNull();
   });
 

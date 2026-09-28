@@ -1,7 +1,7 @@
 {
   "name": "ShipHdMap.Editor",
   "rootNamespace": "ShipHdMap.Editor",
-  "references": [ "ShipHdMap.Runtime" ],
+  "references": [ "ShipHdMap.Runtime", "Unity.RenderPipelines.Core.Runtime", "Unity.RenderPipelines.Universal.Runtime" ],
   "includePlatforms": [ "Editor" ],
   "excludePlatforms": [],
   "allowUnsafeCode": false,

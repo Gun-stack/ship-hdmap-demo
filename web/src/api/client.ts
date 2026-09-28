@@ -28,8 +28,11 @@ const q = (params: Record<string, string | undefined>) => {
 
 export const api = {
   getDataset: (ds: string) => req<Dataset>("GET", `/datasets/${ds}`),
-  /** M2 has no deck endpoint; decks come from the vehicle map. */
-  listDecks: async (ds: string) => (await req<{ decks: Deck[] }>("GET", `/datasets/${ds}/vehicle-map`)).decks,
+  /** M2 has no deck endpoint; decks come from the vehicle map. So do slot statuses, which live in parking_slot, not on the B2 feature. */
+  mapMeta: async (ds: string) => {
+    const m = await req<{ decks: Deck[]; parking_slots?: { id: string; status?: SlotStatus }[] }>("GET", `/datasets/${ds}/vehicle-map`);
+    return { decks: m.decks, slotStatus: Object.fromEntries((m.parking_slots ?? []).map((p) => [p.id, p.status ?? "empty"])) as Record<string, SlotStatus> };
+  },
   listFeatures: (ds: string, f: { deck?: string; layer?: string } = {}) => req<Feature[]>("GET", `/datasets/${ds}/features${q(f)}`),
   createFeature: (ds: string, f: FeatureIn) => req<Feature>("POST", `/datasets/${ds}/features`, f),
   updateFeature: (ds: string, id: string, patch: Partial<FeatureIn>) => req<Feature>("PUT", `/datasets/${ds}/features/${id}`, patch),

@@ -24,11 +24,11 @@ export function LayerTree() {
               <ul>
                 {drafts.map((d) => <li key={d.tempId} className={s.selectedId === d.tempId ? "sel" : ""} onClick={() => s.select(d.tempId)}>{d.tempId} (초안)</li>)}
                 {items.map((f) => (
-                  <li key={f.id} className={s.selectedId === f.id ? "sel" : ""} onClick={() => s.select(f.id)} style={layer === "LM" && s.occluded.includes(f.id) ? { opacity: 0.45 } : undefined}>
+                  <li key={f.id} className={[s.selectedId === f.id && "sel", layer === "LM" && s.occluded.includes(f.id) && "dim"].filter(Boolean).join(" ")} onClick={() => s.select(f.id)}>
                     {layer === "LM" && (
                       <input type="checkbox" checked={s.occluded.includes(f.id)} onClick={(e) => e.stopPropagation()} onChange={() => s.toggleOccluded(f.id)} title="가림" />
                     )}
-                    {" "}{f.id} <small style={{ color: "#888" }}>{f.kind}{f.deck_id ? ` · ${f.deck_id}` : ""}</small>
+                    {" "}{f.id} <small>{f.kind}{f.deck_id ? ` · ${f.deck_id}` : ""}</small>
                   </li>
                 ))}
               </ul>

@@ -15,7 +15,9 @@ namespace ShipHdMap.Editor
             PlayerSettings.stripEngineCode = false; // scene creates colliders (MeshCollider/CapsuleCollider) only at runtime, so engine stripping would drop them
             PlayerSettings.runInBackground = true; // embedded in the editor page; must keep simulating while the user works in side panels
             Debug.Log($"[WebGLBuild] stripEngineCode={PlayerSettings.stripEngineCode} runInBackground={PlayerSettings.runInBackground}");
-            IncludeShader("Standard"); IncludeShader("Unlit/Texture"); IncludeShader("Unlit/Color"); // no scene material references these; halo/overlay use Shader.Find at runtime
+            // Nothing is force-included any more: under URP every runtime material is a clone of a template in
+            // Resources/Materials (RenderSetup), and Resources keeps both the shader and the variants the templates use.
+            // Force-including URP/Lit would drag in every one of its thousands of variants.
             var opts = new BuildPlayerOptions
             {
                 scenes = new[] { "Assets/Scenes/Demo.unity" },
@@ -28,20 +30,16 @@ namespace ShipHdMap.Editor
             if (report.summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded && Application.isBatchMode) EditorApplication.Exit(1);
         }
 
-        /// Adds shader to GraphicsSettings.m_AlwaysIncludedShaders (if not already present) so the WebGL
-        /// build keeps it even though no scene material references it directly (e.g. Shader.Find at runtime).
-        static void IncludeShader(string name)
+        /// Removes a shader from GraphicsSettings.m_AlwaysIncludedShaders. Before URP this file force-included Standard
+        /// and two Unlit shaders for its runtime materials; RenderSetup takes them back out.
+        public static void ExcludeShader(string name)
         {
-            var shader = Shader.Find(name);
-            if (shader == null) { Debug.LogWarning($"[WebGLBuild] Shader.Find(\"{name}\") returned null; cannot include it."); return; }
+            var shader = Shader.Find(name); if (shader == null) return;
             var so = new SerializedObject(Unsupported.GetSerializedAssetInterfaceSingleton("GraphicsSettings"));
             var list = so.FindProperty("m_AlwaysIncludedShaders");
-            for (int i = 0; i < list.arraySize; i++) if (list.GetArrayElementAtIndex(i).objectReferenceValue == shader) { Debug.Log($"[WebGLBuild] shader already included: {shader.name}"); return; }
-            list.InsertArrayElementAtIndex(list.arraySize);
-            list.GetArrayElementAtIndex(list.arraySize - 1).objectReferenceValue = shader;
+            for (int i = list.arraySize - 1; i >= 0; i--)
+                if (list.GetArrayElementAtIndex(i).objectReferenceValue == shader) { list.GetArrayElementAtIndex(i).objectReferenceValue = null; list.DeleteArrayElementAtIndex(i); }
             so.ApplyModifiedProperties();
-            AssetDatabase.SaveAssets();
-            Debug.Log($"[WebGLBuild] added always-included shader: {shader.name}");
         }
     }
 }

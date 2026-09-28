@@ -1,6 +1,7 @@
 import type { CoverageCell, CoverageSensor } from "../api/types";
+import { PALETTE } from "../theme/palette";
 
-export const BLIND_COLOR = "#d32f2f";
+export const BLIND_COLOR = PALETTE.CoverageBlind;
 /**
  * The three geometry names are also Unity's (LandmarkSensor) and the API's (CoverageAnalyzer.DEFAULTS), so
  * three copies of 90/25/70 exist in three languages. Nothing generates them from one source -- that would be
@@ -12,12 +13,18 @@ export const SENSOR_DEFAULTS: CoverageSensor = {
   fov_deg: 90, max_dist_m: 25, max_view_angle_deg: 70, sigma_r: 0.2, sigma_theta: 1, sigma_alpha: 2,
 };
 
-/** blind is its own colour; otherwise ramp orange -> green by stability, saturating at 2.0. */
+const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+const WEAK = rgb(PALETTE.CoverageWeak), OK = rgb(PALETTE.CoverageOk);
+
+/**
+ * blind is its own colour; otherwise ramp weak (amber) -> ok (a quiet slate) by stability, saturating at 2.0.
+ * The ramp ends low-chroma on purpose: most of a good deck is ok, and it should recede so the eye lands on
+ * the amber and red ground. Red-to-green was the old ramp -- one colour to a red-green colour-blind reader.
+ */
 export function cellColor(c: CoverageCell): string {
   if (c.n === 0 || c.stability == null) return BLIND_COLOR;
   const t = Math.min(c.stability, 2) / 2;                  // 0 .. 1
-  const r = Math.round(240 - 180 * t), g = Math.round(120 + 80 * t), b = Math.round(40 + 40 * t);
-  return `#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+  return `#${WEAK.map((w, i) => Math.round(w + (OK[i] - w) * t).toString(16).padStart(2, "0")).join("")}`;
 }
 
 /** Cells nobody drives through are drawn faintly: visible, but plainly not part of the numbers. */

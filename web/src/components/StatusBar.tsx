@@ -8,7 +8,7 @@ export function StatusBar({ unityLoaded }: { unityLoaded: boolean }) {
       <span>갑판 {deckFilter}</span>
       <span>선택 {selectedId ?? "-"}</span>
       <span>미저장 초안 {unsaved}</span>
-      <span>Unity {unityLoaded ? "연결됨" : "로딩"}</span>
+      <span className={unityLoaded ? "live" : undefined}>Unity {unityLoaded ? "연결됨" : "로딩"}</span>
       {error && <span className="err">{error}</span>}
     </footer>
   );

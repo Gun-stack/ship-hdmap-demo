@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -57,6 +58,34 @@ namespace ShipHdMap.Tests
             Assert.That(HudView.SensorConfigLine(90, 25, 70), Is.EqualTo("sensor  fov 90  range 25 m  view 70"));
             Assert.That(HudView.SensorConfigLine(55.5, 12.5, 70), Is.EqualTo("sensor  fov 55.5  range 12.5 m  view 70"));
         }
+
+        [Test]
+        public void RowsKeepEveryStringAndInkOnlyTheWarnings()
+        {
+            var r = new LocalizerResult { ok = false, pose = new Pose2D(), nObs = 1, residualRms = 0.2, iterations = 5 };
+            var lines = HudView.Lines("D3", null, null, r, new Pose2D(), "SHIP_AP");
+            var rows = HudView.Rows(lines, "ramp 2.9 deg  deployed", "tool select   cam orbit", "sensor  fov 90  range 25 m  view 70", "seen 2 / 9", "missed");
+            // the words are exactly what the single label used to print, in the same order -- only the ink is new
+            CollectionAssert.AreEqual(new List<string>(lines) { "ramp 2.9 deg  deployed", "tool select   cam orbit", "sensor  fov 90  range 25 m  view 70", "seen 2 / 9", "missed" },
+                rows.ConvertAll(x => x.text));
+            Assert.That(rows.Find(x => x.text.StartsWith("frame")).tone, Is.EqualTo(HudTone.Warn));   // "(holding previous)"
+            Assert.That(rows.Find(x => x.text == "cursor -").tone, Is.EqualTo(HudTone.Dim));
+            Assert.That(rows.Find(x => x.text.StartsWith("seen")).tone, Is.EqualTo(HudTone.Accent));
+            Assert.That(rows[^1].tone, Is.EqualTo(HudTone.Warn));
+            Assert.That(HudView.Rows(HudView.Lines("all", null, null, null, default, "SHIP_AP"), null, null, null, null, null), Has.Count.EqualTo(2));   // nulls add nothing
+        }
+
+        [Test]
+        public void TheDriversOwnCarHidesOnlyFromTheDriversEye()
+        {
+            Assert.That(MapRuntime.ShowBody(CamMode.Driver, false), Is.False);
+            Assert.That(MapRuntime.ShowBody(CamMode.Driver, true), Is.True);    // probe eye: the car is out there, not around you
+            Assert.That(MapRuntime.ShowBody(CamMode.Orbit, false), Is.True);
+            Assert.That(MapRuntime.ShowBody(CamMode.Fly, false), Is.True);
+        }
+
+        [Test]
+        public void HudFontShipsInResources() => Assert.That(Resources.Load<Font>("Fonts/JetBrainsMonoNL-Regular"), Is.Not.Null);
 
         [Test]
         public void HudAssetsExistInResources()

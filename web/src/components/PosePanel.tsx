@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ApiError } from "../api/client";
 import { useEditorStore } from "../store/editor";
+import { dot } from "../theme/theme";
 import type { Pose } from "../api/types";
 
 const FIELDS: { key: keyof Pose; label: string; min: number; max: number; step: number; unit: string }[] = [
@@ -36,12 +37,12 @@ export function PosePanel() {
           <input type="range" min={f.min} max={f.max} step={f.step} value={(local[f.key] as number) ?? f.min}
             onChange={(e) => setLocal({ ...local, [f.key]: Number(e.target.value) })} onMouseUp={() => commit(f.key)} onKeyUp={() => commit(f.key)} onTouchEnd={() => commit(f.key)}
             onMouseDown={() => { dragging.current = true; }} onTouchStart={() => { dragging.current = true; }} />
-          <span style={{ width: 52, textAlign: "right" }}>{(local[f.key] as number)?.toFixed(1)} {f.unit}</span>
+          <span className="num">{(local[f.key] as number)?.toFixed(1)} {f.unit}</span>
         </div>
       ))}
       <div className="row"><label>트림</label><span>{pose.trim_deg?.toFixed(2)}°</span></div>
       <div className="row"><label>램프</label>
-        {ramp ? <span>{ramp.angle_deg.toFixed(2)}° <b style={{ color: ramp.state === "deployed" ? "#2a2" : "#c62828" }}>{ramp.state}</b></span> : <span>-</span>}
+        {ramp ? <span>{ramp.angle_deg.toFixed(2)}° <span className="badge" style={dot(ramp.state === "deployed" ? "var(--ok)" : "var(--danger)")}>{ramp.state}</span></span> : <span>-</span>}
       </div>
     </div>
   );

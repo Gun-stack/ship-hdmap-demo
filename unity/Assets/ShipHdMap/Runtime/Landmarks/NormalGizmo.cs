@@ -107,7 +107,7 @@ namespace ShipHdMap
                 host.transform.SetParent(transform, false);   // false: local transform stays identity -- irrelevant here since useWorldSpace = true reads points in world space regardless
                 _ring = host.AddComponent<LineRenderer>();
                 _ring.useWorldSpace = true; _ring.widthMultiplier = 0.05f; _ring.loop = true;
-                _ring.sharedMaterial = new Material(Shader.Find("Unlit/Color")) { color = new Color(1f, 0.72f, 0f) };
+                _ring.sharedMaterial = Mats.Unlit(Palette.C(Palette.Selection), "normal-ring");
             }
             var c = _marker.transform.position;
             var pts = new Vector3[36];

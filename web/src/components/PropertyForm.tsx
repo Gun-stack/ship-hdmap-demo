@@ -20,7 +20,7 @@ export function PropertyForm({ send }: { send: Send }) {
     else if (feat) { setDeck(feat.deck_id ?? ""); setKind(feat.kind); setPropsText(JSON.stringify(feat.props, null, 1)); }
   }, [id, draft, feat]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!id) return <div className="panel"><h4>속성</h4><span style={{ color: "#888" }}>객체를 선택하거나 3D 에서 기둥 면을 클릭해 마커를 놓으세요</span></div>;
+  if (!id) return <div className="panel"><h4>속성</h4><span className="muted">객체를 선택하거나 3D 에서 기둥 면을 클릭해 마커를 놓으세요</span></div>;
 
   const parseProps = () => { try { return JSON.parse(propsText) as Record<string, unknown>; } catch { throw new Error("props 는 JSON 이어야 합니다"); } };
   const run = async (fn: () => Promise<void>) => { try { setErr(null); await fn(); } catch (e) { setErr(e instanceof ApiError ? `${e.message}${e.field ? ` (${e.field})` : ""}` : (e as Error).message); } };

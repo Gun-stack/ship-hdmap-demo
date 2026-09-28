@@ -42,17 +42,17 @@ namespace ShipHdMap
                 double y0 = d.outline.Min(pt => pt[1]), y1 = d.outline.Max(pt => pt[1]);
                 float z = (float)d.z_surface, L = (float)(x1 - x0), B = (float)(y1 - y0);
                 float deckCx = (float)((x0 + x1) / 2), deckCz = -(float)((y0 + y1) / 2);   // Unity z = -ship y, so port (+y) is -z
-                var floor = Prim(deck, "Floor", PrimitiveType.Cube, new Vector3(deckCx, z - FloorThick / 2, deckCz), new Vector3(L, FloorThick, B), Color(0.55f, 0.55f, 0.6f), layer, materials);
-                Prim(deck, "HullPort", PrimitiveType.Cube, new Vector3(deckCx, z + (float)d.z_clear / 2, deckCz - B / 2), new Vector3(L, (float)d.z_clear, WallThick), Color(0.4f, 0.45f, 0.5f), layer, materials);
-                Prim(deck, "HullStbd", PrimitiveType.Cube, new Vector3(deckCx, z + (float)d.z_clear / 2, deckCz + B / 2), new Vector3(L, (float)d.z_clear, WallThick), Color(0.4f, 0.45f, 0.5f), layer, materials);
+                var floor = Prim(deck, "Floor", PrimitiveType.Cube, new Vector3(deckCx, z - FloorThick / 2, deckCz), new Vector3(L, FloorThick, B), Palette.C(Palette.DeckFloor), layer, materials);
+                Prim(deck, "HullPort", PrimitiveType.Cube, new Vector3(deckCx, z + (float)d.z_clear / 2, deckCz - B / 2), new Vector3(L, (float)d.z_clear, WallThick), Palette.C(Palette.HullWall), layer, materials);
+                Prim(deck, "HullStbd", PrimitiveType.Cube, new Vector3(deckCx, z + (float)d.z_clear / 2, deckCz + B / 2), new Vector3(L, (float)d.z_clear, WallThick), Palette.C(Palette.HullWall), layer, materials);
                 // Bow bulkhead: closes the deck at the forward end so landmarks placed there sit on structure and occlude like the hull.
-                Prim(deck, "Bow", PrimitiveType.Cube, new Vector3((float)x1 - WallThick / 2, z + (float)d.z_clear / 2, deckCz), new Vector3(WallThick, (float)d.z_clear, B), Color(0.4f, 0.45f, 0.5f), layer, materials);
+                Prim(deck, "Bow", PrimitiveType.Cube, new Vector3((float)x1 - WallThick / 2, z + (float)d.z_clear / 2, deckCz), new Vector3(WallThick, (float)d.z_clear, B), Palette.C(Palette.HullWall), layer, materials);
                 var pillars = Child(deck, "Pillars");
                 foreach (var f in seed.facilities) if (f.deck_id == d.id && f.kind == "pillar")
                 {
                     float cx = (float)(f.footprint[0][0] + f.footprint[2][0]) / 2, cy = (float)(f.footprint[0][1] + f.footprint[2][1]) / 2;
                     float sx = (float)(f.footprint[2][0] - f.footprint[0][0]), sy = (float)(f.footprint[2][1] - f.footprint[0][1]), h = (float)(f.z_max - f.z_min);
-                    Prim(pillars, f.id, PrimitiveType.Cube, ShipFrame.ToUnity(cx, cy, f.z_min + h / 2), new Vector3(sx, h, sy), Color(0.35f, 0.35f, 0.38f), layer, materials);
+                    Prim(pillars, f.id, PrimitiveType.Cube, ShipFrame.ToUnity(cx, cy, f.z_min + h / 2), new Vector3(sx, h, sy), Palette.C(Palette.Pillar), layer, materials);
                 }
                 var lash = Child(deck, "Lashing");
                 var deckLashing = seed.lashing_points.Where(lp => lp.deck_id == d.id).ToList();
@@ -61,7 +61,7 @@ namespace ShipHdMap
                 for (int li = 0; li < deckLashing.Count; li += stride)
                 {
                     var lp = deckLashing[li];
-                    var g = Prim(lash, lp.id, PrimitiveType.Cylinder, ShipFrame.ToUnity(lp.position[0], lp.position[1], lp.position[2] + 0.005), new Vector3(LashRadius * 2, 0.005f, LashRadius * 2), Color(0.8f, 0.2f, 0.2f), layer, materials);
+                    var g = Prim(lash, lp.id, PrimitiveType.Cylinder, ShipFrame.ToUnity(lp.position[0], lp.position[1], lp.position[2] + 0.005), new Vector3(LashRadius * 2, 0.005f, LashRadius * 2), Palette.C(Palette.LashingSocket), layer, materials);
                     UnityEngine.Object.DestroyImmediate(g.GetComponent<Collider>()); // sockets are visual only
                 }
                 var mep = Child(deck, "MEP");
@@ -69,7 +69,7 @@ namespace ShipHdMap
                 // which sits on ship y = 0 whatever the outline does.
                 foreach (float y in new[] { -8f, -3f, 8f })
                 {
-                    var pipe = Prim(mep, $"Pipe_{y:+0;-0;0}", PrimitiveType.Cylinder, ShipFrame.ToUnity((x0 + x1) / 2, y, d.z_surface + d.z_clear - 0.3), new Vector3(MepRadius * 2, L / 2, MepRadius * 2), Color(0.75f, 0.6f, 0.2f), layer, materials);
+                    var pipe = Prim(mep, $"Pipe_{y:+0;-0;0}", PrimitiveType.Cylinder, ShipFrame.ToUnity((x0 + x1) / 2, y, d.z_surface + d.z_clear - 0.3), new Vector3(MepRadius * 2, L / 2, MepRadius * 2), Palette.C(Palette.Pipe), layer, materials);
                     pipe.transform.localRotation = Quaternion.Euler(0, 0, 90); // cylinder axis along Unity X
                     UnityEngine.Object.DestroyImmediate(pipe.GetComponent<Collider>());
                     pipe.AddComponent<BoxCollider>(); // structure colliders must be MeshCollider or BoxCollider, not the primitive's CapsuleCollider; auto-sizes to the mesh bounds and follows the rotation above since it's local-space
@@ -80,7 +80,7 @@ namespace ShipHdMap
                 var ramp = Child(ship, "Ramp");
                 ramp.transform.localPosition = ShipFrame.ToUnity((r.hinge[0][0] + r.hinge[1][0]) / 2, (r.hinge[0][1] + r.hinge[1][1]) / 2, r.hinge[0][2]);
                 float len = (float)r.length_m, w = (float)r.width_m;
-                Prim(ramp, "Plate", PrimitiveType.Cube, new Vector3(-len / 2, -FloorThick / 2, 0), new Vector3(len, FloorThick, w), Color(0.5f, 0.5f, 0.45f), layer, materials);   // local to the hinge
+                Prim(ramp, "Plate", PrimitiveType.Cube, new Vector3(-len / 2, -FloorThick / 2, 0), new Vector3(len, FloorThick, w), Palette.C(Palette.RampPlate), layer, materials);   // local to the hinge
             }
             Physics.SyncTransforms(); // project has autoSyncTransforms off; Collider.bounds needs a manual sync after transform edits
             return ship;
@@ -116,12 +116,10 @@ namespace ShipHdMap
         {
             var g = GameObject.CreatePrimitive(t); g.name = name; g.layer = layer; g.transform.SetParent(parent.transform, false);
             g.transform.localPosition = pos; g.transform.localScale = scale;
-            if (!materials.TryGetValue(c, out var mat)) { mat = new Material(Shader.Find("Standard")) { color = c }; materials[c] = mat; }
+            if (!materials.TryGetValue(c, out var mat)) { mat = Mats.Lit(c, 0.3f); materials[c] = mat; }
             g.GetComponent<Renderer>().sharedMaterial = mat;
             return g;
         }
-
-        static Color Color(float r, float g, float b) => new Color(r, g, b, 1f);
 
         static void SetAlpha(Renderer r, float a)
         {
@@ -132,9 +130,7 @@ namespace ShipHdMap
             // deck-switch clicks don't leak a fresh Material per renderer every time.
             var m = r.sharedMaterial;
             if (!m.name.EndsWith("~inst")) { m = new Material(m) { name = m.name + "~inst" }; r.sharedMaterial = m; }
-            var c = m.color; c.a = a; m.color = c;
-            if (a < 1f) { m.SetFloat("_Mode", 2); m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha); m.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha); m.SetInt("_ZWrite", 0); m.EnableKeyword("_ALPHABLEND_ON"); m.renderQueue = 3000; }
-            else { m.SetFloat("_Mode", 0); m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One); m.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero); m.SetInt("_ZWrite", 1); m.DisableKeyword("_ALPHABLEND_ON"); m.renderQueue = -1; }
+            Mats.SetFade(m, a);
         }
     }
 }
