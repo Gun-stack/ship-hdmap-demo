@@ -240,9 +240,8 @@ export async function main() {
   // the decks below it would be ghosts and the ones above hidden, exactly the ones the first car drives through.
   await press("전체");
   await press("주행");
-  // Only now: the time-scale select lives in the drive panel, and edit mode's right pane has a deck select
-  // in the same place that would answer this question with "D3".
-  const scale = await d.ev(`[...document.querySelectorAll("aside.right select")].find(s=>[...s.options].some(o=>o.textContent==="\u00d71"))?.value ?? "?"`);
+  // Only now: the time-scale select lives in the run bar over the 3D view, which edit mode does not draw.
+  const scale = await d.ev(`[...document.querySelectorAll(".runbar select")].find(s=>[...s.options].some(o=>o.textContent==="\u00d71"))?.value ?? "?"`);
   note("time scale", `x${scale}`);
   if (scale !== "1") throw new Error("rule 2: the run must be at x1");
   await press("▶ 선적");
@@ -285,7 +284,7 @@ export async function main() {
   // The verdict is DOM, not canvas -- and it is not in the HUD either, because the sim spawns the next car
   // in the SAME frame as the verdict, so by the time anything can be photographed the HUD already describes
   // that next car on the quay. This third clip, the scenario log, is the only place the parking error of the
-  // car that just parked is legible. It is taken before 정지 on purpose: edit mode has no drive panel.
+  // car that just parked is legible. It is taken before 편집 on purpose: edit mode has no drive panel.
   // The live panel intentionally uses `pre` and horizontal scrolling. Documentation has no scrollbar to
   // reveal the hidden suffix, so temporarily wrap this one capture, wait for layout, then measure the taller
   // body. Restore the inline style afterwards; the application itself remains unchanged.
@@ -295,18 +294,19 @@ export async function main() {
     if (log) await d.ev(`(()=>{const h=[...document.querySelectorAll("aside.right h4")].find(x=>x.textContent.includes("시나리오 로그"));if(h)h.nextElementSibling.style.cssText=${JSON.stringify(log?.css ?? "")};})()`);
   }
 
-  // 정지: in drive mode the right pane is the drive panel and has no coverage tab at all. It also stops the
-  // scenario, which otherwise drives on to the next slot for as long as the page is open. The camera needs
-  // no press back to 궤도: the toolbar's own edit-mode correction does that (Toolbar.tsx:30).
+  // 편집: in drive mode the right pane is the drive panel and has no coverage tab at all. Leaving drive also
+  // stops the scenario, which otherwise drives on to the next slot for as long as the page is open (the run
+  // bar's ■ 정지 would stop it too, but stays in drive). The camera needs no press back to 궤도: the toolbar's
+  // own edit-mode correction does that (Toolbar.tsx:30).
   //
-  // 정지 is also what remounts CoveragePanel here -- RightTabs swaps its whole tab body out for DrivePanel
+  // 편집 is also what remounts CoveragePanel here -- RightTabs swaps its whole tab body out for DrivePanel
   // for the duration of drive mode and back, but never resets which tab was selected (setTab only runs from
   // an explicit tab click or the Tab shortcut, neither of which this script uses between chapter 02 and
-  // here), so the tab is still "coverage" from chapter 02 the moment 정지 flips the mode back. A further
+  // here), so the tab is still "coverage" from chapter 02 the moment 편집 flips the mode back. A further
   // click on 커버리지 would land on an already-selected tab: no unmount, no new mount, no new computation --
   // the exact silent-stale case waitFreshCoverage exists to catch, just moved one click later. clickOnly,
   // not press, for the same reason as chapter 02: poll before the settle delay eats the busy flash.
-  await clickOnly("정지");
+  await clickOnly("편집");
   let finalCoverage = await waitFreshCoverage("chapter 08 coverage after edit mode");
 
   // The driver camera was looking into the hull when the run stopped. Select the slot that was just filled:

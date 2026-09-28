@@ -5,7 +5,7 @@ namespace ShipHdMap
         public const string Load = "Load", SetMode = "SetMode", SetDeck = "SetDeck", Select = "Select", Confirm = "Confirm",
             SetPose = "SetPose", SetNoise = "SetNoise", StartScenario = "StartScenario", SetTimeScale = "SetTimeScale", SetPrediction = "SetPrediction", SetOccluded = "SetOccluded",
             SetBeliefParams = "SetBeliefParams", SetTool = "SetTool", SetCamMode = "SetCamMode", SetNormal = "SetNormal", SetSensor = "SetSensor",
-            SetRampState = "SetRampState", SetShellMode = "SetShellMode",
+            SetRampState = "SetRampState", SetShellMode = "SetShellMode", StopScenario = "StopScenario", SetHud = "SetHud",
             Delete = "Delete";   // MapRuntime.Delete(string); listed here so the collision guard in MapRuntimeTests sees it too
         public const string OnSeedReady = "onSeedReady", OnFeatureCreated = "onFeatureCreated", OnFeatureMoved = "onFeatureMoved",
             OnSelected = "onSelected", OnSlotFilled = "onSlotFilled", OnLocalization = "onLocalization", OnScenario = "onScenario",
@@ -30,6 +30,7 @@ namespace ShipHdMap
     public class ConfirmMsg { public string tempId; public string id; }
     public class StartScenarioMsg { public string mode; }   // the map is whatever was Loaded
     public class SetTimeScaleMsg { public double scale = 1; }
+    public class SetHudMsg { public bool visible = true; }
     /// Parking result (load) or an emptied slot (unload: status "empty", no errors — nulls are dropped from the JSON).
     public class SlotFilledEvt { public string slot_id; public string status; public double? err_lat, err_lon, err_heading; }
     /// Scenario log line. `event`: start | target | frame_switch | route | lane | leave_lane | ramp | finished.
@@ -38,7 +39,7 @@ namespace ShipHdMap
     /// `lane` (M8): it joins its target deck's lane (detail: deck id) -- the handover a figure can be pinned to.
     /// `frame_switch` fires when the entrance landmark pair is seen and the vehicle leaves the Quay Frame for the
     /// Ship Frame; its `detail` carries the estimate at that instant. `finished`'s `detail` is one of
-    /// no_empty_slot | no_filled_slot | ramp_blocked | no_frame_switch.
+    /// no_empty_slot | no_filled_slot | ramp_blocked | no_frame_switch | stopped (StopScenario).
     public class ScenarioEvt { [Newtonsoft.Json.JsonProperty("event")] public string evt; public string mode; public string slot_id; public string detail; }
     public class RampMsg { public string id; public double angle_deg; public string state; }
     public class SetPoseMsg { public double draft_fwd_m = 8.1, draft_aft_m = 8.6, heel_deg, lpp_m = 120, tide_m = 0, quay_z_m = 3.5; public RampMsg ramp; }

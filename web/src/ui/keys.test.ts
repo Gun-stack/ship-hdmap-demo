@@ -31,6 +31,13 @@ describe("commandFor", () => {
     expect(commandFor(key("?"), FREE)).toEqual({ kind: "help" });
   });
 
+  it("일시정지·HUD·몰입 키를 물리 키로 읽는다 (한글 모드 ㅗ/ㅑ 에서도)", () => {
+    expect(commandFor({ ...key(" "), code: "Space" }, FREE)).toEqual({ kind: "pause" });
+    expect(commandFor({ ...key("ㅗ"), code: "KeyH" }, FREE)).toEqual({ kind: "hud" });
+    expect(commandFor({ ...key("ㅑ"), code: "KeyI" }, FREE)).toEqual({ kind: "immersive" });
+    expect(commandFor({ ...key(" "), code: "Space" }, { inField: true, flyingFocused: false })).toBeNull();
+  });
+
   it("대문자도 같게 읽는다", () => {
     expect(commandFor(key("V"), FREE)).toEqual({ kind: "tool", tool: "select" });
   });

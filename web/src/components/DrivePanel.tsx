@@ -1,8 +1,7 @@
-import { api } from "../api/client";
 import type { BeliefParamsIn } from "../api/types";
 import { beliefBadge, fmtRatioOf } from "../geo/belief";
 import { wrapDeg } from "../geo/shipFrame";
-import { noiseMsg, predictionMsg, useEditorStore } from "../store/editor";
+import { noiseMsg, useEditorStore } from "../store/editor";
 import type { BridgeName } from "../bridge/useShipUnity";
 import { dot } from "../theme/theme";
 
@@ -18,50 +17,16 @@ const BELIEF_SLIDERS: { key: keyof BeliefParamsIn; label: string; min: number; m
   { key: "max_lost_m", label: "최대 상실 (m)", min: 1, max: 20, step: 1, digits: 0 },
   { key: "trail_m", label: "자취 (m)", min: 5, max: 50, step: 5, digits: 0 },
 ];
-const SCALES = [1, 5, 20];
 
 export function DrivePanel({ send }: { send: Send }) {
-  const { localization: l, setMode, scenarioLog, clearLog, datasetId, decks, occluded, belief: b,
-    beliefParams: bp, setBeliefParams, setError, sigmaGps, setSigmaGps, coverageParams, timeScale: scale, setTimeScale } = useEditorStore();
+  const { localization: l, scenarioLog, belief: b, beliefParams: bp, setBeliefParams, sigmaGps, setSigmaGps, coverageParams } = useEditorStore();
   const commit = () => send("SetNoise", noiseMsg(useEditorStore.getState())); // on release only — Unity's SetNoise is cheap but the bridge is not a slider event bus
   const commitBelief = () => send("SetBeliefParams", bp);
-  const start = async (mode: "load" | "unload") => {
-    clearLog();
-    // M8: a run can go to any deck, and each car is judged against its own deck's promise -- so every deck's, tagged.
-    const empty = { grid_m: 1, bbox: [0, 0, 0, 0], cells: [] };
-    await Promise.all(decks.map(async (d) => {
-      try {
-        const cov = await api.coverage(datasetId, d.id, predictionMsg(useEditorStore.getState(), mode));
-        // trim to what the vehicle needs: 2880 cells of {x, y, s} instead of the full response
-        send("SetPrediction", { deck_id: d.id, grid_m: cov.grid_m, bbox: cov.bbox, cells: cov.cells.map((c) => ({ x: c.x, y: c.y, s: c.sigma_xy ?? null })) });
-      } catch (e) {
-        // no prediction is still a valid drive: BeliefMonitor skips the Degraded check when predictedSigmaXy
-        // is null and Lost/backtracking/stopped still work off observation count alone — start anyway. But
-        // Unity must actually drop whatever prediction it was holding for that deck, or a stale one (another
-        // occlusion set's) keeps judging Degraded against a promise this run never made.
-        send("SetPrediction", { deck_id: d.id, ...empty });
-        setError("coverage prediction unavailable: " + (e as Error).message);
-      }
-    }));
-    if (decks.length === 0) send("SetPrediction", empty);
-    send("SetOccluded", { ids: occluded });
-    send("SetBeliefParams", bp);
-    send("SetNoise", noiseMsg(useEditorStore.getState())); // reload can restore a saved value while Unity still holds SetNoiseMsg's default -- resend it every start
-    send("SetTimeScale", { scale });
-    send("StartScenario", { mode });
-  };
   const err = l ? Math.hypot(l.est_x - l.true_x, l.est_y - l.true_y) : null;
   return (
     <div className="panel">
       <h4>주행 시뮬레이션</h4>
-      <div className="row">
-        <button className="btn primary" onClick={() => start("load")}>▶ 선적</button>
-        <button className="btn" onClick={() => start("unload")}>◀ 하역</button>
-        <button className="btn" onClick={() => setMode("edit")}>정지</button>
-        <select value={scale} onChange={(e) => { const v = Number(e.target.value); setTimeScale(v); send("SetTimeScale", { scale: v }); }} style={{ flex: "0 0 auto" }}>
-          {SCALES.map((k) => <option key={k} value={k}>×{k}</option>)}
-        </select>
-      </div>
+      <span className="muted">선적·일시정지·정지는 3D 뷰 위 막대에서</span>
       <div className="row">
         <label>σ</label>
         <span>거리 {coverageParams.sigma_r.toFixed(2)} m · 방위 {coverageParams.sigma_theta.toFixed(1)}° · 방향각 {coverageParams.sigma_alpha.toFixed(1)}°

@@ -7,7 +7,7 @@ import type { EditorState } from "../store/editor";
 import { useUiStore, type CamMode, type ShellMode, type Tool } from "../store/ui";
 import { pickDeck } from "../geo/deck";
 
-export type BridgeName = "Load" | "SetMode" | "SetDeck" | "Select" | "Confirm" | "Delete" | "SetNoise" | "SetSensor" | "StartScenario" | "SetPose" | "SetTimeScale" | "SetPrediction" | "SetOccluded" | "SetBeliefParams" | "SetTool" | "SetCamMode" | "SetNormal" | "SetRampState" | "SetShellMode";
+export type BridgeName = "Load" | "SetMode" | "SetDeck" | "Select" | "Confirm" | "Delete" | "SetNoise" | "SetSensor" | "StartScenario" | "SetPose" | "SetTimeScale" | "SetPrediction" | "SetOccluded" | "SetBeliefParams" | "SetTool" | "SetCamMode" | "SetNormal" | "SetRampState" | "SetShellMode" | "StopScenario" | "SetHud";
 
 /**
  * Everything Unity forgets on a fresh Load or a page reload, as the exact messages to replay.

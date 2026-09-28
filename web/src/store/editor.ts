@@ -37,6 +37,8 @@ function coalescing(ms: number): StateStorage {
   };
 }
 
+export type Run = "idle" | "running" | "paused" | "done";
+
 export type EditorState = {
   datasetId: string; dataset: Dataset | null; decks: Deck[]; features: Record<string, Feature>; drafts: Record<string, Draft>;
   selectedId: string | null; deckFilter: string; mode: Mode; pose: Pose | null; ramp: RampState | null; localization: LocalizationEvt | null; error: string | null;
@@ -50,6 +52,10 @@ export type EditorState = {
   /** Scene -> store: a scenario event. Logs it, and keeps rampStates in step with "ramp" events. */
   onScenario: (e: ScenarioEvt) => void;
   scenarioLog: ScenarioLine[];
+  /** Run state for the monitor bar. Not persisted: a reload always lands idle, as Unity does. */
+  run: Run; runDetail: string | null;
+  /** running <-> paused; the caller sends the SetTimeScale that makes it true. */
+  togglePause: () => void;
   appendLog: (text: string) => void;
   clearLog: () => void;
   onSlotFilled: (e: SlotFilledEvt) => Promise<void>;
@@ -112,7 +118,7 @@ export const useEditorStore = create<EditorState>()(persist((set, get) => ({
   // runs at import time and the vitest environment is "node", where there is no location at all.
   datasetId: new URLSearchParams(globalThis.location?.search ?? "").get("ds") ?? "roro-demo-01",
   dataset: null, decks: [], features: {}, drafts: {}, selectedId: null, deckFilter: "all", mode: "edit",
-  pose: null, ramp: null, localization: null, error: null, slotGen: {}, slotStatus: {}, innerRamps: [], routes: [], rampStates: {}, scenarioLog: [],
+  pose: null, ramp: null, localization: null, error: null, slotGen: {}, slotStatus: {}, innerRamps: [], routes: [], rampStates: {}, scenarioLog: [], run: "idle", runDetail: null,
   coverage: null, coverageMode: "load",
   // seeded with the API defaults: an empty object would leave the sliders at their minimum while the server
   // silently computed with something else
@@ -141,7 +147,8 @@ export const useEditorStore = create<EditorState>()(persist((set, get) => ({
   },
   select: (id) => set({ selectedId: id }),
   setDeckFilter: (deckFilter) => set({ deckFilter }),
-  setMode: (mode) => set({ mode }),
+  setMode: (mode) => set(mode === "edit" ? { mode, run: "idle", runDetail: null } : { mode }),
+  togglePause: () => set((s) => (s.run === "running" ? { run: "paused" } : s.run === "paused" ? { run: "running" } : {})),
   addDraft: (e) => set((s) => ({
     drafts: { ...s.drafts, [e.tempId]: { tempId: e.tempId, layer: e.layer, deck_id: e.deck, geometry: { type: "Point", coordinates: [e.x, e.y, e.z] }, props: { mounted_on: e.mounted_on ?? "", ...(e.normal ? { normal: e.normal } : {}) } } },
     selectedId: e.tempId,
@@ -182,6 +189,8 @@ export const useEditorStore = create<EditorState>()(persist((set, get) => ({
     // the scene re-announces every ramp after each Load; only a change during a drive is worth a log line
     if (ramp) set((s) => ({ rampStates: { ...s.rampStates, [ramp.id]: ramp.state } }));
     if (!ramp || get().mode === "drive") get().appendLog(scenarioLine(e));
+    if (e.event === "start") set({ run: "running", runDetail: null });
+    if (e.event === "finished") set({ run: "done", runDetail: e.detail ?? null });
   },
   clearLog: () => set({ scenarioLog: [] }),
   /** Unity judged a slot; persist it (the server bumps version) and log it. No scene reload — Unity already recoloured the fill. */

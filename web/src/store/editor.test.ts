@@ -287,3 +287,22 @@ describe("internal ramp events", () => {
     expect(useEditorStore.getState().scenarioLog[0].text).toBe("램프 RAMP-D3-D2 전개");
   });
 });
+
+describe("run state", () => {
+  beforeEach(() => useEditorStore.setState(useEditorStore.getInitialState()));
+  it("start → running ⇄ paused → finished → done(detail); leaving drive → idle", () => {
+    const g = () => useEditorStore.getState();
+    g().togglePause();
+    expect(g().run).toBe("idle");   // nothing to pause
+    g().setMode("drive");
+    g().onScenario({ event: "start", mode: "load" });
+    expect(g().run).toBe("running");
+    g().togglePause(); expect(g().run).toBe("paused");
+    g().togglePause(); expect(g().run).toBe("running");
+    g().onScenario({ event: "finished", detail: "stopped" });
+    expect([g().run, g().runDetail]).toEqual(["done", "stopped"]);
+    g().togglePause(); expect(g().run).toBe("done");
+    g().setMode("edit");
+    expect([g().run, g().runDetail]).toEqual(["idle", null]);
+  });
+});
