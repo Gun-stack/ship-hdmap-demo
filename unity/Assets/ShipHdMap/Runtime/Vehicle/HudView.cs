@@ -208,7 +208,9 @@ namespace ShipHdMap
                 label.visible = vp.z > 0;
                 if (!label.visible) continue;
                 var p = RuntimePanelUtils.CameraTransformWorldToPanel(panel, world, cam);
-                label.style.left = p.x; label.style.top = p.y;
+                // kept on the canvas: the aft deck corner projects left of the view in the default orbit, and the
+                // label's text (the deck name) is exactly the part that would be cut off
+                label.style.left = Mathf.Max(4f, p.x); label.style.top = p.y;
             }
         }
 

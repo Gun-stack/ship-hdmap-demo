@@ -211,6 +211,16 @@ export async function main() {
   // swallowed the busy flash.
   await clickOnly("커버리지");
   await chapter("02", "coverage", await waitFreshCoverage("chapter 02 coverage"));
+  // 02-light: the same screen in the light theme, so the docs show both. Nothing in the 3D view moves with the
+  // theme (only the web shell does), so the pair differs in exactly one thing. The toggle persists in this
+  // profile's localStorage (theme.ts), so it is flipped straight back -- every other figure is dark.
+  const flipTheme = () => d.ev(`document.querySelector(".topbar .theme").click()`);
+  await flipTheme(); await sleep(600);
+  if ((await d.ev(`document.documentElement.dataset.theme`)) !== "light") throw new Error("theme toggle did not switch to light");
+  await shot("02-coverage-light.png", FRAME, 0.5);
+  await flipTheme(); await sleep(300);
+  if ((await d.ev(`document.documentElement.dataset.theme`)) !== "dark") throw new Error("theme toggle did not switch back to dark");
+  note("02-coverage-light", "02 와 같은 화면 · 라이트 테마");
 
   await press("주행");
   // Only now: the time-scale select lives in the drive panel, and edit mode's right pane has a deck select
