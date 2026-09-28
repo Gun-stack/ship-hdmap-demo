@@ -8,7 +8,10 @@ export type KeyCmd =
   | { kind: "fit" }
   | { kind: "all" }
   | { kind: "escape" }
-  | { kind: "help" };
+  | { kind: "help" }
+  | { kind: "pause" }
+  | { kind: "hud" }
+  | { kind: "immersive" };
 
 type KeyLike = { key: string; code: string; timeStamp: number; ctrlKey: boolean; metaKey: boolean; altKey: boolean; isComposing: boolean };
 /// `composingEscapeAt` is the timeStamp of the last Escape seen with isComposing set; the handler remembers it
@@ -71,6 +74,10 @@ export function commandFor(e: KeyLike, ctx: Ctx): KeyCmd | null {
   if (e.code === "KeyF") return { kind: "fit" };
   if (k === "0") return { kind: "all" };
   if (e.key === "?") return { kind: "help" };
+  // Space by code as well: the IME leaves it alone, and it is not a flight key (flight climbs on E, not Space).
+  if (e.code === "Space") return { kind: "pause" };
+  if (e.code === "KeyH") return { kind: "hud" };
+  if (e.code === "KeyI") return { kind: "immersive" };
   return null;
 }
 
@@ -81,8 +88,11 @@ export const HELP_ROWS: [string, string][] = [
   ["W A S D · ←↑→↓ · Q E · Shift", "자유 비행 이동 (비행 모드에서 3D 에 포커스가 있을 때)"],
   ["F", "선택에 맞춤 — 활성 뷰포트에만"],
   ["0", "전체 보기 — 평면도"],
-  ["Esc", "선택 해제 + 선택 모드로"],
+  ["Esc", "몰입 해제 → 도움말 닫기 → 선택 해제 + 선택 모드로"],
   ["1 / 2 / 3 / 4 / 5", "갑판 D1 … D5"],
+  ["Space", "주행 일시정지 / 재개"],
+  ["H", "3D 뷰 HUD 카드 보이기 / 가리기"],
+  ["I", "몰입 — 패널을 모두 숨기고 3D 뷰만 (Esc 로도 복귀)"],
   ["[ / ]", "오른쪽 탭 순환 (Tab 은 브라우저 포커스 순회에 남겨 둔다)"],
   ["?", "이 목록"],
 ];

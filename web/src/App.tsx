@@ -10,11 +10,14 @@ import { LayerTree } from "./components/LayerTree";
 import { PlanDock } from "./components/PlanDock";
 import { RightTabs } from "./components/RightTabs";
 import { Shortcuts } from "./components/Shortcuts";
+import { RunBar } from "./components/RunBar";
+import { useUiStore } from "./store/ui";
 import "./App.css";
 
 export default function App() {
   const load = useEditorStore((s) => s.load);
   const datasetId = useEditorStore((s) => s.datasetId);
+  const immersive = useUiStore((s) => s.immersive);
   const { unityProvider, isLoaded, send, reloadScene } = useShipUnity();
   // State, not a plain ref: a ref's mutation is invisible to React, so an effect keyed on it
   // would never re-run once the canvas element actually arrives -- which is exactly the case that
@@ -24,7 +27,7 @@ export default function App() {
   const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
   useEffect(() => { void load(datasetId); }, [load, datasetId]);
   return (
-    <div className="app">
+    <div className={`app${immersive ? " immersive" : ""}`}>
       <TopBar />
       <Toolbar send={send} />
       <aside className="left">
@@ -42,6 +45,7 @@ export default function App() {
       <main className="center" onContextMenu={(e) => e.preventDefault()} onPointerDown={() => canvas?.focus()}>
         {!isLoaded && <div className="loading">Unity 로딩 중…</div>}
         <Unity ref={setCanvas} unityProvider={unityProvider} tabIndex={-1} style={{ width: "100%", height: "100%" }} />
+        <RunBar send={send} />
       </main>
       <aside className="right"><RightTabs send={send} reloadScene={reloadScene} /></aside>
       <PlanDock />

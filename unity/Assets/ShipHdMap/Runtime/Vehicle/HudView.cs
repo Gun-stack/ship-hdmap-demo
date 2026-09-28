@@ -37,6 +37,8 @@ namespace ShipHdMap
         /// Do not rename this back to SetSensor.
         public void SetSensorCounts(string line) { SensorText = line; }
         public void SetSensorConfig(string line) { SensorConfigText = line; }
+        /// Never name this SetHud: that is MapRuntime's wire message, and SendMessage would fire both (see SetSensorCounts).
+        public void SetVisible(bool on) { if (_doc) _doc.rootVisualElement.style.display = on ? DisplayStyle.Flex : DisplayStyle.None; }
 
         /// A click that did nothing has to say so. LandmarkPlacer.Decide returns ClickAct.None when Place or
         /// Probe misses the ship entirely, and the cursor readout keeps updating from a DIFFERENT raycast --

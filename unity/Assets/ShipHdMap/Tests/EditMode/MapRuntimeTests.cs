@@ -396,6 +396,32 @@ namespace ShipHdMap.Tests
         }
 
         [Test]
+        public void TimeScaleZeroPausesAndStopEndsTheRunInPlaceAtOneX()
+        {
+            go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>();
+            var sent = new List<(string name, string json)>();
+            rt.Emit += (n, j) => sent.Add((n, j));
+            rt.InitForTest(); rt.Load(Fixture());
+            try
+            {
+                rt.StartScenario("{\"mode\":\"load\"}");
+                Assume.That(rt.ScenarioPhase, Is.Not.EqualTo(MapRuntime.Phase.Idle), "fixture should give the run a car to drive");
+                rt.SetTimeScale("{\"scale\":0}");
+                Assert.That(Time.timeScale, Is.EqualTo(0f), "0 must pause, not clamp to a crawl");
+
+                rt.StopScenario("{}");
+                Assert.That(rt.ScenarioPhase, Is.EqualTo(MapRuntime.Phase.Idle));
+                Assert.That(Time.timeScale, Is.EqualTo(1f), "a stop while paused must not leave scaled time frozen");
+                Assert.That(sent.Last(e => e.name == BridgeMessages.OnScenario).json, Does.Contain("stopped"));
+
+                int n = sent.Count;
+                rt.StopScenario("{}");   // idle: nothing to stop, and no second "finished"
+                Assert.That(sent.Count, Is.EqualTo(n));
+            }
+            finally { Time.timeScale = 1f; }
+        }
+
+        [Test]
         public void EveryBridgeMessageNameIsClaimedByAtMostOneComponent()
         {
             // GameObject.SendMessage(name, arg) invokes EVERY component's method of that name on the GameObject,

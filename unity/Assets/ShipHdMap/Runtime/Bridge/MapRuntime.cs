@@ -285,7 +285,12 @@ namespace ShipHdMap
             else Gizmo.Detach();
         }
 
-        public void SetTimeScale(string json) => Time.timeScale = Mathf.Clamp((float)MapJson.Parse<SetTimeScaleMsg>(json).scale, 0.1f, 50f);
+        /// 0 is pause: Step runs on Time.deltaTime, while flight, the probe's turn and the HUD flash all run unscaled.
+        public void SetTimeScale(string json) => Time.timeScale = Mathf.Clamp((float)MapJson.Parse<SetTimeScaleMsg>(json).scale, 0f, 50f);
+        /// Ends the run where it stands and stays in drive, unlike SetMode("edit"). Back to 1x so a stop issued while
+        /// paused does not leave the ramp hoists (scaled time) frozen mid-swing.
+        public void StopScenario(string _) { if (ScenarioPhase != Phase.Idle) Finish("stopped"); Time.timeScale = 1f; }
+        public void SetHud(string json) => Hud.SetVisible(MapJson.Parse<SetHudMsg>(json)?.visible ?? true);
         public void SetDeck(string deck)
         {
             _deck = deck; if (Ship) ShipMeshBuilder.SetDeckVisibility(Ship, deck); if (_overlay) MapOverlay.SetDeck(_overlay, deck);

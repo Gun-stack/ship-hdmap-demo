@@ -21,7 +21,7 @@ const SHELLS: { k: ShellMode; label: string; hint: string }[] = [
 
 export function Toolbar({ send }: { send: Send }) {
   const mode = useEditorStore((s) => s.mode);
-  const { tool, setTool, cam, setCam, shell, setShell } = useUiStore();
+  const { tool, setTool, cam, setCam, shell, setShell, hud, toggleHud, immersive, toggleImmersive } = useUiStore();
   const pickTool = (t: Tool) => { setTool(t); send("SetTool", { tool: t }); };
   const pickCam = (c: CamMode) => { setCam(c); send("SetCamMode", { mode: c }); };
 
@@ -55,6 +55,11 @@ export function Toolbar({ send }: { send: Send }) {
         <button key={m.k} type="button" className={`btn${shell === m.k ? " primary" : ""}`} title={m.hint}
           onClick={() => { setShell(m.k); send("SetShellMode", { mode: m.k }); }}>{m.label}</button>
       ))}
+      <span className="sep" />
+      <button type="button" className={`btn${hud ? " primary" : ""}`} title="3D 뷰의 HUD 카드 (H)"
+        onClick={() => send("SetHud", { visible: toggleHud() })}>HUD</button>
+      <button type="button" className={`btn${immersive ? " primary" : ""}`} title="패널을 모두 숨기고 3D 뷰만 (I, Esc 로 복귀)"
+        onClick={toggleImmersive}>몰입</button>
     </div>
   );
 }

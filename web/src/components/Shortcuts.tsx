@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { togglePause } from "./RunBar";
 import { useEditorStore } from "../store/editor";
 import { useUiStore, type CamMode } from "../store/ui";
 import { commandFor, isInField, HELP_ROWS } from "../ui/keys";
@@ -74,6 +75,7 @@ export function Shortcuts({ send, canvas }: { send: Send; canvas: HTMLCanvasElem
         }
         case "all": { const deck = pickDeck(ed.decks, ed.deckFilter); if (deck) { const b = bbox(deck.outline, 3); ui.setPlanView(fitTo(b, b)); } break; }
         case "escape":
+          if (ui.immersive) { ui.toggleImmersive(); break; }
           if (ui.helpOpen) { ui.toggleHelp(); break; }
           ed.select(null);
           ui.setTool("select"); send("SetTool", { tool: "select" });
@@ -87,6 +89,9 @@ export function Shortcuts({ send, canvas }: { send: Send; canvas: HTMLCanvasElem
           canvas?.blur();
           break;
         case "help": ui.toggleHelp(); break;
+        case "pause": togglePause(send); break;   // a no-op unless a run is live
+        case "hud": send("SetHud", { visible: ui.toggleHud() }); break;
+        case "immersive": ui.toggleImmersive(); break;
       }
     };
     window.addEventListener("keydown", onKey);

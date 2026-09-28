@@ -17,6 +17,10 @@ export type PlanView = { cx: number; cy: number; scale: number };
 type UiState = {
   tool: Tool; cam: CamMode; shell: ShellMode; tab: RightTab; prevTab: RightTab;
   dockOpen: boolean; dockTall: boolean; helpOpen: boolean;
+  /** Unity's HUD card, and panels-off monitoring. Neither persisted: Unity always boots with its HUD on. */
+  hud: boolean; immersive: boolean;
+  toggleHud: () => boolean;
+  toggleImmersive: () => void;
   treeOpen: Record<string, boolean>;
   planView: PlanView;
   setTool: (t: Tool) => void;
@@ -36,14 +40,14 @@ type UiState = {
 
 const DEFAULTS = {
   tool: "select" as Tool, cam: "orbit" as CamMode, shell: "cutaway" as ShellMode, tab: "load" as RightTab, prevTab: "load" as RightTab,
-  dockOpen: true, dockTall: false, helpOpen: false,
+  dockOpen: true, dockTall: false, helpOpen: false, hud: true, immersive: false,
   treeOpen: { LM: true, A2: true, B2: true, C: true } as Record<string, boolean>,
   planView: { cx: 60, cy: 0, scale: 1 } as PlanView,
 };
 
 export const useUiStore = create<UiState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       ...DEFAULTS,
       setTool: (tool) => set({ tool }),
       setCam: (cam) => set({ cam }),
@@ -58,6 +62,8 @@ export const useUiStore = create<UiState>()(
       toggleDock: () => set((s) => ({ dockOpen: !s.dockOpen })),
       toggleDockTall: () => set((s) => ({ dockTall: !s.dockTall })),
       toggleHelp: () => set((s) => ({ helpOpen: !s.helpOpen })),
+      toggleHud: () => { const hud = !get().hud; set({ hud }); return hud; },
+      toggleImmersive: () => set((s) => ({ immersive: !s.immersive })),
     }),
     {
       name: UI_KEY,
