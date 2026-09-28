@@ -29,6 +29,7 @@ namespace ShipHdMap.Editor
             EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene(), ScenePath);
 
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
+            RenderSetup.Run();   // URP camera data, sun, sky, fog, post volume, sea
         }
     }
 }

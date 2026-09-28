@@ -28,7 +28,7 @@ namespace ShipHdMap
                 h.transform.SetParent(transform, false);
                 h.transform.localPosition = new Vector3(0, 0, 0.004f); // marker forward is -normal, so +z is toward the surface
                 h.transform.localScale = new Vector3(1.6f, 1.6f, 1f);
-                h.GetComponent<Renderer>().sharedMaterial = _haloMat ??= new Material(Shader.Find("Unlit/Color")) { color = new Color(1f, 0.85f, 0.1f) };
+                h.GetComponent<Renderer>().sharedMaterial = _haloMat ??= Mats.Unlit(Palette.C(Palette.Selection), "halo");
                 _halo = h.transform;
             }
             _halo.gameObject.SetActive(on);
@@ -49,12 +49,11 @@ namespace ShipHdMap
         /// "does the sensor have this marker RIGHT NOW", and it cannot answer it while it wears another layer's
         /// colour. It was (0.2, 1, 0.35) green and therefore indistinguishable from MapOverlay's empty-slot fill
         /// (0.2, 0.9, 0.4) -- a floor marker sitting on a slot could not be told lit from dark at all, and the
-        /// browser pass could not count what the probe could see. Everything else in the scene is spoken for:
-        /// yellow = selection halo (1, 0.85, 0.1) and lane lines (1, 0.85, 0.2); orange = normal gizmo
-        /// (1, 0.72, 0) and needs_adjust slots (1, 0.6, 0.1); blue = filled slots (0.2, 0.5, 1); cyan = the
-        /// sensor cone (0.3, 0.8, 1); red = lashing points (0.8, 0.2, 0.2); grey = hull, pillars, unreachable
-        /// slots. Magenta is the one hue nothing else uses. Deliberately NOT (1, 0, 1), which is Unity's
-        /// missing-shader colour and would read as a build failure rather than a reading.
+        /// browser pass could not count what the probe could see. Everything else in the scene is spoken for (see
+        /// Palette.cs): amber = selection halo and normal gizmo; yellow = lane lines; teal / blue / orange / grey =
+        /// the four slot statuses; cyan = the sensor cone; greys and slate = hull, pillars, deck. Magenta (Palette.Seen)
+        /// is the one hue nothing else uses. Deliberately NOT (1, 0, 1), which is Unity's missing-shader colour and
+        /// would read as a build failure rather than a reading.
         public void SetSeen(bool on)
         {
             if (_seenRing == null)
@@ -65,7 +64,7 @@ namespace ShipHdMap
                 h.transform.SetParent(transform, false);
                 h.transform.localPosition = new Vector3(0, 0, 0.002f);
                 h.transform.localScale = new Vector3(1.3f, 1.3f, 1f);
-                h.GetComponent<Renderer>().sharedMaterial = _seenMat ??= new Material(Shader.Find("Unlit/Color")) { color = new Color(1f, 0.15f, 0.75f) };
+                h.GetComponent<Renderer>().sharedMaterial = _seenMat ??= Mats.Unlit(Palette.C(Palette.Seen), "seen");
                 _seenRing = h.transform;
             }
             _seenRing.gameObject.SetActive(on);
@@ -80,8 +79,7 @@ namespace ShipHdMap
             g.transform.localScale = new Vector3(sizeM, sizeM, 1);
             Object.DestroyImmediate(g.GetComponent<Collider>());
             var box = g.AddComponent<BoxCollider>(); box.size = new Vector3(1.6f, 1.6f, 0.02f / sizeM);
-            var shader = Shader.Find("Unlit/Texture") ?? Shader.Find("Standard");
-            g.GetComponent<Renderer>().sharedMaterial = new Material(shader) { mainTexture = AprilTag36h11.MakeTexture(code) };
+            g.GetComponent<Renderer>().sharedMaterial = Mats.Textured(AprilTag36h11.MakeTexture(code), "tag");
             var lm = g.AddComponent<LandmarkMarker>();
             lm.id = id; lm.code = code; lm.sizeM = sizeM; lm.MoveTo(parent.TransformPoint(unityPos), parent.TransformDirection(unityNormal), deckId, mountedOn);
             return lm;

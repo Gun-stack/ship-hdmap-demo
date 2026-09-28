@@ -132,9 +132,10 @@ export async function main() {
   if (!canvas) throw new Error("no canvas");
   // The HUD box is anchored 10 px from the canvas's bottom-left and grows upward; during a drive it runs to
   // ten lines. Derived from the live canvas rect, not hardcoded: the window is not the same size everywhere.
-  // 370 px contains the longest live line (the sensor verdict) plus the HUD's padding. The old 560 px clip
-  // committed roughly 190 px of unrelated scene/white margin to every enlargement.
-  const HUD = { x: canvas.x, y: canvas.y + canvas.h - 210, width: Math.min(370, canvas.w), height: 205 };
+  // 480 x 240 contains the M7 card at its tallest (drive: ten rows in four groups, hairlines between them) set in
+  // JetBrains Mono, whose 7.2 px advance makes the sensor verdict about 440 px wide -- the old 370 px clip was
+  // sized for the proportional default font and would cut that line off.
+  const HUD = { x: canvas.x, y: canvas.y + canvas.h - 245, width: Math.min(480, canvas.w), height: 240 };
   // Full-frame figures are non-delta PNGs that get committed permanently on every re-capture; a clip
   // covering the whole page reproduces the old no-clip capture pixel-for-pixel at scale 1 (checked against
   // a live run), so shooting it at scale 0.5 halves the file size for free. The HUD clips keep their own

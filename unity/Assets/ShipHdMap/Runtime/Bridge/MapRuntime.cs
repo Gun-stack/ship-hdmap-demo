@@ -88,9 +88,11 @@ namespace ShipHdMap
             Sensor = new GameObject("Vehicle").AddComponent<LandmarkSensor>(); Sensor.transform.SetParent(transform, false);
             Sensor.occluders = LayerMask.GetMask("ShipStructure"); if (Sensor.occluders == 0) Sensor.occluders = ~LayerMask.GetMask("Landmark");
             Vehicle = Sensor.gameObject.AddComponent<VehicleController>();
-            var body = GameObject.CreatePrimitive(PrimitiveType.Cube); body.name = "Body"; body.transform.SetParent(Sensor.transform, false);
-            body.transform.localScale = new Vector3(4.8f, 1.5f, 1.85f); body.transform.localPosition = new Vector3(0, 0.25f, 0);
-            UnityEngine.Object.DestroyImmediate(body.GetComponent<Collider>());
+            // The car mesh's origin is its footprint on the deck, and the vehicle rides RideHeightM above the path point.
+            // No collider, as before: the body must never block a placement raycast or the sensor's own linecast.
+            var body = new GameObject("Body"); body.transform.SetParent(Sensor.transform, false);
+            body.transform.localPosition = new Vector3(0, -(float)VehicleController.RideHeightM, 0);
+            _body = CarModel.Dress(body, Palette.C(Palette.DriveCar));
             Placer = gameObject.AddComponent<LandmarkPlacer>(); Placer.landmarksRoot = LandmarksRoot;
             Hud = gameObject.AddComponent<HudView>();
             // On the MAP ROOT, not on Vehicle: EnsureLine sets useWorldSpace = false, so the cone's points are
@@ -131,8 +133,8 @@ namespace ShipHdMap
         /// renderer under Ship, not just the ones on a filtered deck, owns its own Material instance. None of that
         /// is reachable once Ship is destroyed, and Materials are not reclaimed by GC until a domain reload -- costly
         /// on the WebGL target, where a single deck can carry thousands of lashing-socket renderers. Nothing outside
-        /// the hull shares these: the quay, overlay fills, parked-car boxes and landmark markers each own their own
-        /// Materials (QuayBuilder._mat, MapOverlay.LineMats/FillMats/_parkedMat, LandmarkMarker's own tag Material
+        /// the hull shares these: the quay, overlay fills, parked cars and landmark markers each own their own
+        /// Materials (QuayBuilder._mat, MapOverlay.LineMats/FillMats, CarModel.Paint, LandmarkMarker's own tag Material
         /// and Texture2D -- one fresh pair per marker, uncached, still leaked on every Load, and out of scope here;
         /// its halo/seen rings are the exception, shared statics the same way MapOverlay's line and fill colours are), and every
         /// ShipMeshBuilder.Build call starts a fresh dictionary, so no two builds ever share a Material instance.
@@ -454,10 +456,17 @@ namespace ShipHdMap
 
         // ---- per frame ----
         CamMode _camMode = CamMode.Orbit;   // last mode the web was told about
+        MeshRenderer _body;
+
+        /// The driver's eye sits inside the car (sensor at 1.2 m, roof at 1.5 m), so from there the car's own body is
+        /// a bonnet across the bottom third of the view. The probe also parks the camera in Driver mode, but out on
+        /// the deck, far from the car -- there the car is scenery and stays.
+        public static bool ShowBody(CamMode mode, bool probeActive) => mode != CamMode.Driver || probeActive;
 
         void Update()
         {
             Step(Time.deltaTime); PollCamMode();
+            if (_body) _body.enabled = ShowBody(Orbit ? Orbit.mode : CamMode.Orbit, Probe.Active);
             // Recomputed every frame rather than pushed from SetTool/SetCamMode/ReleaseProbe/Focus: those are
             // four writers (and Focus is easy to forget), and a status line that drifts from the thing it
             // reports is worse than none.

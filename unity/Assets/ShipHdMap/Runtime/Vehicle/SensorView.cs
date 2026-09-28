@@ -5,7 +5,7 @@ using UnityEngine;
 namespace ShipHdMap
 {
     /// Draws what the sensor can see, on the deck floor: the two field-of-view edges and the range arc,
-    /// plus a green ring on every marker currently observed. Shared by the driver's-eye camera and the
+    /// plus a magenta ring on every marker currently observed. Shared by the driver's-eye camera and the
     /// probe (spec §5.2, §5.3) so both read the same judgement out of LandmarkSensor.VisibleFrom.
     ///
     /// Why draw the cone and the arc and not the other two conditions: a marker that went dark because it
@@ -13,7 +13,7 @@ namespace ShipHdMap
     /// INSIDE the arc is explained by elimination -- its normal turned away, or a pillar is in the way.
     public class SensorView : MonoBehaviour
     {
-        public Color coneColor = new(0.3f, 0.8f, 1f, 0.9f);
+        public Color coneColor = Palette.C(Palette.SensorCone);
         LineRenderer _line;
         readonly List<LandmarkMarker> _lit = new();
 
@@ -76,7 +76,7 @@ namespace ShipHdMap
             // away from the pose it was drawn for.
             _line.useWorldSpace = false;
             _line.widthMultiplier = 0.12f; _line.numCornerVertices = 0;
-            _line.sharedMaterial = new Material(Shader.Find("Unlit/Color")) { color = coneColor };
+            _line.sharedMaterial = Mats.Unlit(coneColor, "sensor-cone");
         }
     }
 }

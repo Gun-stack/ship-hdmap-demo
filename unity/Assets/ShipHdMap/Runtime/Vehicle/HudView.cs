@@ -5,12 +5,17 @@ using UnityEngine.UIElements;
 
 namespace ShipHdMap
 {
-    /// UI Toolkit HUD: bottom-left status box (deck, selection, cursor in Ship Frame, localization while driving) and
+    /// How a HUD row is coloured. The row's WORDS never change with it -- the web, the docs and the capture script
+    /// quote those strings -- only the ink does.
+    public enum HudTone { Text, Dim, Accent, Warn }
+
+    /// UI Toolkit HUD: bottom-left status card (deck, selection, cursor in Ship Frame, localization while driving) and
     /// floating deck labels projected from world points. Every element ignores picking so scene clicks pass through.
     public class HudView : MonoBehaviour
     {
         public Camera cam;
-        UIDocument _doc; Label _info; VisualElement _labelLayer; string _ramp;
+        UIDocument _doc; VisualElement _card, _labelLayer; string _ramp;
+        readonly List<Label> _rows = new();
         string _flash; float _flashUntil;
 
         /// What tool and camera are live, and what the visible eye currently sees. Public so the editor's
@@ -40,7 +45,7 @@ namespace ShipHdMap
 
         /// Which tool and which camera, in the HUD's own words.
         ///
-        /// ASCII only, and not by oversight: the runtime panel draws with UI Toolkit's default theme font,
+        /// ASCII only, and not by oversight: the HUD draws with JetBrains Mono (Resources/Fonts),
         /// which carries no Hangul, so Korean here would come out as blank boxes in the WebGL build. The web
         /// toolbar is where the Korean labels live; these are the same three tools and three cameras.
         ///
@@ -123,25 +128,77 @@ namespace ShipHdMap
             _labelLayer = new VisualElement { pickingMode = PickingMode.Ignore };
             _labelLayer.style.position = Position.Absolute; _labelLayer.style.left = 0; _labelLayer.style.top = 0; _labelLayer.style.right = 0; _labelLayer.style.bottom = 0;
             root.Add(_labelLayer);
-            _info = new Label { pickingMode = PickingMode.Ignore };
-            Style(_info.style, 12); _info.style.position = Position.Absolute; _info.style.left = 10; _info.style.bottom = 10; _info.style.whiteSpace = WhiteSpace.Normal;
-            root.Add(_info);
+            // Monospace so the columns in est/true/err line up; the NL cut has no ligatures, so "--" stays two dashes.
+            var font = Resources.Load<Font>("Fonts/JetBrainsMonoNL-Regular");
+            if (font) root.style.unityFontDefinition = FontDefinition.FromFont(font);
+            _card = new VisualElement { pickingMode = PickingMode.Ignore };
+            Card(_card.style, 0.82f);
+            _card.style.position = Position.Absolute; _card.style.left = 10; _card.style.bottom = 10;
+            _card.style.paddingLeft = 10; _card.style.paddingRight = 10; _card.style.paddingTop = 6; _card.style.paddingBottom = 7;
+            root.Add(_card);
         }
 
-        static string Extra(string line) => line == null ? "" : "\n" + line;
+        /// The card's rows, in the order the old single label printed them, each with its ink and its group. A new
+        /// group starts a hairline, so the four things the HUD says -- where, how well, what the scene is doing,
+        /// what the eye sees -- read as four blocks instead of one wall of monospace.
+        public static List<(string text, HudTone tone, int group)> Rows(string[] lines, string ramp, string status, string sensorConfig, string sensorCounts, string flash)
+        {
+            var rows = new List<(string, HudTone, int)>();
+            foreach (var l in lines ?? Array.Empty<string>())
+            {
+                if (l.StartsWith("cursor")) rows.Add((l, HudTone.Dim, 0));
+                else if (l.StartsWith("frame")) rows.Add((l, l.Contains("(holding previous)") ? HudTone.Warn : HudTone.Accent, 1));
+                else if (l.StartsWith("est") || l.StartsWith("true") || l.StartsWith("err")) rows.Add((l, HudTone.Text, 1));
+                else rows.Add((l, HudTone.Text, 0));
+            }
+            if (ramp != null) rows.Add((ramp, HudTone.Dim, 2));
+            if (status != null) rows.Add((status, HudTone.Dim, 2));
+            if (sensorConfig != null) rows.Add((sensorConfig, HudTone.Accent, 3));
+            if (sensorCounts != null) rows.Add((sensorCounts, HudTone.Accent, 3));
+            if (flash != null) rows.Add((flash, HudTone.Warn, 4));
+            return rows;
+        }
+
+        static Color Ink(HudTone t) => Palette.C(t switch { HudTone.Dim => Palette.HudDim, HudTone.Accent => Palette.HudAccent, HudTone.Warn => Palette.HudWarn, _ => Palette.HudText });
+
+        static void Card(IStyle s, float alpha)
+        {
+            s.backgroundColor = Palette.C(Palette.HudPanel, alpha); s.color = Palette.C(Palette.HudText);
+            s.borderTopLeftRadius = s.borderTopRightRadius = s.borderBottomLeftRadius = s.borderBottomRightRadius = 6;
+            var edge = new Color(1, 1, 1, 0.09f);
+            s.borderTopWidth = s.borderBottomWidth = s.borderLeftWidth = s.borderRightWidth = 1;
+            s.borderTopColor = s.borderBottomColor = s.borderLeftColor = s.borderRightColor = edge;
+        }
 
         static void Style(IStyle s, int fontSize)
         {
-            s.backgroundColor = new Color(0, 0, 0, 0.55f); s.color = Color.white; s.fontSize = fontSize;
-            s.paddingLeft = 6; s.paddingRight = 6; s.paddingTop = 3; s.paddingBottom = 3;
+            Card(s, 0.78f); s.fontSize = fontSize;
+            s.paddingLeft = 7; s.paddingRight = 7; s.paddingTop = 2; s.paddingBottom = 3;
         }
 
         void LateUpdate()
         {
-            if (_info == null) return;
+            if (_card == null) return;
             if (_flash != null && Time.unscaledTime > _flashUntil) _flash = null;
-            _info.text = string.Join("\n", Lines(_deck, _selected, CursorShip(), _last, _truth, _frame))
-                + Extra(_ramp) + Extra(StatusText) + Extra(SensorConfigText) + Extra(SensorText) + Extra(_flash);
+            var rows = Rows(Lines(_deck, _selected, CursorShip(), _last, _truth, _frame), _ramp, StatusText, SensorConfigText, SensorText, _flash);
+            while (_rows.Count < rows.Count)
+            {
+                var l = new Label { pickingMode = PickingMode.Ignore };
+                l.style.fontSize = 12; l.style.paddingLeft = l.style.paddingRight = 0; l.style.paddingTop = l.style.paddingBottom = 0;
+                l.style.borderTopColor = new Color(1, 1, 1, 0.08f);
+                _card.Add(l); _rows.Add(l);
+            }
+            for (int i = 0; i < _rows.Count; i++)
+            {
+                var l = _rows[i]; bool on = i < rows.Count;
+                l.style.display = on ? DisplayStyle.Flex : DisplayStyle.None;
+                if (!on) continue;
+                var (text, tone, group) = rows[i];
+                bool opens = i > 0 && group != rows[i - 1].group;
+                l.text = text; l.style.color = Ink(tone);
+                l.style.unityFontStyleAndWeight = tone == HudTone.Warn ? FontStyle.Bold : FontStyle.Normal;
+                l.style.marginTop = opens ? 4 : 0; l.style.paddingTop = opens ? 4 : 0; l.style.borderTopWidth = opens ? 1 : 0;
+            }
             if (cam == null) return;
             var panel = _doc.rootVisualElement.panel;
             foreach (var (label, local) in _deckLabels)
