@@ -93,7 +93,8 @@ class CoverageApiTests {
 		var load = d3(Map.of("mode", "load", "grid_m", 1.0));
 		var unload = d3(Map.of("mode", "unload", "grid_m", 1.0));
 		assertThat(num(load, "blind_ratio")).isCloseTo(0.168, within(0.01));
-		assertThat(num(unload, "blind_ratio")).isCloseTo(0.256, within(0.01));
+		// 0.256 before M8: the routes to D1/D2/D4/D5 now cross D3, and ground a car drives over counts (ShipLayout.routeRunsOn)
+		assertThat(num(unload, "blind_ratio")).isCloseTo(0.266, within(0.01));
 
 		var cells = (List<Map<String, Object>>) load.get("cells");
 		java.util.function.BiFunction<Double, Double, Double> blindInBand = (lo, hi) -> {

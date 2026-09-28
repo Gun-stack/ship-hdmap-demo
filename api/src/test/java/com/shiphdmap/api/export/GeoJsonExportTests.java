@@ -43,7 +43,7 @@ class GeoJsonExportTests {
 		db.sql("DELETE FROM dataset").update(); poses.clear();
 		datasets.create(new DatasetController.NewDataset(DS, "RORO demo", "Demo Ship", 12.3456, 45.6789, 90.0, 120.0));
 		VehicleMap m = json.readValue(Files.readString(Path.of("..", "docs", "fixtures", "vehicle-map.sample.json")), VehicleMap.class);
-		importer.importSeed(DS, new SeedData(m.decks(), m.facilities(), m.lashingPoints(), m.ramps(), m.lanes(), m.parkingSlots(), m.landmarks(), m.markings()));
+		importer.importSeed(DS, new SeedData(m.decks(), m.facilities(), m.lashingPoints(), m.ramps(), m.lanes(), m.parkingSlots(), m.landmarks(), m.markings(), m.routes()));
 	}
 
 	@Test
@@ -67,7 +67,7 @@ class GeoJsonExportTests {
 		assertThat(lm1.get("properties").get("code").asInt()).isEqualTo(1);
 		assertThat(deck3.get("geometry").get("type").asText()).isEqualTo("Polygon");
 		assertThat(deck3.get("geometry").get("coordinates").get(0)).hasSize(5);
-		assertThat(fc.get("features").size()).isEqualTo(3 + 23 + 54 + 1 + 3 + SeedImportTests.fixtureLashingCount(json) + 2);
+		assertThat(fc.get("features").size()).isEqualTo(5 + 107 + 90 + 5 + 5 + 4 + SeedImportTests.fixtureLashingCount(json) + 2);
 	}
 
 	@Test

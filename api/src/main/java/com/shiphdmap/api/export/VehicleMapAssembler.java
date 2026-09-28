@@ -34,17 +34,21 @@ public class VehicleMapAssembler {
 			.query().listOfRows().stream().map(r -> new Deck((String) r.get("id"), (String) r.get("name"), d(r.get("z_surface")), d(r.get("z_clear")), (Boolean) r.get("movable"), Wkt.coords((String) r.get("g")))).toList();
 
 		var landmarks = new ArrayList<Landmark>(); var lanes = new ArrayList<Lane>(); var lashing = new ArrayList<LashingPoint>();
-		var markings = new ArrayList<Marking>(); var facilities = new ArrayList<Facility>(); var ramps = new ArrayList<Ramp>();
+		var markings = new ArrayList<Marking>(); var facilities = new ArrayList<Facility>(); var ramps = new ArrayList<Ramp>(); var routes = new ArrayList<Route>();
 		for (Map<String, Object> r : db.sql("SELECT id, deck_id, layer, kind, ST_AsGeoJSON(geom)::text g, props::text p FROM feature WHERE dataset_id = :ds ORDER BY layer, id").param("ds", ds).query().listOfRows()) {
 			String id = (String) r.get("id"), deck = (String) r.get("deck_id"), layer = (String) r.get("layer"), kind = (String) r.get("kind");
 			double[][] c = Wkt.coords((String) r.get("g")); Map<String, Object> p = props((String) r.get("p"));
 			switch (layer) {
 				case "LM" -> landmarks.add(new Landmark(id, new Marker(str(p.get("family"), "apriltag-36h11"), ((Number) p.getOrDefault("code", 0)).intValue()), c[0], arr(p.get("normal")), d(p.getOrDefault("size_m", 0.3)), deck, (String) p.get("mounted_on")));
-				case "A2" -> lanes.add(new Lane(id, deck, c, d(p.getOrDefault("width_m", 3.2)), str(p.get("direction"), "forward"), d(p.getOrDefault("speed_limit_kmh", 10)), strList(p.get("next"))));
+				case "A2" -> {
+					if ("route".equals(kind)) routes.add(new Route(id, deck, strList(p.get("ramps")), c));
+					else lanes.add(new Lane(id, deck, c, d(p.getOrDefault("width_m", 3.2)), str(p.get("direction"), "forward"), d(p.getOrDefault("speed_limit_kmh", 10)), strList(p.get("next"))));
+				}
 				case "LP" -> lashing.add(new LashingPoint(id, kind, c[0], deck));
 				case "B2" -> { if (!"parking_slot".equals(kind)) markings.add(new Marking(id, kind, c, deck)); }
 				case "C" -> {
-					if ("ramp".equals(kind)) ramps.add(new Ramp(id, str(p.get("type"), "stern_quarter"), c, d(p.get("length_m")), d(p.get("width_m")), arr(p.get("angle_range_deg")), (String) p.get("connects_lane"), strList(p.get("transition_landmarks"))));
+					if ("ramp".equals(kind)) ramps.add(new Ramp(id, str(p.get("type"), "stern_quarter"), c, d(p.get("length_m")), d(p.get("width_m")), arr(p.get("angle_range_deg")), (String) p.get("connects_lane"), strList(p.get("transition_landmarks")),
+						(String) p.get("lower_deck"), (String) p.get("upper_deck"), JsonMaps.doubleRows(p.get("toe"))));
 					else facilities.add(new Facility(id, kind, c, d(p.getOrDefault("z_min", 0)), d(p.getOrDefault("z_max", 0)), deck));
 				}
 				default -> { /* A1, MEP: not part of the vehicle map in M2 */ }
@@ -60,7 +64,7 @@ public class VehicleMapAssembler {
 				(String) r.get("vehicle_class"), (String) r.get("access_lane_id"), pgArray(r.get("lashing_ids")), ((Number) r.get("sequence_no")).intValue(), (String) r.get("status"))).toList();
 
 		return new VehicleMap(VehicleMap.SCHEMA, ds, version, DateTimeFormatter.ISO_INSTANT.format(Instant.now().truncatedTo(ChronoUnit.SECONDS)), VehicleMap.shipFrame(),
-			decks, landmarks, lanes, slots, lashing, markings, facilities, ramps);
+			decks, landmarks, lanes, slots, lashing, markings, facilities, ramps, routes);
 	}
 
 	Map<String, Object> props(String s) { return JsonMaps.toMap(json, s); }

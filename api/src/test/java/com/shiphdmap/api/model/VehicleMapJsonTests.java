@@ -16,9 +16,10 @@ class VehicleMapJsonTests {
 	void fixtureParsesIntoRecords() throws Exception {
 		VehicleMap m = M.readValue(fixture(), VehicleMap.class);
 		assertThat(m.schema()).isEqualTo("ship-hdmap/vehicle-map/1.0");
-		assertThat(m.decks()).hasSize(3);
+		assertThat(m.decks()).hasSize(5);
 		assertThat(m.decks().get(2).zSurface()).isEqualTo(10.6);
-		assertThat(m.landmarks()).hasSize(23);
+		assertThat(m.landmarks()).hasSize(107);
+		assertThat(m.routes()).hasSize(4);
 		assertThat(m.landmarks().get(0).marker().code()).isEqualTo(1);
 		assertThat(m.parkingSlots().get(0).lashingPoints()).hasSize(4);
 		assertThat(m.ramps().get(0).transitionLandmarks()).containsExactly("LM-0022", "LM-0023");   // the ramp's own entrance pair, not the pillar tags

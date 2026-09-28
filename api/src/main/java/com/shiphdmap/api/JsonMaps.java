@@ -21,4 +21,14 @@ public final class JsonMaps {
 		for (int i = 0; i < a.length; i++) a[i] = l.get(i).doubleValue();
 		return a;
 	}
+
+	/** A props JSON array of arrays such as "toe": [[x, y, z], [x, y, z]] as a double[][]; null when the key is absent. */
+	@SuppressWarnings("unchecked")
+	public static double[][] doubleRows(Object o) {
+		if (o == null) return null;
+		List<Object> l = (List<Object>) o;
+		double[][] a = new double[l.size()][];
+		for (int i = 0; i < a.length; i++) a[i] = doubles(l.get(i));
+		return a;
+	}
 }

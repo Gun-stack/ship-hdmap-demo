@@ -6,7 +6,7 @@ import java.util.Map;
 /** vehicle-map v1 (spec §6). Jackson is configured with SNAKE_CASE, so mapId -> "map_id". */
 public record VehicleMap(String schema, String mapId, int version, String generatedAt, FrameInfo frame,
 		List<Deck> decks, List<Landmark> landmarks, List<Lane> lanes, List<ParkingSlot> parkingSlots,
-		List<LashingPoint> lashingPoints, List<Marking> markings, List<Facility> facilities, List<Ramp> ramps) {
+		List<LashingPoint> lashingPoints, List<Marking> markings, List<Facility> facilities, List<Ramp> ramps, List<Route> routes) {
 
 	public static final String SCHEMA = "ship-hdmap/vehicle-map/1.0";
 	public static FrameInfo shipFrame() {
@@ -25,5 +25,9 @@ public record VehicleMap(String schema, String mapId, int version, String genera
 	public record LashingPoint(String id, String kind, double[] position, String deckId) {}
 	public record Marking(String id, String kind, double[][] polygon, String deckId) {}
 	public record Facility(String id, String kind, double[][] footprint, double zMin, double zMax, String deckId) {}
-	public record Ramp(String id, String type, double[][] hinge, double lengthM, double widthM, double[] angleRangeDeg, String connectsLane, List<String> transitionLandmarks) {}
+	/** type stern_quarter | internal_hoistable. For an internal ramp, hinge is its upper end and toe its lower end (M8). */
+	public record Ramp(String id, String type, double[][] hinge, double lengthM, double widthM, double[] angleRangeDeg, String connectsLane, List<String> transitionLandmarks,
+			String lowerDeck, String upperDeck, double[][] toe) {}
+	/** From the stern-ramp deck's entrance to deckId's lane start, through the internal ramps listed in travel order (M8). */
+	public record Route(String id, String deckId, List<String> ramps, double[][] path) {}
 }

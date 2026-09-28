@@ -45,6 +45,7 @@ public class SeedImporter {
 			var props = new LinkedHashMap<String, Object>();
 			props.put("type", r.type()); props.put("length_m", r.lengthM()); props.put("width_m", r.widthM()); props.put("angle_range_deg", r.angleRangeDeg());
 			props.put("connects_lane", r.connectsLane()); props.put("transition_landmarks", r.transitionLandmarks());
+			if (r.lowerDeck() != null) { props.put("lower_deck", r.lowerDeck()); props.put("upper_deck", r.upperDeck()); props.put("toe", r.toe()); }
 			features += upsertFeature(datasetId, r.id(), nearestDeck(deckByZ, r.hinge()[0][2]), "C", "ramp", Wkt.lineString(r.hinge()), props);
 		}
 		for (Lane l : nz(seed.lanes())) {
@@ -52,6 +53,11 @@ public class SeedImporter {
 			var props = new LinkedHashMap<String, Object>();
 			props.put("width_m", l.widthM()); props.put("direction", l.direction()); props.put("speed_limit_kmh", l.speedLimitKmh()); props.put("next", l.next());
 			features += upsertFeature(datasetId, l.id(), l.deckId(), "A2", "centerline", Wkt.lineString(l.centerline()), props);
+		}
+		// A route is a lane that crosses decks: A2 / kind "route", its whole 3D path as the geometry, filed under the deck it delivers to.
+		for (Route rt : nz(seed.routes())) {
+			if (rt.path() == null || rt.path().length < 2) throw new ApiErrors.BadRequest("route " + rt.id() + " path is required", "path");
+			features += upsertFeature(datasetId, rt.id(), rt.deckId(), "A2", "route", Wkt.lineString(rt.path()), Map.of("ramps", rt.ramps() == null ? List.of() : rt.ramps()));
 		}
 		for (Landmark lm : nz(seed.landmarks())) {
 			if (lm.marker() == null) throw new ApiErrors.BadRequest("landmark " + lm.id() + " marker is required", "marker");
