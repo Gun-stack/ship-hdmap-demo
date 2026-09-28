@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices;
 using UnityEngine;
 
@@ -39,10 +40,16 @@ namespace ShipHdMap
         double _lastS;   // arc length at the previous tick, to measure how far we moved
         string _retriedSlot;   // the slot we have already given one more go
 
-        public enum Phase { Idle, OnQuay, OnRamp, OnLane, Parking, Departing, RampDown, QuayOut }
+        /// OnRoute / ReturnRoute (M8): the drive between the stern-ramp deck and another deck's lane, over internal ramps.
+        public enum Phase { Idle, OnQuay, OnRamp, OnRoute, OnLane, Parking, Departing, ReturnRoute, RampDown, QuayOut }
         public Phase ScenarioPhase { get; private set; } = Phase.Idle;
         public string TargetSlotId => _target?.id;
-        string _scenarioMode = "load"; ParkingSlot _target; Lane _targetLane; Deck _targetDeck; double _exitS;
+        string _scenarioMode = "load"; ParkingSlot _target; Lane _targetLane; Deck _targetDeck; Route _targetRoute; double _exitS;
+
+        /// Internal ramp id -> RampPlanner.Deployed | Stowed. Owned by the scene: the scenario raises and lowers ramps as it
+        /// goes (RampPlanner.Plan), the web only mirrors it (onScenario "ramp") or asks for a change while idle (SetRampState).
+        readonly Dictionary<string, string> _rampState = new();
+        public IReadOnlyDictionary<string, string> RampStates => _rampState;
         const double R2D = 180 / Math.PI;
         double _trimDeg;   // set by ApplyPose; RampEndsInQuay needs it to match SetRampAngle's ship-local rotation
 
@@ -189,6 +196,41 @@ namespace ShipHdMap
                 ShipMeshBuilder.SetDeckVisibility(Ship, _deck);
             }
             ApplyPose();
+            ResetRampStates();
+        }
+
+        /// After a Load: every internal ramp down, except one with a car parked on its near-deck ground -- that ramp can
+        /// only be up (the car is standing on it).
+        void ResetRampStates()
+        {
+            _rampState.Clear();
+            var slots = CurrentMap?.parking_slots ?? new List<ParkingSlot>();
+            foreach (var r in RampPlanner.Internal(CurrentMap))
+                SetRamp(r.id, RampPlanner.CanDeploy(CurrentMap, r, slots) ? RampPlanner.Deployed : RampPlanner.Stowed, emit: false);
+        }
+
+        void SetRamp(string id, string state, bool emit)
+        {
+            _rampState[id] = state;
+            if (Ship) ShipMeshBuilder.SetInnerRamp(Ship, id, state == RampPlanner.Deployed, animate: Application.isPlaying);
+            if (emit) Send(BridgeMessages.OnScenario, MapJson.Serialize(new ScenarioEvt { evt = "ramp", detail = $"{id} {state}" }));
+        }
+
+        /// Web asks to raise or lower one internal ramp. Only while no run is on (the scenario owns the ramps during one),
+        /// and never down onto a parked car. The answer goes back as an onScenario "ramp" event either way, so the panel
+        /// shows the state the scene actually has rather than the one it asked for.
+        public void SetRampState(string json)
+        {
+            var m = MapJson.Parse<SetRampStateMsg>(json);
+            var r = RampPlanner.Internal(CurrentMap).FirstOrDefault(q => q.id == m?.id);
+            if (r == null) return;
+            string want = m.state == RampPlanner.Stowed ? RampPlanner.Stowed : RampPlanner.Deployed;
+            if (ScenarioPhase != Phase.Idle || (want == RampPlanner.Deployed && !RampPlanner.CanDeploy(CurrentMap, r, CurrentMap.parking_slots ?? new List<ParkingSlot>())))
+            {
+                Hud.Flash(ScenarioPhase != Phase.Idle ? "ramps move with the run -- stop it first" : $"{r.id} cannot come down onto a parked car");
+                want = RampPlanner.StateOf(_rampState, r.id);
+            }
+            SetRamp(r.id, want, emit: true);
         }
 
         public void SetMode(string mode)
@@ -361,7 +403,11 @@ namespace ShipHdMap
             MapRefs[m.id] = RefOf(mk.ToModel());
         }
 
-        public PredictionGrid Prediction { get; private set; }
+        /// The coverage promise for one deck. Belief is only judged on the target deck's own lane and slot (OnLane,
+        /// Parking, Departing), so that deck's grid is the one that matters; a message without deck_id is "the deck".
+        public PredictionGrid Prediction => _targetDeck != null && _predictionByDeck.TryGetValue(_targetDeck.id, out var g) ? g : _prediction;
+        PredictionGrid _prediction;
+        readonly Dictionary<string, PredictionGrid> _predictionByDeck = new();
 
         /// The coverage map for the deck being driven. The web fetches it (Unity does not do HTTP) and pushes it
         /// once per scenario; Ship Frame is invariant, so it only goes stale when a marker is added or occluded.
@@ -370,7 +416,8 @@ namespace ShipHdMap
             var m = MapJson.Parse<SetPredictionMsg>(json);
             var cells = new List<(double, double, double?)>();
             if (m?.cells != null) foreach (var c in m.cells) cells.Add((c.x, c.y, c.s));
-            Prediction = new PredictionGrid(m?.bbox, m?.grid_m ?? 1, cells);
+            var grid = new PredictionGrid(m?.bbox, m?.grid_m ?? 1, cells);
+            if (string.IsNullOrEmpty(m?.deck_id)) _prediction = grid; else _predictionByDeck[m.deck_id] = grid;
         }
 
         public void SetBeliefParams(string json)
@@ -407,9 +454,14 @@ namespace ShipHdMap
                     if (lane != null && lane.centerline != null && lane.centerline.Length >= 2 && CurrentMap.decks?.Find(d => d.id == s.deck_id) != null)
                         candidates.Add(s);
                 }
+            // M8: a slot beyond a ramp that cannot come down, or on a ramp that cannot go up yet, waits (it is not unreachable)
+            var allSlots = CurrentMap?.parking_slots ?? new List<ParkingSlot>();
+            candidates.RemoveAll(s => !RampPlanner.Available(CurrentMap, s, _scenarioMode, _rampState, allSlots));
             _target = ScenarioPlanner.NextSlot(candidates, _scenarioMode);
             _targetLane = _target == null ? null : CurrentMap.lanes.Find(l => l.id == _target.access_lane_id);
             _targetDeck = _target == null ? null : CurrentMap.decks.Find(d => d.id == _target.deck_id);
+            _targetRoute = _target == null ? null : RampPlanner.RouteTo(CurrentMap, _target.deck_id);
+            foreach (var (id, state) in RampPlanner.Plan(CurrentMap, _target, _scenarioMode, _rampState, allSlots)) SetRamp(id, state, emit: true);
             if (_target == null) { Finish(_scenarioMode == "unload" ? "no_filled_slot" : "no_empty_slot"); return; }
             Send(BridgeMessages.OnScenario, MapJson.Serialize(new ScenarioEvt { evt = "target", slot_id = _target.id }));
             double z = _targetDeck.z_surface;
@@ -431,7 +483,9 @@ namespace ShipHdMap
                 // may have left this Vehicle unparented (Quay Frame), and a Ship-Frame lane path needs it back on the Map root.
                 if (hinge == null)
                 {
-                    Vehicle.transform.SetParent(transform, false); Vehicle.StartLane(_targetLane);
+                    Vehicle.transform.SetParent(transform, false);
+                    if (_targetRoute != null) { StartRoute(_targetRoute.path, Phase.OnRoute); return; }
+                    Vehicle.StartLane(_targetLane);
                     Belief.Reset(); _lastS = Vehicle.s;
                     ScenarioPhase = Phase.OnLane; return;
                 }
@@ -600,7 +654,7 @@ namespace ShipHdMap
                     // alone does not -- it is true even on a diverging solve), and falling back to ShipTruth() here
                     // would leak ground truth into the vehicle's belief at the one moment this demo is about estimation error.
                     var est = _prev ?? ShipTruth();
-                    var r = CurrentMap.ramps[0];
+                    var r = RampPlanner.Stern(CurrentMap);
                     var hingeShip = new[] { (r.hinge[0][0] + r.hinge[1][0]) / 2, (r.hinge[0][1] + r.hinge[1][1]) / 2, r.hinge[0][2] };
                     // Captured BEFORE the reparent: SetParent(..., true) preserves world pose, but once the parent flips,
                     // ShipTruth()'s shortcut (parent == transform -> return Vehicle.Truth) would return the stale
@@ -608,7 +662,9 @@ namespace ShipHdMap
                     // vehicle's actual current height, so the ramp path climbs from where it really is (see RampTopPath).
                     var (truth, truthZ) = ShipTruthPose();
                     Vehicle.transform.SetParent(transform, true);                       // Ship Frame, same world pose
-                    Vehicle.StartPath(ScenarioPlanner.ToTruthFrame(ScenarioPlanner.RampTopPath(est, truthZ, hingeShip, _targetLane.centerline[0]), est, truth), ScenarioPlanner.ParkSpeedMps);
+                    // Up the ramp to where the lane -- or, for another deck, the route there -- begins (both start at the same point)
+                    var entry = _targetRoute != null ? _targetRoute.path[0] : _targetLane.centerline[0];
+                    Vehicle.StartPath(ScenarioPlanner.ToTruthFrame(ScenarioPlanner.RampTopPath(est, truthZ, hingeShip, entry), est, truth), ScenarioPlanner.ParkSpeedMps);
                     Belief.Reset(); _lastS = Vehicle.s;
                     ScenarioPhase = Phase.OnRamp;
                     Send(BridgeMessages.OnScenario, MapJson.Serialize(new ScenarioEvt { evt = "frame_switch",
@@ -618,7 +674,11 @@ namespace ShipHdMap
                 case Phase.OnQuay when Vehicle.AtEnd:
                     Finish("no_frame_switch");
                     break;
+                case Phase.OnRamp when Vehicle.AtEnd && _targetRoute != null:
+                    StartRoute(_targetRoute.path, Phase.OnRoute);
+                    break;
                 case Phase.OnRamp when Vehicle.AtEnd:
+                case Phase.OnRoute when Vehicle.AtEnd:
                     Vehicle.StartLane(_targetLane);
                     Belief.Reset(); _lastS = Vehicle.s;
                     ScenarioPhase = Phase.OnLane;
@@ -650,21 +710,16 @@ namespace ShipHdMap
                     break;
                 }
                 case Phase.Departing when Vehicle.AtEnd:
-                {
                     _target.status = "empty"; MapOverlay.SetStatus(_overlay, _target.id, "empty");
                     Send(BridgeMessages.OnSlotFilled, MapJson.Serialize(new SlotFilledEvt { slot_id = _target.id, status = "empty" }));
-                    var (hingeQ, footQ) = RampEndsInQuay();
-                    if (hingeQ == null) { NextVehicle(); break; }
-                    // Where the departure leg actually left it (the lane's first point), read BEFORE the reparent while
-                    // Vehicle.Truth/Z are still Ship Frame: the quay-out leg starts there instead of at the hinge,
-                    // which sits 2 m astern of it and used to teleport the car backwards on the handover.
-                    var hereQ = InQuay(Vehicle.Truth.x, Vehicle.Truth.y, Vehicle.Z);
-                    Vehicle.transform.SetParent(null, true);
-                    Vehicle.StartPath(ScenarioPlanner.QuayOutPath(hereQ, hingeQ, footQ), ScenarioPlanner.ParkSpeedMps);
-                    Belief.Reset(); _lastS = Vehicle.s;
-                    ScenarioPhase = Phase.RampDown;
+                    // another deck: back along its route first -- reversed, it ends on the stern-ramp deck's lane start,
+                    // the very point the quay-out leg picks up from
+                    if (_targetRoute != null) { StartRoute(ScenarioPlanner.Reversed(_targetRoute.path), Phase.ReturnRoute); break; }
+                    QuayOutFromHere();
                     break;
-                }
+                case Phase.ReturnRoute when Vehicle.AtEnd:
+                    QuayOutFromHere();
+                    break;
                 // Tide and quay height decide whether the ramp climbs or descends from the hinge to the quay, so the
                 // height match has to work either way -- it is not always a descent despite the phase's name.
                 case Phase.RampDown when Math.Abs(Vehicle.Z - QuayBuilder.SurfaceZ(Quay)) <= 0.05:
@@ -682,12 +737,37 @@ namespace ShipHdMap
             }
         }
 
+        /// Unload, from the stern-ramp deck's lane start: down the stern ramp and out onto the quay. No stern ramp: next car.
+        void QuayOutFromHere()
+        {
+            var (hingeQ, footQ) = RampEndsInQuay();
+            if (hingeQ == null) { NextVehicle(); return; }
+            // Where the departure leg actually left it (the lane's first point), read BEFORE the reparent while
+            // Vehicle.Truth/Z are still Ship Frame: the quay-out leg starts there instead of at the hinge,
+            // which sits 2 m astern of it and used to teleport the car backwards on the handover.
+            var hereQ = InQuay(Vehicle.Truth.x, Vehicle.Truth.y, Vehicle.Z);
+            Vehicle.transform.SetParent(null, true);
+            Vehicle.StartPath(ScenarioPlanner.QuayOutPath(hereQ, hingeQ, footQ), ScenarioPlanner.ParkSpeedMps);
+            Belief.Reset(); _lastS = Vehicle.s;
+            ScenarioPhase = Phase.RampDown;
+        }
+
+        /// Route legs are followed like a lane (exactly, at lane speed): the estimate matters where the car leaves a lane
+        /// for a slot, not on the driveways between decks. Belief is not judged here either -- Step only judges it on the
+        /// target deck's lane and slot, the same way it leaves the quay and the stern ramp alone.
+        void StartRoute(double[][] path, Phase phase)
+        {
+            Vehicle.StartPath(path, _targetLane != null && _targetLane.speed_limit_kmh > 0 ? _targetLane.speed_limit_kmh / 3.6 : ScenarioPlanner.ParkSpeedMps);
+            Belief.Reset(); _lastS = Vehicle.s;
+            ScenarioPhase = phase;
+        }
+
         static LandmarkRef RefOf(Landmark lm) => new LandmarkRef { id = lm.id, mx = lm.position[0], my = lm.position[1], phiRad = Math.Atan2(lm.normal[1], lm.normal[0]) };
 
         /// Both entrance markers of the stern ramp in one frame (spec §3.2): the trigger for the frame switch.
         bool SawEntrancePair()
         {
-            var ids = CurrentMap?.ramps != null && CurrentMap.ramps.Count > 0 ? CurrentMap.ramps[0].transition_landmarks : null;
+            var ids = RampPlanner.Stern(CurrentMap)?.transition_landmarks;
             if (ids == null || ids.Count < 2) return false;
             foreach (var id in ids) if (!_seen.Contains(id)) return false;
             return true;
@@ -717,10 +797,10 @@ namespace ShipHdMap
             return (new Pose2D { x = x, y = y, psiRad = Math.Atan2(-fwd.z, fwd.x) }, z);
         }
 
-        /// Ramp hinge midpoint and free-end midpoint in the Quay Frame, from the map's ramp geometry and the pose's angle.
+        /// Stern ramp hinge midpoint and free-end midpoint in the Quay Frame, from the map's ramp geometry and the pose's angle.
         public (double[] hinge, double[] foot) RampEndsInQuay()
         {
-            var r = CurrentMap?.ramps != null && CurrentMap.ramps.Count > 0 ? CurrentMap.ramps[0] : null;
+            var r = RampPlanner.Stern(CurrentMap);   // by type: the vehicle map lists ramps in id order, so ramps[0] is not it
             if (r == null) return (null, null);
             double hx = (r.hinge[0][0] + r.hinge[1][0]) / 2, hy = (r.hinge[0][1] + r.hinge[1][1]) / 2, hz = r.hinge[0][2];
             // SetRampAngle applies angleDeg + trimDeg as the ship-LOCAL rotation (angleDeg alone is measured

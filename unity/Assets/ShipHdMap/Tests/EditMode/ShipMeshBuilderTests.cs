@@ -1,3 +1,4 @@
+using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -121,6 +122,37 @@ namespace ShipHdMap.Tests
             var firstMaterial = d1FloorRenderer.sharedMaterial;
             ShipMeshBuilder.SetDeckVisibility(ship, "D3");
             Assert.That(ReferenceEquals(d1FloorRenderer.sharedMaterial, firstMaterial), Is.True);
+        }
+
+        [Test]
+        public void TheSternRampIsFoundByNameWhateverOrderTheMapListsRampsIn()
+        {
+            var seed = ShipSeedBuilder.Build(new ShipParams());
+            seed.ramps.Reverse();                                   // the API lists them in id order: RAMP-D2-D1 first
+            ship = ShipMeshBuilder.Build(seed);
+            var stern = ship.transform.Find("Ramp");
+            Assert.That(stern, Is.Not.Null);
+            Assert.That(stern.localPosition.x, Is.EqualTo(0f).Within(1e-4f), "\"Ramp\" is the stern ramp at the AP");
+            Assert.That(ship.transform.Cast<Transform>().Count(t => t.name == "Ramp"), Is.EqualTo(1));
+            Assert.That(ship.transform.Find(ShipMeshBuilder.InnerRampName("RAMP-D3-D2")), Is.Not.Null);
+        }
+
+        [Test]
+        public void AnInternalRampSwingsItsToeOntoTheLowerDeckAndStowsFlush()
+        {
+            var seed = ShipSeedBuilder.Build(new ShipParams());
+            ship = ShipMeshBuilder.Build(seed);
+            foreach (var r in seed.ramps.Where(r => r.type == "internal_hoistable"))
+            {
+                var t = ship.transform.Find(ShipMeshBuilder.InnerRampName(r.id));
+                var plate = t.Find("Plate");
+                // deployed: the plate's far end sits on the toe height
+                float farEnd = plate.TransformPoint(new Vector3(0.5f * Mathf.Sign(plate.localPosition.x), 0.5f, 0)).y;
+                Assert.That(farEnd, Is.EqualTo((float)r.toe[0][2]).Within(0.05f), r.id + " deployed reaches the lower deck");
+                ShipMeshBuilder.SetInnerRamp(ship, r.id, deployed: false, animate: false);
+                farEnd = plate.TransformPoint(new Vector3(0.5f * Mathf.Sign(plate.localPosition.x), 0.5f, 0)).y;
+                Assert.That(farEnd, Is.EqualTo((float)r.hinge[0][2]).Within(0.01f), r.id + " stowed is flush with the upper deck");
+            }
         }
     }
 }

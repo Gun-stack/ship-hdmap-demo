@@ -77,10 +77,21 @@ namespace ShipHdMap
             }
             foreach (var r in seed.ramps)
             {
-                var ramp = Child(ship, "Ramp");
+                bool inner = r.type == "internal_hoistable";
+                // The stern ramp keeps the plain name every caller (SetRampAngle, the tests) finds it by; internal ramps are
+                // named for their id so there is exactly one "Ramp" whatever order the map lists ramps in.
+                var ramp = Child(ship, inner ? InnerRampName(r.id) : "Ramp");
                 ramp.transform.localPosition = ShipFrame.ToUnity((r.hinge[0][0] + r.hinge[1][0]) / 2, (r.hinge[0][1] + r.hinge[1][1]) / 2, r.hinge[0][2]);
                 float len = (float)r.length_m, w = (float)r.width_m;
-                Prim(ramp, "Plate", PrimitiveType.Cube, new Vector3(-len / 2, -FloorThick / 2, 0), new Vector3(len, FloorThick, w), Palette.C(Palette.RampPlate), layer, materials);   // local to the hinge
+                // Stern: the plate runs astern (-x) from the hinge. Internal: toward its toe, which may be fore or aft.
+                float dir = inner && r.toe != null && r.toe[0][0] > r.hinge[0][0] ? 1f : -1f;
+                Prim(ramp, "Plate", PrimitiveType.Cube, new Vector3(dir * len / 2, -FloorThick / 2, 0), new Vector3(len, FloorThick, w), Palette.C(Palette.RampPlate), layer, materials);   // local to the hinge
+                if (inner)
+                {
+                    var hoist = ramp.AddComponent<RampHoist>();
+                    hoist.deployedDeg = -dir * (float)Math.Asin(Math.Min(1, (r.hinge[0][2] - r.toe[0][2]) / r.length_m)) * Mathf.Rad2Deg;   // toe end down onto the lower deck
+                    hoist.Set(true, animate: false);
+                }
             }
             Physics.SyncTransforms(); // project has autoSyncTransforms off; Collider.bounds needs a manual sync after transform edits
             return ship;
@@ -100,11 +111,22 @@ namespace ShipHdMap
             Physics.SyncTransforms();
         }
 
+        public static string InnerRampName(string id) => "Ramp-" + id;
+
+        /// Raise (stowed: flush with the upper deck, closing its opening) or lower (deployed: the toe on the lower deck) one
+        /// internal ramp. animate eases it over a few seconds in play; tests and loads set it at once.
+        public static void SetInnerRamp(GameObject ship, string id, bool deployed, bool animate)
+        {
+            var t = ship ? ship.transform.Find(InnerRampName(id)) : null;
+            var hoist = t ? t.GetComponent<RampHoist>() : null;
+            if (hoist) hoist.Set(deployed, animate);
+        }
+
         public static void SetDeckVisibility(GameObject ship, string deckIdOrAll)
         {
             foreach (Transform deck in ship.transform)
             {
-                if (deck.name == "Ramp") continue;
+                if (deck.name.StartsWith("Ramp")) continue;
                 bool visible = deckIdOrAll == "all" || deck.name == deckIdOrAll;
                 foreach (var r in deck.GetComponentsInChildren<Renderer>()) SetAlpha(r, visible ? 1f : 0.15f);
             }
