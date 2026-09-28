@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // (screenToPlan needs a real SVGSVGElement to prove its jsdom fallback doesn't throw)
 import { describe, expect, it } from "vitest";
-import { LEGEND, MAX_SCALE, boxOfPoint, clampView, fitTo, screenToPlan, viewBoxOf, zoomAt } from "./plan";
+import { LEGEND, MAX_SCALE, boxOfPoint, clampView, fitTo, niceLength, screenToPlan, viewBoxOf, zoomAt } from "./plan";
 import { BLIND_COLOR } from "./coverage";
 
 // Deck 3 의 실제 모양: 120 x 24 m. SVG 공간이므로 y 는 아래가 +.
@@ -99,13 +99,21 @@ describe("LEGEND", () => {
   it("네 항목이고 blind 는 히트맵과 같은 색이다", () => {
     expect(LEGEND).toHaveLength(4);
     expect(LEGEND[0].color).toBe(BLIND_COLOR);
-    expect(LEGEND[0].color).toBe("#d32f2f");   // 값으로 못박는다: cellColor 를 다시 부르면 같은 식을 두 번 쓰는 것뿐
+    expect(LEGEND[0].color).toBe("#d03b3b");   // 값으로 못박는다: cellColor 를 다시 부르면 같은 식을 두 번 쓰는 것뿐
   });
-  it("weak 은 주황, ok 는 초록 쪽이다", () => {
-    const weak = LEGEND[1].color, ok = LEGEND[2].color;
-    expect(weak).not.toBe(ok);
-    const g = (hex: string) => parseInt(hex.slice(3, 5), 16);
-    expect(g(ok)).toBeGreaterThan(g(weak));      // stability 가 좋을수록 초록이 강해진다
-    expect(ok).toBe("#3cc850");                  // cellColor(stability >= 2) 가 saturate 하는 값
+  it("weak 은 호박색, ok 는 차분한 회청색이다", () => {
+    expect(LEGEND[1].color).toBe("#d7a22a");     // cellColor(stability 0.5): 호박 #f0a500 에서 ok #8a9aa6 쪽으로 1/4
+    expect(LEGEND[2].color).toBe("#8a9aa6");     // cellColor(stability >= 2) 가 saturate 하는 값
+    expect(LEGEND[3].faint).toBe(true);
+  });
+});
+
+describe("niceLength", () => {
+  it("rounds down to a 1-2-5 step", () => {
+    expect(niceLength(13.7)).toBe(10);
+    expect(niceLength(4.9)).toBe(2);
+    expect(niceLength(5)).toBe(5);
+    expect(niceLength(0.73)).toBe(0.5);
+    expect(niceLength(0)).toBe(0);
   });
 });

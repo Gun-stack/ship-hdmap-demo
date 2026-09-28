@@ -1,52 +1,99 @@
+@import "./theme/tokens.css";
+
 * { box-sizing: border-box; }
-html, body, #root { height: 100%; margin: 0; font: 13px/1.4 system-ui, sans-serif; background: #f4f5f7; color: #222; }
+html, body, #root { height: 100%; margin: 0; font: 13px/1.45 var(--font); background: var(--bg); color: var(--text); }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 .app { height: 100%; display: grid; grid-template-columns: 300px 1fr 340px;
-       grid-template-rows: 40px 32px 1fr auto 28px;
+       grid-template-rows: 44px 36px 1fr auto 28px;
        grid-template-areas: "top top top" "tool tool tool" "left center right" "dock dock dock" "status status status"; }
-.toolbar { grid-area: tool; display: flex; align-items: center; gap: 6px; padding: 0 12px; background: #f4f6f8; border-bottom: 1px solid #ddd; }
-.toolbar .sep { width: 1px; height: 18px; background: #ccc; margin: 0 6px; }
-.toolbar .mode-hint { color: #666; font-size: 12px; }
-.dock { grid-area: dock; border-top: 1px solid #ccc; background: #fff; height: 180px; display: flex; flex-direction: column; }
-.dock.tall { height: 340px; }
-.dock.collapsed { height: 32px; flex-direction: row; align-items: center; gap: 8px; padding: 0 12px; }
-.dockbar { display: flex; align-items: center; gap: 8px; padding: 2px 8px; font-size: 12px; border-bottom: 1px solid #eee; }
-.dockbar .legend { display: flex; gap: 10px; margin-left: auto; color: #555; }
-.dockbar .legend i { display: inline-block; width: 10px; height: 10px; margin-right: 4px; vertical-align: -1px; }
-/* touch-action stops pointer gestures, not the wheel. React attaches wheel passively, so onWheel cannot
-   preventDefault -- fine here because the dock has nothing to scroll and the page itself never scrolls. */
-.plan { flex: 1; min-height: 0; width: 100%; background: #f3f6f9; touch-action: none; cursor: grab; }
-.plan:active { cursor: grabbing; }
-.topbar { grid-area: top; display: flex; align-items: center; gap: 12px; padding: 0 12px; background: #2b2f36; color: #eee; }
-.topbar .tab { padding: 3px 10px; border-radius: 4px; background: #444; color: inherit; border: 0; font: inherit; cursor: pointer; }
-.topbar .tab.on { background: #1e88e5; }
+
+/* ── top bar & toolbar ─────────────────────────────────────────────── */
+.topbar { grid-area: top; display: flex; align-items: center; gap: 10px; padding: 0 14px; background: var(--bar); color: var(--bar-text); border-bottom: 1px solid var(--border); }
+.topbar strong { font-size: 14px; letter-spacing: .01em; margin-right: 6px; }
+.topbar .seg { display: inline-flex; padding: 2px; gap: 2px; border-radius: var(--radius); background: rgba(255, 255, 255, .07); }
+.topbar .tab { padding: 3px 12px; border-radius: var(--radius-sm); background: transparent; color: inherit; border: 0; cursor: pointer; opacity: .75; }
+.topbar .tab:hover { opacity: 1; background: rgba(255, 255, 255, .06); }
+.topbar .tab.on { background: var(--accent); color: var(--accent-ink); opacity: 1; }
 .topbar .spacer { flex: 1; }
-.topbar a { color: #9cf; }
-.left { grid-area: left; overflow: auto; border-right: 1px solid #ccc; background: #fff; }
-.center { grid-area: center; position: relative; background: #111; min-height: 0; overflow: hidden; } /* min-height:0 + overflow: a grid item otherwise sizes to the canvas, and Unity resizes the canvas backing store to the item every frame — the row grows without bound */
-.center .loading { position: absolute; inset: 0; display: grid; place-items: center; color: #ccc; }
-.right { grid-area: right; display: flex; flex-direction: column; overflow: hidden; border-left: 1px solid #ccc; background: #fff; }
-.tabs { display: flex; border-bottom: 1px solid #ddd; }
+.topbar .ds { font-family: var(--mono); font-size: 12px; opacity: .8; }
+.topbar a { color: #8cc4ff; text-decoration: none; }
+.topbar a:hover { text-decoration: underline; }
+.topbar .theme { border: 1px solid rgba(255, 255, 255, .18); background: transparent; color: inherit; border-radius: var(--radius-sm); padding: 2px 8px; cursor: pointer; }
+.topbar .theme:hover { background: rgba(255, 255, 255, .08); }
+.toolbar { grid-area: tool; display: flex; align-items: center; gap: 6px; padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--border); }
+.toolbar .sep { width: 1px; height: 18px; background: var(--border-strong); margin: 0 6px; }
+.toolbar .mode-hint { color: var(--text-3); font-size: 12px; }
+
+/* ── side panels ───────────────────────────────────────────────────── */
+.left { grid-area: left; overflow: auto; border-right: 1px solid var(--border); background: var(--panel); }
+.center { grid-area: center; position: relative; background: var(--scene-bg); min-height: 0; overflow: hidden; } /* min-height:0 + overflow: a grid item otherwise sizes to the canvas, and Unity resizes the canvas backing store to the item every frame — the row grows without bound */
+.center .loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--text-3); }
+.right { grid-area: right; display: flex; flex-direction: column; overflow: hidden; border-left: 1px solid var(--border); background: var(--panel); }
+.tabs { display: flex; border-bottom: 1px solid var(--border); background: var(--sunken); }
 /* .tabs .tab, not a bare .tab: TopBar's 편집/주행 buttons also carry class "tab", and .topbar .tab declares
    neither flex nor font-weight -- specificity cannot protect a property a rule never sets, so a global
    .tab { flex: 1 } would stretch them across the whole top bar. */
-.tabs .tab { flex: 1; padding: 6px 4px; border: 0; background: #f4f6f8; cursor: pointer; border-bottom: 2px solid transparent; font: inherit; }
-.tabs .tab.on { background: #fff; border-bottom-color: #1e88e5; font-weight: 600; }
+.tabs .tab { flex: 1; padding: 8px 4px; border: 0; background: transparent; color: var(--text-2); cursor: pointer; border-bottom: 2px solid transparent; }
+.tabs .tab:hover { color: var(--text); background: var(--hover); }
+.tabs .tab.on { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; background: var(--panel); }
 .tabbody { flex: 1; min-height: 0; overflow: auto; }
-.statusbar { grid-area: status; display: flex; gap: 16px; align-items: center; padding: 0 12px; background: #eee; border-top: 1px solid #ccc; color: #555; }
-.panel { padding: 8px 10px; border-bottom: 1px solid #e3e3e3; }
-.panel h4 { margin: 0 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #666; }
-.row { display: flex; gap: 6px; align-items: center; margin: 3px 0; }
-.row label { width: 84px; color: #666; }
+.panel { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.panel h4 { margin: 0 0 8px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--text-3); }
+.panel h4.sub { margin-top: 12px; }
+.row { display: flex; gap: 6px; align-items: center; margin: 4px 0; }
+.row label { width: 84px; flex: none; color: var(--text-2); }
 .row input, .row select { flex: 1; }
-.btn { border: 1px solid #888; border-radius: 3px; padding: 2px 8px; background: #fff; cursor: pointer; }
-.btn.primary { background: #1e88e5; color: #fff; border-color: #1e88e5; }
-.tree li { list-style: none; padding: 1px 4px; cursor: pointer; }
-.tree li.sel { background: #e3f2fd; }
+.row input[type="number"], .row input:not([type]), .row select, .row textarea { background: var(--raised); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 2px 6px; }
+input[type="range"] { accent-color: var(--accent); }
+input[type="checkbox"] { accent-color: var(--accent); }
+.num { width: 52px; flex: none; text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.muted { color: var(--text-3); }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 12px; }
+.readout { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 12px; background: var(--sunken); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 8px; }
+.log { font-family: var(--mono); font-size: 11px; max-height: 220px; overflow-y: auto; white-space: pre; background: var(--sunken); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px 6px; }
+.badge { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+.badge::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--dot); box-shadow: 0 0 0 3px color-mix(in srgb, var(--dot) 25%, transparent); }
+.err { color: var(--danger); }
+
+/* ── controls ──────────────────────────────────────────────────────── */
+.btn { border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 2px 10px; background: var(--raised); color: var(--text); cursor: pointer; }
+.btn:hover:not(:disabled) { border-color: var(--text-3); background: var(--hover); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+.decktabs button { display: inline-block; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 1px 10px; margin: 2px; cursor: pointer; background: var(--raised); color: inherit; }
+.decktabs button:hover { background: var(--hover); }
+.decktabs button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.tree li { list-style: none; padding: 2px 6px; cursor: pointer; border-radius: var(--radius-sm); }
+.tree li:hover { background: var(--hover); }
+.tree li.sel { background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }
+.tree li.dim { opacity: .45; }
+.tree li small { color: var(--text-3); }
 .tree ul { margin: 0; padding-left: 14px; }
-.decktabs button { display: inline-block; border: 1px solid #999; border-radius: 3px; padding: 1px 8px; margin: 2px; cursor: pointer; font: inherit; background: #fff; color: inherit; }
-.decktabs button.on { background: #1e88e5; color: #fff; border-color: #1e88e5; }
-.err { color: #c62828; }
-.helpcard { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(0,0,0,.45); z-index: 10; color: #eee; }
-.helpcard table { background: #23262b; border-radius: 6px; padding: 14px 18px; border-collapse: collapse; }
-.helpcard th { text-align: right; padding: 3px 14px 3px 0; font-family: monospace; font-weight: 600; white-space: nowrap; }
+
+/* ── plan dock ─────────────────────────────────────────────────────── */
+.dock { grid-area: dock; border-top: 1px solid var(--border); background: var(--panel); height: 180px; display: flex; flex-direction: column; }
+.dock.tall { height: 340px; }
+.dock.collapsed { height: 32px; flex-direction: row; align-items: center; gap: 8px; padding: 0 12px; }
+.dockbar { display: flex; align-items: center; gap: 8px; padding: 3px 10px; font-size: 12px; border-bottom: 1px solid var(--border); }
+.dockbar .legend { display: flex; gap: 12px; margin-left: auto; color: var(--text-2); flex-wrap: wrap; justify-content: flex-end; }
+.dockbar .legend i { display: inline-block; width: 10px; height: 10px; margin-right: 5px; vertical-align: -1px; border-radius: 2px; }
+.dockbar .legend i.faint { opacity: .35; }
+.dockbar .legend i.ring { background: transparent !important; border: 2px solid; }
+/* touch-action stops pointer gestures, not the wheel. React attaches wheel passively, so onWheel cannot
+   preventDefault -- fine here because the dock has nothing to scroll and the page itself never scrolls. */
+.plan { flex: 1; min-height: 0; width: 100%; background: var(--plan-bg); touch-action: none; cursor: grab; }
+.plan:active { cursor: grabbing; }
+.plan .outline { fill: none; stroke: var(--plan-outline); stroke-width: .4; }
+.plan .structure { fill: var(--plan-structure); stroke: var(--plan-structure-edge); stroke-width: .2; }
+.plan .label { fill: var(--plan-label); }
+.plan .sel { stroke: var(--plan-select); stroke-width: .8; }
+
+/* ── status bar & overlays ─────────────────────────────────────────── */
+.statusbar { grid-area: status; display: flex; gap: 16px; align-items: center; padding: 0 12px; background: var(--sunken); border-top: 1px solid var(--border); color: var(--text-2); font-size: 12px; }
+.statusbar .live { color: var(--ok); }
+.helpcard { position: fixed; inset: 0; display: grid; place-items: center; background: var(--overlay); z-index: 10; color: var(--text); }
+.helpcard table { background: var(--raised); border: 1px solid var(--border); box-shadow: var(--shadow); border-radius: 8px; padding: 14px 18px; border-collapse: collapse; }
+.helpcard th { text-align: right; padding: 3px 14px 3px 0; font-family: var(--mono); font-weight: 600; white-space: nowrap; }
 .helpcard td { padding: 3px 0; }

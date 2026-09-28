@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
 import { api } from "../api/client";
-import type { BeliefEvt, BeliefParamsIn, Candidate, CoverageIn, CoverageMode, CoverageOut, CoverageSensor, Dataset, Deck, Feature, FeatureCreatedEvt, FeatureIn, FeatureMovedEvt, GenerateSlotsIn, GenerateSlotsOut, Geometry, Layer, LocalizationEvt, Pose, RampState, ScenarioEvt, ScenarioLine, SlotFilledEvt, Suggestion } from "../api/types";
+import type { BeliefEvt, BeliefParamsIn, Candidate, CoverageIn, CoverageMode, CoverageOut, CoverageSensor, Dataset, Deck, Feature, FeatureCreatedEvt, FeatureIn, FeatureMovedEvt, GenerateSlotsIn, GenerateSlotsOut, Geometry, Layer, LocalizationEvt, Pose, RampState, ScenarioEvt, ScenarioLine, SlotFilledEvt, SlotStatus, Suggestion } from "../api/types";
 import { SENSOR_DEFAULTS } from "../geo/coverage";
 
 export type Draft = { tempId: string; layer: Layer; deck_id: string; geometry: Geometry; props: Record<string, unknown> };
@@ -41,6 +41,8 @@ export type EditorState = {
   datasetId: string; dataset: Dataset | null; decks: Deck[]; features: Record<string, Feature>; drafts: Record<string, Draft>;
   selectedId: string | null; deckFilter: string; mode: Mode; pose: Pose | null; ramp: RampState | null; localization: LocalizationEvt | null; error: string | null;
   slotGen: Record<string, { count: number; utilization: number; lashing_coverage: number }>;
+  /** Parking-slot status by slot id, so the plan view paints what the 3D fill paints. Missing = empty. */
+  slotStatus: Record<string, SlotStatus>;
   scenarioLog: ScenarioLine[];
   appendLog: (text: string) => void;
   clearLog: () => void;
@@ -104,7 +106,7 @@ export const useEditorStore = create<EditorState>()(persist((set, get) => ({
   // runs at import time and the vitest environment is "node", where there is no location at all.
   datasetId: new URLSearchParams(globalThis.location?.search ?? "").get("ds") ?? "roro-demo-01",
   dataset: null, decks: [], features: {}, drafts: {}, selectedId: null, deckFilter: "all", mode: "edit",
-  pose: null, ramp: null, localization: null, error: null, slotGen: {}, scenarioLog: [],
+  pose: null, ramp: null, localization: null, error: null, slotGen: {}, slotStatus: {}, scenarioLog: [],
   coverage: null, coverageMode: "load",
   // seeded with the API defaults: an empty object would leave the sliders at their minimum while the server
   // silently computed with something else
@@ -124,9 +126,9 @@ export const useEditorStore = create<EditorState>()(persist((set, get) => ({
 
   async load(datasetId) {
     try {
-      const [dataset, decks, list, pose] = await Promise.all([api.getDataset(datasetId), api.listDecks(datasetId), api.listFeatures(datasetId), api.getPose(datasetId)]);
+      const [dataset, { decks, slotStatus }, list, pose] = await Promise.all([api.getDataset(datasetId), api.mapMeta(datasetId), api.listFeatures(datasetId), api.getPose(datasetId)]);
       const ramp = await api.getRamp(datasetId, RAMP_ID).catch(() => null);
-      set({ datasetId, dataset, decks, features: Object.fromEntries(list.map((f) => [f.id, f])), pose, ramp, error: null });
+      set({ datasetId, dataset, decks, slotStatus, features: Object.fromEntries(list.map((f) => [f.id, f])), pose, ramp, error: null });
     } catch (e) { set({ error: (e as Error).message }); }
   },
   select: (id) => set({ selectedId: id }),
@@ -171,6 +173,7 @@ export const useEditorStore = create<EditorState>()(persist((set, get) => ({
   /** Unity judged a slot; persist it (the server bumps version) and log it. No scene reload — Unity already recoloured the fill. */
   async onSlotFilled(e) {
     get().appendLog(slotFilledLine(e));
+    set((s) => ({ slotStatus: { ...s.slotStatus, [e.slot_id]: e.status } }));
     try { await api.putSlotStatus(get().datasetId, e.slot_id, e.status); await refreshVersion(get); set({ error: null }); }
     catch (err) { set({ error: "slot status failed: " + (err as Error).message }); }
   },
@@ -179,7 +182,8 @@ export const useEditorStore = create<EditorState>()(persist((set, get) => ({
   async generateSlots(deck, body) {
     const out = await api.generateSlots(get().datasetId, deck, body);
     const list = await api.listFeatures(get().datasetId);
-    set((s) => ({ features: Object.fromEntries(list.map((f) => [f.id, f])), slotGen: { ...s.slotGen, [deck]: { count: out.count, utilization: out.utilization, lashing_coverage: out.lashing_coverage } },
+    // regenerated slots start empty; drop every status of the old ones
+    set((s) => ({ features: Object.fromEntries(list.map((f) => [f.id, f])), slotStatus: {}, slotGen: { ...s.slotGen, [deck]: { count: out.count, utilization: out.utilization, lashing_coverage: out.lashing_coverage } },
       selectedId: s.selectedId && !list.some((f) => f.id === s.selectedId) ? null : s.selectedId }));
     get().bumpVersion(out.version);
     return out;

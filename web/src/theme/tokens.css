@@ -1,0 +1,72 @@
+/* Surface tokens. Dark is the default (:root); [data-theme="light"] on <html> overrides it. theme.ts sets the
+   attribute before the first paint. Meaningful colours (slot status, coverage, lanes...) are NOT here -- they are
+   theme-independent and shared with Unity through palette.ts / Palette.cs. */
+:root {
+  color-scheme: dark;
+  --bg: #0f1115;
+  --panel: #15181d;
+  --raised: #1d2128;
+  --sunken: #0b0d10;
+  --hover: rgba(255, 255, 255, 0.06);
+  --border: #262b33;
+  --border-strong: #363d48;
+  --text: #e6e8eb;
+  --text-2: #b0b7c1;
+  --text-3: #8a929e;
+  --accent: #2c72c9;
+  --accent-hover: #2563b0;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(59, 142, 234, 0.18);
+  --ok: #2fb344;
+  --warn: #f0a500;
+  --danger: #f06a6d;
+  --focus: #7cb7ff;
+  --bar: #0b0d10;
+  --bar-text: #e6e8eb;
+  --plan-bg: #11141a;
+  --plan-outline: #8b95a3;
+  --plan-structure: #4a515c;
+  --plan-structure-edge: #6b7380;
+  --plan-label: #c9ced6;
+  --plan-select: #ffffff;
+  --scene-bg: #0b0d10;
+  --overlay: rgba(0, 0, 0, 0.55);
+  --shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+
+  --radius: 6px;
+  --radius-sm: 4px;
+  --font: system-ui, -apple-system, "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --bg: #eef0f3;
+  --panel: #fbfbfa;
+  --raised: #ffffff;
+  --sunken: #e4e7eb;
+  --hover: rgba(0, 0, 0, 0.05);
+  --border: #dde1e6;
+  --border-strong: #c3c9d1;
+  --text: #16181c;
+  --text-2: #4a5160;
+  --text-3: #5a6270;
+  --accent: #1a64c0;
+  --accent-hover: #1556a6;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(31, 111, 209, 0.12);
+  --ok: #17702a;
+  --warn: #9a6a00;
+  --danger: #c62828;
+  --focus: #1f6fd1;
+  --bar: #1b1f26;
+  --bar-text: #eef0f3;
+  --plan-bg: #f3f5f8;
+  --plan-outline: #5b6573;
+  --plan-structure: #b9bfc8;
+  --plan-structure-edge: #8b929c;
+  --plan-label: #2b3038;
+  --plan-select: #111418;
+  --overlay: rgba(10, 12, 16, 0.45);
+  --shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+}

@@ -99,7 +99,7 @@ export function Shortcuts({ send, canvas }: { send: Send; canvas: HTMLCanvasElem
       <table>
         <tbody>{HELP_ROWS.map(([k, what]) => <tr key={k}><th>{k}</th><td>{what}</td></tr>)}</tbody>
       </table>
-      <div style={{ color: "#888", marginTop: 6 }}>아무 곳이나 눌러 닫기 · Esc</div>
+      <div className="muted" style={{ marginTop: 6 }}>아무 곳이나 눌러 닫기 · Esc</div>
     </div>
   );
 }

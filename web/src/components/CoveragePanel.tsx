@@ -18,7 +18,7 @@ export function CoveragePanel() {
       <input type="range" step={step} min={min} max={max} value={p[k]}
         onChange={(e) => s.setCoverageParams({ [k]: Number(e.target.value) })}
         onMouseUp={() => deck && void s.runCoverage(deck)} onTouchEnd={() => deck && void s.runCoverage(deck)} />
-      <span style={{ width: 44, textAlign: "right" }}>{p[k]}</span>
+      <span className="num">{p[k]}</span>
     </div>
   );
 
