@@ -5,6 +5,7 @@ namespace ShipHdMap
         public const string Load = "Load", SetMode = "SetMode", SetDeck = "SetDeck", Select = "Select", Confirm = "Confirm",
             SetPose = "SetPose", SetNoise = "SetNoise", StartScenario = "StartScenario", SetTimeScale = "SetTimeScale", SetPrediction = "SetPrediction", SetOccluded = "SetOccluded",
             SetBeliefParams = "SetBeliefParams", SetTool = "SetTool", SetCamMode = "SetCamMode", SetNormal = "SetNormal", SetSensor = "SetSensor",
+            SetRampState = "SetRampState", SetShellMode = "SetShellMode",
             Delete = "Delete";   // MapRuntime.Delete(string); listed here so the collision guard in MapRuntimeTests sees it too
         public const string OnSeedReady = "onSeedReady", OnFeatureCreated = "onFeatureCreated", OnFeatureMoved = "onFeatureMoved",
             OnSelected = "onSelected", OnSlotFilled = "onSlotFilled", OnLocalization = "onLocalization", OnScenario = "onScenario",
@@ -31,7 +32,10 @@ namespace ShipHdMap
     public class SetTimeScaleMsg { public double scale = 1; }
     /// Parking result (load) or an emptied slot (unload: status "empty", no errors — nulls are dropped from the JSON).
     public class SlotFilledEvt { public string slot_id; public string status; public double? err_lat, err_lon, err_heading; }
-    /// Scenario log line. `event`: start | target | frame_switch | leave_lane | finished.
+    /// Scenario log line. `event`: start | target | frame_switch | route | lane | leave_lane | ramp | finished.
+    /// `ramp` (M8) fires whenever an internal ramp changes state; its `detail` is "<ramp id> deployed|stowed".
+    /// `route` (M8): a car starts along the route to another deck (detail: route id, "+ back" when unloading);
+    /// `lane` (M8): it joins its target deck's lane (detail: deck id) -- the handover a figure can be pinned to.
     /// `frame_switch` fires when the entrance landmark pair is seen and the vehicle leaves the Quay Frame for the
     /// Ship Frame; its `detail` carries the estimate at that instant. `finished`'s `detail` is one of
     /// no_empty_slot | no_filled_slot | ramp_blocked | no_frame_switch.
@@ -39,7 +43,11 @@ namespace ShipHdMap
     public class RampMsg { public string id; public double angle_deg; public string state; }
     public class SetPoseMsg { public double draft_fwd_m = 8.1, draft_aft_m = 8.6, heel_deg, lpp_m = 120, tide_m = 0, quay_z_m = 3.5; public RampMsg ramp; }
     public class PredCellMsg { public double x, y; public double? s; }   // s null = the map says blind here
-    public class SetPredictionMsg { public double grid_m = 1; public double[] bbox; public PredCellMsg[] cells; }
+    /// deck_id (M8): whose promise this is; absent = the single grid of before. One message per deck.
+    public class SetPredictionMsg { public double grid_m = 1; public double[] bbox; public PredCellMsg[] cells; public string deck_id; }
+    /// Raise or lower one internal ramp (edit mode, no run on). state: deployed | stowed.
+    public class SetRampStateMsg { public string id; public string state; }
+    public class SetShellModeMsg { public string mode; }   // cutaway | full
     public class SetBeliefParamsMsg
     {
         public double k = 2.0, drift_rate = 0.05, budget_m = 1.0, max_lost_m = 5.0, trail_m = 20.0;

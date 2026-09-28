@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // (screenToPlan needs a real SVGSVGElement to prove its jsdom fallback doesn't throw)
 import { describe, expect, it } from "vitest";
-import { LEGEND, MAX_SCALE, boxOfPoint, clampView, fitTo, niceLength, screenToPlan, viewBoxOf, zoomAt } from "./plan";
+import { LEGEND, MAX_SCALE, boxOfPoint, clampView, fitTo, niceLength, rampRing, routeRunsAt, screenToPlan, viewBoxOf, zoomAt } from "./plan";
 import { BLIND_COLOR } from "./coverage";
 
 // Deck 3 의 실제 모양: 120 x 24 m. SVG 공간이므로 y 는 아래가 +.
@@ -115,5 +115,18 @@ describe("niceLength", () => {
     expect(niceLength(5)).toBe(5);
     expect(niceLength(0.73)).toBe(0.5);
     expect(niceLength(0)).toBe(0);
+  });
+});
+
+describe("routeRunsAt", () => {
+  const path = [[2, 0, 10.6], [40, 0, 10.6], [34, 9.8, 10.6], [14, 9.8, 8.0], [8, 9.8, 8.0], [8, 0, 8.0]];
+  it("keeps only the stretches lying on the deck -- the slope between decks is on neither", () => {
+    expect(routeRunsAt(path, 10.6)).toEqual([[[2, 0, 10.6], [40, 0, 10.6], [34, 9.8, 10.6]]]);
+    expect(routeRunsAt(path, 8.0)[0][0]).toEqual([14, 9.8, 8.0]);
+    expect(routeRunsAt(path, 5.4)).toEqual([]);
+  });
+  it("closes a ramp's rectangle from its hinge to its toe", () => {
+    const r = { hinge: [[34, 7.8, 10.6], [34, 11.8, 10.6]], toe: [[14, 7.8, 8], [14, 11.8, 8]] };
+    expect(rampRing(r)).toEqual([[34, 7.8, 10.6], [34, 11.8, 10.6], [14, 11.8, 8], [14, 7.8, 8], [34, 7.8, 10.6]]);
   });
 });

@@ -3,6 +3,7 @@ package com.shiphdmap.api.slots;
 import com.shiphdmap.api.ApiErrors;
 import com.shiphdmap.api.dataset.Datasets;
 import com.shiphdmap.api.geo.Wkt;
+import com.shiphdmap.api.layout.ShipLayout;
 import com.shiphdmap.api.model.VehicleMap.ParkingSlot;
 import com.shiphdmap.api.model.VehicleMap.TargetPose;
 import com.shiphdmap.api.model.VehicleMap.Tolerance;
@@ -18,8 +19,11 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/datasets/{ds}/decks/{deck}/slots")
 public class SlotController {
-	private final JdbcClient db; private final SlotRepo slots;
-	public SlotController(JdbcClient db, SlotRepo slots) { this.db = db; this.slots = slots; }
+	private final JdbcClient db; private final SlotRepo slots; private final ShipLayout layout;
+	public SlotController(JdbcClient db, SlotRepo slots, ShipLayout layout) { this.db = db; this.slots = slots; this.layout = layout; }
+
+	/** One deck's slots number from rank x 1000 + 1, so the vehicle map's sequence_no loads the far decks first (ShipLayout.rank). */
+	static final int SEQUENCE_PER_DECK = 1000;
 
 	public record GenerateIn(String vehicleClass, Double gapLatM, Double gapLonM, Double lashingPitchM) {}
 
@@ -42,13 +46,19 @@ public class SlotController {
 		for (var r : db.sql("SELECT ST_AsGeoJSON(geom)::text AS g FROM feature WHERE dataset_id = :ds AND deck_id = :deck AND layer = 'C' AND kind = 'pillar'").param("ds", ds).param("deck", deck).query().listOfRows())
 			obstacles.add(Wkt.coords((String) r.get("g")));
 		var lanes = new ArrayList<SlotGenerator.Lane>();
-		for (var r : db.sql("SELECT id, ST_AsGeoJSON(geom)::text AS g, (props->>'width_m')::float8 AS w FROM feature WHERE dataset_id = :ds AND deck_id = :deck AND layer = 'A2'").param("ds", ds).param("deck", deck).query().listOfRows())
+		for (var r : db.sql("SELECT id, ST_AsGeoJSON(geom)::text AS g, (props->>'width_m')::float8 AS w FROM feature WHERE dataset_id = :ds AND deck_id = :deck AND layer = 'A2' AND kind <> 'route'").param("ds", ds).param("deck", deck).query().listOfRows())
 			lanes.add(new SlotGenerator.Lane((String) r.get("id"), Wkt.coords((String) r.get("g")), r.get("w") == null ? 3.2 : ((Number) r.get("w")).doubleValue()));
+		// M8: what crosses this deck on the way to another -- route runs (driveways) and the far side of internal ramps (never ground)
+		var ship = layout.load(ds);
+		var corridors = new ArrayList<SlotGenerator.Lane>(); int k = 0;
+		for (var run : ship.routeRunsOn(deck)) corridors.add(new SlotGenerator.Lane("ROUTE-RUN-" + (++k), run, 3.2));
+		obstacles.addAll(ship.farFootprintsOn(deck));
 		var lashings = new ArrayList<SlotGenerator.Lashing>();
 		for (var r : db.sql("SELECT id, ST_X(geom) AS x, ST_Y(geom) AS y FROM feature WHERE dataset_id = :ds AND deck_id = :deck AND layer = 'LP'").param("ds", ds).param("deck", deck).query().listOfRows())
 			lashings.add(new SlotGenerator.Lashing((String) r.get("id"), ((Number) r.get("x")).doubleValue(), ((Number) r.get("y")).doubleValue()));
 
-		var res = SlotGenerator.generate(deck, outline, z, obstacles, lanes, lashings, p);
+		int rank = Math.max(0, ship.rank(deck));
+		var res = SlotGenerator.generate(deck, outline, z, obstacles, lanes, corridors, lashings, p, rank * SEQUENCE_PER_DECK);
 		slots.deleteDeckSlots(ds, deck);
 		List<ParkingSlot> out = new ArrayList<>();
 		for (var s : res.slots()) {
@@ -59,7 +69,7 @@ public class SlotController {
 		int version = Datasets.bumpVersion(db, ds);
 		var body = new LinkedHashMap<String, Object>();
 		body.put("deck", deck); body.put("count", out.size()); body.put("utilization", res.utilization()); body.put("lashing_coverage", res.lashingCoverage());
-		body.put("version", version); body.put("slots", out);
+		body.put("rank", rank); body.put("version", version); body.put("slots", out);
 		return body;
 	}
 }

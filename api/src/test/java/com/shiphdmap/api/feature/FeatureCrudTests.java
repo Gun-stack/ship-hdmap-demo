@@ -41,16 +41,16 @@ class FeatureCrudTests {
 		db.sql("DELETE FROM dataset").update();
 		datasets.create(new DatasetController.NewDataset(DS, "RORO demo", "Demo Ship", 12.3456, 45.6789, 87.5, 120.0));
 		VehicleMap m = json.readValue(Files.readString(Path.of("..", "docs", "fixtures", "vehicle-map.sample.json")), VehicleMap.class);
-		importer.importSeed(DS, new SeedData(m.decks(), m.facilities(), m.lashingPoints(), m.ramps(), m.lanes(), m.parkingSlots(), m.landmarks(), m.markings()));
+		importer.importSeed(DS, new SeedData(m.decks(), m.facilities(), m.lashingPoints(), m.ramps(), m.lanes(), m.parkingSlots(), m.landmarks(), m.markings(), m.routes()));
 	}
 
 	@Test
 	void listFiltersByDeckAndLayer() throws Exception {
 		mvc.perform(get("/api/datasets/" + DS + "/features").param("deck", "D3").param("layer", "LM"))
-			.andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(23)).andExpect(jsonPath("$[0].geometry.type").value("Point"))
+			.andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(23))   // D3 only; the ship carries 107.andExpect(jsonPath("$[0].geometry.type").value("Point"))
 			.andExpect(jsonPath("$[0].props.code").isNumber())
 			.andExpect(jsonPath("$[0].created_at", Matchers.matchesPattern("^\\d{4}-\\d{2}-\\d{2}T.*Z$")));
-		mvc.perform(get("/api/datasets/" + DS + "/features").param("layer", "A2")).andExpect(jsonPath("$.length()").value(3));
+		mvc.perform(get("/api/datasets/" + DS + "/features").param("layer", "A2")).andExpect(jsonPath("$.length()").value(9));   // 5 lanes + 4 routes
 	}
 
 	@Test
@@ -60,7 +60,7 @@ class FeatureCrudTests {
 			{"deck_id":"D3","layer":"LM","kind":"apriltag","geometry":{"type":"Point","coordinates":[84.0,-6.2,11.8]},
 			 "props":{"family":"apriltag-36h11","code":7,"normal":[0,1,0],"size_m":0.3,"mounted_on":"C-PILLAR-D3-007"}}""";
 		mvc.perform(post("/api/datasets/" + DS + "/features").contentType(MediaType.APPLICATION_JSON).content(body))
-			.andExpect(status().isCreated()).andExpect(jsonPath("$.id").value("LM-0024")).andExpect(jsonPath("$.geometry.coordinates[0]").value(84.0));
+			.andExpect(status().isCreated()).andExpect(jsonPath("$.id").value("LM-0108")).andExpect(jsonPath("$.geometry.coordinates[0]").value(84.0));
 		int after = db.sql("SELECT version FROM dataset WHERE id = :id").param("id", DS).query(Integer.class).single();
 		assertThat(after).isEqualTo(before + 1);
 	}

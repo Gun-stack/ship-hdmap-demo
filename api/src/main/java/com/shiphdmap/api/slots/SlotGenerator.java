@@ -29,7 +29,18 @@ public final class SlotGenerator {
 	static final double SWEEP_STEP_M = 0.5;      // vehicle poses sampled along the approach when testing it for obstacles
 	static final double GRID_ORIGIN_M = 1.0;     // the generator's lashing grid starts 1 m inside the outline (ShipSeedBuilder)
 
+	/** Pre-M8 form: no routes cross the deck, and its slots number from 1. */
 	public static Result generate(String deckId, double[][] outline, double z, List<double[][]> obstacles, List<Lane> lanes, List<Lashing> lashings, Params p) {
+		return generate(deckId, outline, z, obstacles, lanes, List.of(), lashings, p, 0);
+	}
+
+	/**
+	 * corridors: the runs of routes to OTHER decks that cross this one (M8). A car drives over them, so no slot may sit on
+	 * one -- but a slot is never approached from one: only `lanes` (this deck's own) carry the exit to a slot.
+	 * sequenceBase: added to the in-deck 1..n order, so one global sequence_no loads whole decks in the ship's deck order.
+	 */
+	public static Result generate(String deckId, double[][] outline, double z, List<double[][]> obstacles, List<Lane> lanes, List<Lane> corridors,
+			List<Lashing> lashings, Params p, int sequenceBase) {
 		Vehicle v = VEHICLES.get(p.vehicleClass());
 		if (v == null) throw new IllegalArgumentException("unknown vehicle_class " + p.vehicleClass());
 		double cellX = ceilTo(v.lengthM() + p.gapLonM(), p.lashingPitchM()), cellY = ceilTo(v.widthM() + p.gapLatM(), p.lashingPitchM());
@@ -40,7 +51,7 @@ public final class SlotGenerator {
 				double x1 = x0 + v.lengthM(), y1 = y0 + v.widthM();
 				if (!contains(outline, x0, y0) || !contains(outline, x1, y0) || !contains(outline, x1, y1) || !contains(outline, x0, y1)) continue;
 				if (hitsObstacle(x0, y0, x1, y1, obstacles, p.gapLatM())) continue;
-				if (inCorridor(x0, y0, x1, y1, lanes, p.gapLatM())) continue;
+				if (inCorridor(x0, y0, x1, y1, lanes, p.gapLatM()) || inCorridor(x0, y0, x1, y1, corridors, p.gapLatM())) continue;
 				if (approachBlocked(x0, y0, x1, y1, lanes, obstacles, v)) continue;
 				cells.add(new double[] { x0, y0 });
 			}
@@ -53,7 +64,7 @@ public final class SlotGenerator {
 			double[][] ring = { { x0, y0, z }, { x1, y0, z }, { x1, y1, z }, { x0, y1, z }, { x0, y0, z } };
 			var lash = nearestLashings(ring, lashings); if (lash.size() == 4) withFour++;
 			double cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
-			slots.add(new Slot(String.format("PS-%s-%03d", deckId, i + 1), deckId, ring, cx, cy, p.vehicleClass(), nearestLane(cx, cy, lanes), lash, i + 1));
+			slots.add(new Slot(String.format("PS-%s-%03d", deckId, i + 1), deckId, ring, cx, cy, p.vehicleClass(), nearestLane(cx, cy, lanes), lash, sequenceBase + i + 1));
 		}
 		double util = slots.isEmpty() ? 0 : slots.size() * v.lengthM() * v.widthM() / ringArea(outline);
 		return new Result(slots, util, slots.isEmpty() ? 0 : (double) withFour / slots.size());

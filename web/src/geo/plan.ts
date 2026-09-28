@@ -80,3 +80,23 @@ export const LEGEND: { label: string; color: string; faint?: boolean }[] = [
   // 아니라 "왜 흐리냐"를 설명하는 항목이라, ok 색을 흐리게(faint) 칠해 그 모양 자체를 보여 준다.
   { label: "흐림 · 차가 갈 일이 없어 숫자에서 뺀 곳", color: PALETTE.CoverageOk, faint: true },
 ];
+
+/** Z tolerance for "this route point lies on that deck": generator output is rounded to 1e-6, a deck pitch is metres. */
+const ON_DECK_M = 0.05;
+
+/** The stretches of a 3D route lying on the deck at height z (the plan view draws a deck, not the ship). */
+export function routeRunsAt(path: number[][], z: number): number[][][] {
+  const runs: number[][][] = []; let run: number[][] = [];
+  for (const p of path) {
+    if (Math.abs(p[2] - z) <= ON_DECK_M) { run.push(p); continue; }
+    if (run.length >= 2) runs.push(run);
+    run = [];
+  }
+  if (run.length >= 2) runs.push(run);
+  return runs;
+}
+
+/** An internal ramp's plan rectangle as a closed ring (hinge -> toe), for ringPath. */
+export function rampRing(r: { hinge: number[][]; toe: number[][] }): number[][] {
+  return [r.hinge[0], r.hinge[1], r.toe[1], r.toe[0], r.hinge[0]];
+}

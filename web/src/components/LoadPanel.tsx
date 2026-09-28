@@ -11,6 +11,19 @@ export function LoadPanel({ reloadScene }: { reloadScene: () => Promise<void> })
   const d = decks.find((x) => x.id === deck);
   const kpi = d ? slotKpi(Object.values(features), d) : { count: 0, utilization: 0 };
   const last = slotGen[deck];
+  const [allDone, setAllDone] = useState<string | null>(null);
+  /** M8: every deck in one go -- the server numbers each deck's slots by its loading rank, so order does not matter here. */
+  const runAll = async () => {
+    setBusy(true); setErr(null); setAllDone(null);
+    try {
+      let total = 0;
+      for (const x of decks) total += (await generateSlots(x.id, { vehicle_class: "passenger", gap_lat_m: gapLat, gap_lon_m: gapLon })).count;
+      await reloadScene();
+      setAllDone(`${decks.length}개 갑판 · ${total} 구획`);
+    }
+    catch (e) { setErr(e instanceof ApiError ? `${e.message}${e.field ? ` (${e.field})` : ""}` : (e as Error).message); }
+    finally { setBusy(false); }
+  };
   const run = async () => {
     setBusy(true); setErr(null);
     try { await generateSlots(deck, { vehicle_class: "passenger", gap_lat_m: gapLat, gap_lon_m: gapLon }); await reloadScene(); }
@@ -25,7 +38,11 @@ export function LoadPanel({ reloadScene }: { reloadScene: () => Promise<void> })
       <div className="row"><label>차량</label><span>passenger 4.8 × 1.85 m</span></div>
       <div className="row"><label>측면 간격</label><input type="number" min={0} step={0.05} value={gapLat} onChange={(e) => setGapLat(Number(e.target.value))} /><span>m</span></div>
       <div className="row"><label>전후 간격</label><input type="number" min={0} step={0.05} value={gapLon} onChange={(e) => setGapLon(Number(e.target.value))} /><span>m</span></div>
-      <div className="row"><button className="btn primary" disabled={busy || !d} onClick={() => void run()}>{busy ? "생성 중…" : kpi.count ? "재생성" : "생성"}</button></div>
+      <div className="row">
+        <button className="btn primary" disabled={busy || !d} onClick={() => void run()}>{busy ? "생성 중…" : kpi.count ? "재생성" : "생성"}</button>
+        <button className="btn" disabled={busy || decks.length === 0} onClick={() => void runAll()}>전 갑판 생성</button>
+      </div>
+      {allDone && <div className="row muted">{allDone}</div>}
       <div className="row"><label>구획 수</label><b>{kpi.count}</b></div>
       <div className="row"><label>면적 활용률</label><b>{(kpi.utilization * 100).toFixed(1)} %</b></div>
       <div className="row"><label>래싱 4점 매핑(마지막 생성)</label><b>{last ? `${(last.lashing_coverage * 100).toFixed(0)} %` : "-"}</b></div>

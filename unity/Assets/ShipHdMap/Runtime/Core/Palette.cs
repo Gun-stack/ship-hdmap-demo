@@ -21,19 +21,28 @@ namespace ShipHdMap
         public const string Selection = "#ffb300";
         public const string Seen = "#e040a0";
         public const string SensorCone = "#4cc9f0";
+        public const string Route = "#a3e635";
 
         // ── scene-only (no web counterpart) ────────────────────────────────────
         public const string DeckFloor = "#727b86";
         public const string HullWall = "#34475c";
         public const string Pillar = "#5a636e";
         public const string LashingSocket = "#c3c9cf";
-        public const string Pipe = "#c7902e";
         public const string RampPlate = "#626a75";
         public const string SlotOutline = "#d6dde5";
         public const string Quay = "#8e8b85";
         public const string Water = "#1b3a52";
         public const string ParkedCar = "#c9ced6";
         public const string DriveCar = "#e8743b";
+        public const string LashingStrap = "#d9a441";
+        // PCTC outer shell (M8): antifouling below the design waterline, a navy boot-top band, white topsides and house
+        public const string HullBottom = "#8c2f2f";
+        public const string HullBand = "#1f2d3d";
+        public const string HullTop = "#dfe3e8";
+        public const string HullLine = "#9aa4af";
+        public const string Superstructure = "#f1f3f5";
+        public const string Window = "#1b2733";
+        public const string FunnelBand = "#b91c1c";
 
         // ── HUD ───────────────────────────────────────────────────────────────
         public const string HudPanel = "#0d1015";

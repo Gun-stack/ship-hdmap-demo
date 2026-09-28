@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useUnityContext } from "react-unity-webgl";
+import { useShallow } from "zustand/react/shallow";
 import { api } from "../api/client";
-import { noiseMsg, scenarioLine, sensorMsg, useEditorStore } from "../store/editor";
+import { noiseMsg, sensorMsg, useEditorStore } from "../store/editor";
 import type { EditorState } from "../store/editor";
-import { useUiStore, type CamMode, type Tool } from "../store/ui";
+import { useUiStore, type CamMode, type ShellMode, type Tool } from "../store/ui";
 import { pickDeck } from "../geo/deck";
 
-export type BridgeName = "Load" | "SetMode" | "SetDeck" | "Select" | "Confirm" | "Delete" | "SetNoise" | "SetSensor" | "StartScenario" | "SetPose" | "SetTimeScale" | "SetPrediction" | "SetOccluded" | "SetBeliefParams" | "SetTool" | "SetCamMode" | "SetNormal";
+export type BridgeName = "Load" | "SetMode" | "SetDeck" | "Select" | "Confirm" | "Delete" | "SetNoise" | "SetSensor" | "StartScenario" | "SetPose" | "SetTimeScale" | "SetPrediction" | "SetOccluded" | "SetBeliefParams" | "SetTool" | "SetCamMode" | "SetNormal" | "SetRampState" | "SetShellMode";
 
 /**
  * Everything Unity forgets on a fresh Load or a page reload, as the exact messages to replay.
@@ -15,7 +16,7 @@ export type BridgeName = "Load" | "SetMode" | "SetDeck" | "Select" | "Confirm" |
  * is silent: sendMessage takes any JSON and Unity's parser leaves the field at its default.
  */
 export function editorStateMessages(
-  ui: { tool: Tool; cam: CamMode },
+  ui: { tool: Tool; cam: CamMode; shell: ShellMode },
   ed: Pick<EditorState, "coverageParams" | "sigmaGps" | "timeScale" | "occluded">,
 ): [BridgeName, object][] {
   return [
@@ -27,6 +28,7 @@ export function editorStateMessages(
     ["SetNoise", noiseMsg(ed)],
     ["SetTimeScale", { scale: ed.timeScale }],
     ["SetOccluded", { ids: ed.occluded }],
+    ["SetShellMode", { mode: ui.shell }],   // a Load that rebuilds the ship brings the shell back in its default cutaway
   ];
 }
 
@@ -34,7 +36,12 @@ const URLS = { loaderUrl: "/unity/Build/unity.loader.js", dataUrl: "/unity/Build
 
 export function useShipUnity() {
   const { unityProvider, isLoaded, sendMessage, addEventListener, removeEventListener } = useUnityContext(URLS);
-  const { datasetId, dataset, deckFilter, selectedId, mode, pose, ramp, coverageParams, addDraft, select, setLocalization, moveFeature, onSlotFilled, appendLog, setBelief } = useEditorStore();
+  // Named slices only: this hook lives in App, so subscribing to the whole store re-rendered the whole page on every
+  // localization and belief event (~100 a second at x20) -- with M8's five decks of features that was most of the frame.
+  const { datasetId, dataset, deckFilter, selectedId, mode, pose, ramp, coverageParams, addDraft, select, setLocalization, moveFeature, onSlotFilled, onScenario: onScenarioEvt, setBelief } = useEditorStore(useShallow((s) => ({
+    datasetId: s.datasetId, dataset: s.dataset, deckFilter: s.deckFilter, selectedId: s.selectedId, mode: s.mode, pose: s.pose, ramp: s.ramp, coverageParams: s.coverageParams,
+    addDraft: s.addDraft, select: s.select, setLocalization: s.setLocalization, moveFeature: s.moveFeature, onSlotFilled: s.onSlotFilled, onScenario: s.onScenario, setBelief: s.setBelief,
+  })));
   const loadedOnce = useRef(false);
   const loading = useRef(false);
   const fromScene = useRef<string | null>(null);
@@ -87,7 +94,7 @@ export function useShipUnity() {
       });
     };
     const onSlot = (json: string) => { void onSlotFilled(JSON.parse(json)); };
-    const onScenario = (json: string) => appendLog(scenarioLine(JSON.parse(json)));
+    const onScenario = (json: string) => onScenarioEvt(JSON.parse(json));
     // Unity moves the camera itself -- Focus on a web-side selection, the probe, leaving the probe, starting a
     // run -- and the toolbar would otherwise keep claiming the old mode. Worse, the fly keys are gated on the
     // store's `cam`, so flight silently stops working after a Focus. No echo guard is needed the way onSelected
@@ -100,7 +107,7 @@ export function useShipUnity() {
       removeEventListener("onFeatureCreated", onCreated); removeEventListener("onSelected", onSelected); removeEventListener("onLocalization", onLoc); removeEventListener("onFeatureMoved", onMoved);
       removeEventListener("onSlotFilled", onSlot); removeEventListener("onScenario", onScenario); removeEventListener("onBelief", onBel); removeEventListener("onCamMode", onCam);
     };
-  }, [addEventListener, removeEventListener, addDraft, select, setLocalization, moveFeature, reloadScene, onSlotFilled, appendLog, setBelief]);
+  }, [addEventListener, removeEventListener, addDraft, select, setLocalization, moveFeature, reloadScene, onSlotFilled, onScenarioEvt, setBelief]);
 
   // initial Load: the vehicle-map body is exactly the Load payload (spec §10)
   useEffect(() => {

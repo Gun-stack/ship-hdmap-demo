@@ -33,7 +33,7 @@ public class SeedImportTests {
 
 	public static SeedData fixtureAsSeed(ObjectMapper json) throws Exception {
 		VehicleMap m = json.readValue(Files.readString(Path.of("..", "docs", "fixtures", "vehicle-map.sample.json")), VehicleMap.class);
-		return new SeedData(m.decks(), m.facilities(), m.lashingPoints(), m.ramps(), m.lanes(), m.parkingSlots(), m.landmarks(), m.markings());
+		return new SeedData(m.decks(), m.facilities(), m.lashingPoints(), m.ramps(), m.lanes(), m.parkingSlots(), m.landmarks(), m.markings(), m.routes());
 	}
 
 	/** Lashing-point count of the fixture; tests compare against this instead of a literal so a regenerated fixture does not break them. */
@@ -49,12 +49,17 @@ public class SeedImportTests {
 		SeedData seed = fixtureAsSeed(json);
 		int lp = seed.lashingPoints().size();
 		Map<String, Object> r = importer.importSeed("roro-demo-01", seed);
-		assertThat(r).containsEntry("decks", 3).containsEntry("parking_slots", 2);
-		assertThat(db.sql("SELECT count(*) FROM deck WHERE dataset_id = 'roro-demo-01'").query(Integer.class).single()).isEqualTo(3);
-		assertThat(db.sql("SELECT count(*) FROM feature WHERE dataset_id = 'roro-demo-01' AND layer = 'LM'").query(Integer.class).single()).isEqualTo(23);   // 21 pillar/hull/bow tags + the ramp's entrance pair
-		assertThat(db.sql("SELECT count(*) FROM feature WHERE dataset_id = 'roro-demo-01' AND layer = 'C' AND kind = 'pillar'").query(Integer.class).single()).isEqualTo(54);   // every deck's pillars, not just Deck 3
-		assertThat(db.sql("SELECT count(*) FROM feature WHERE dataset_id = 'roro-demo-01' AND kind = 'ramp'").query(Integer.class).single()).isEqualTo(1);
-		assertThat(db.sql("SELECT count(*) FROM feature WHERE dataset_id = 'roro-demo-01' AND layer = 'A2'").query(Integer.class).single()).isEqualTo(3);
+		assertThat(r).containsEntry("decks", 5).containsEntry("parking_slots", 2);
+		assertThat(db.sql("SELECT count(*) FROM deck WHERE dataset_id = 'roro-demo-01'").query(Integer.class).single()).isEqualTo(5);
+		assertThat(db.sql("SELECT count(*) FROM feature WHERE dataset_id = 'roro-demo-01' AND layer = 'LM'").query(Integer.class).single()).isEqualTo(107);   // D3: 21 pillar/hull/bow tags + the stern ramp's entrance pair; 21 on each other deck
+		assertThat(db.sql("SELECT count(*) FROM feature WHERE dataset_id = 'roro-demo-01' AND layer = 'C' AND kind = 'pillar'").query(Integer.class).single()).isEqualTo(90);   // every deck's pillars, not just Deck 3
+		assertThat(db.sql("SELECT count(*) FROM feature WHERE dataset_id = 'roro-demo-01' AND kind = 'ramp'").query(Integer.class).single()).isEqualTo(5);   // stern + 4 internal
+		assertThat(db.sql("SELECT count(*) FROM feature WHERE dataset_id = 'roro-demo-01' AND layer = 'A2' AND kind = 'centerline'").query(Integer.class).single()).isEqualTo(5);
+		assertThat(db.sql("SELECT count(*) FROM feature WHERE dataset_id = 'roro-demo-01' AND layer = 'A2' AND kind = 'route'").query(Integer.class).single()).isEqualTo(4);
+		// an internal ramp keeps what the slot generator and the scene need: its decks and its lower end
+		assertThat(db.sql("SELECT props->>'upper_deck' FROM feature WHERE dataset_id = 'roro-demo-01' AND id = 'RAMP-D3-D2'").query(String.class).single()).isEqualTo("D3");
+		assertThat(db.sql("SELECT deck_id FROM feature WHERE dataset_id = 'roro-demo-01' AND id = 'RAMP-D3-D2'").query(String.class).single()).isEqualTo("D3");   // filed under the deck its hinge is on
+		assertThat(db.sql("SELECT jsonb_array_length(props->'toe') FROM feature WHERE dataset_id = 'roro-demo-01' AND id = 'RAMP-D3-D2'").query(Integer.class).single()).isEqualTo(2);
 		assertThat(db.sql("SELECT count(*) FROM feature WHERE dataset_id = 'roro-demo-01' AND layer = 'LP'").query(Integer.class).single()).isEqualTo(lp);
 		assertThat(db.sql("SELECT version FROM dataset WHERE id = 'roro-demo-01'").query(Integer.class).single()).isEqualTo(2);
 		// geometry really is Z and in Ship Frame: LM-0001 at (12, -6.2, 11.8)
@@ -71,13 +76,13 @@ public class SeedImportTests {
 		SeedData seed = fixtureAsSeed(json);
 		importer.importSeed("roro-demo-01", seed);
 		importer.importSeed("roro-demo-01", seed);
-		assertThat(db.sql("SELECT count(*) FROM feature WHERE dataset_id = 'roro-demo-01'").query(Integer.class).single()).isEqualTo(23 + 54 + 1 + 3 + seed.lashingPoints().size() + 2);
+		assertThat(db.sql("SELECT count(*) FROM feature WHERE dataset_id = 'roro-demo-01'").query(Integer.class).single()).isEqualTo(107 + 90 + 5 + 5 + 4 + seed.lashingPoints().size() + 2);
 		assertThat(db.sql("SELECT version FROM dataset WHERE id = 'roro-demo-01'").query(Integer.class).single()).isEqualTo(3);
 	}
 
 	@Test
 	void unknownDatasetIs404() {
-		org.junit.jupiter.api.Assertions.assertThrows(com.shiphdmap.api.ApiErrors.NotFound.class, () -> importer.importSeed("nope", new SeedData(null, null, null, null, null, null, null, null)));
+		org.junit.jupiter.api.Assertions.assertThrows(com.shiphdmap.api.ApiErrors.NotFound.class, () -> importer.importSeed("nope", new SeedData(null, null, null, null, null, null, null, null, null)));
 	}
 
 	@Test
@@ -107,7 +112,7 @@ public class SeedImportTests {
 	void landmarkWithoutMarkerIs400() {
 		var lm = new VehicleMap.Landmark("LM-0001", null, new double[] { 0, 0, 0 }, null, 0.3, "D3", null);
 		var ex = org.junit.jupiter.api.Assertions.assertThrows(com.shiphdmap.api.ApiErrors.BadRequest.class,
-			() -> importer.importSeed("roro-demo-01", new SeedData(null, null, null, null, null, null, java.util.List.of(lm), null)));
+			() -> importer.importSeed("roro-demo-01", new SeedData(null, null, null, null, null, null, java.util.List.of(lm), null, null)));
 		assertThat(ex.field).isEqualTo("marker");
 	}
 }

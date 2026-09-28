@@ -64,7 +64,7 @@ export function commandFor(e: KeyLike, ctx: Ctx): KeyCmd | null {
   if (e.code in TOOL_KEYS) return { kind: "tool", tool: TOOL_KEYS[e.code] };
   if (e.code === "KeyC") return { kind: "cam" };
   const k = e.key.toLowerCase();
-  if (k === "1" || k === "2" || k === "3") return { kind: "deck", index: Number(k) - 1 };
+  if (k >= "1" && k <= "9" && k.length === 1) return { kind: "deck", index: Number(k) - 1 };   // D1..D5 today; a key past the last deck does nothing
   // Not Tab: swallowing it on a focused button strands keyboard users in the toolbar. Brackets are free.
   if (k === "]") return { kind: "tab", dir: 1 };
   if (k === "[") return { kind: "tab", dir: -1 };
@@ -82,7 +82,7 @@ export const HELP_ROWS: [string, string][] = [
   ["F", "선택에 맞춤 — 활성 뷰포트에만"],
   ["0", "전체 보기 — 평면도"],
   ["Esc", "선택 해제 + 선택 모드로"],
-  ["1 / 2 / 3", "갑판 D1 / D2 / D3"],
+  ["1 / 2 / 3 / 4 / 5", "갑판 D1 … D5"],
   ["[ / ]", "오른쪽 탭 순환 (Tab 은 브라우저 포커스 순회에 남겨 둔다)"],
   ["?", "이 목록"],
 ];

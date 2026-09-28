@@ -1,5 +1,6 @@
 package com.shiphdmap.api.coverage;
 
+import com.shiphdmap.api.layout.ShipLayout;
 import com.shiphdmap.api.ApiErrors;
 import com.shiphdmap.api.JsonMaps;
 import com.shiphdmap.api.dataset.Datasets;
@@ -19,7 +20,8 @@ import tools.jackson.databind.ObjectMapper;
 public class CoverageController {
 	private final JdbcClient db;
 	private final ObjectMapper json;
-	public CoverageController(JdbcClient db, ObjectMapper json) { this.db = db; this.json = json; }
+	private final ShipLayout layout;
+	public CoverageController(JdbcClient db, ObjectMapper json, ShipLayout layout) { this.db = db; this.json = json; this.layout = layout; }
 
 	public record ExtraLandmark(Double x, Double y, Double phiDeg) {}
 	public record CoverageIn(String mode, Double gridM, Double fovDeg, Double maxDistM, Double maxViewAngleDeg,
@@ -125,9 +127,11 @@ public class CoverageController {
 		for (var r : rows(ds, deck, "SELECT ST_AsGeoJSON(geom)::text AS g FROM feature WHERE dataset_id = :ds AND deck_id = :deck AND layer = 'B2' ORDER BY id"))
 			slots.add(Wkt.coords((String) r.get("g")));
 		var lanes = new ArrayList<CoverageAnalyzer.Lane>();
-		for (var r : rows(ds, deck, "SELECT ST_AsGeoJSON(geom)::text AS g, (props->>'width_m')::float8 AS w FROM feature WHERE dataset_id = :ds AND deck_id = :deck AND layer = 'A2' ORDER BY id"))
+		for (var r : rows(ds, deck, "SELECT ST_AsGeoJSON(geom)::text AS g, (props->>'width_m')::float8 AS w FROM feature WHERE dataset_id = :ds AND deck_id = :deck AND layer = 'A2' AND kind <> 'route' ORDER BY id"))
 			lanes.add(new CoverageAnalyzer.Lane(Wkt.coords((String) r.get("g")),
 				r.get("w") == null ? 3.2 : ((Number) r.get("w")).doubleValue()));
+		// M8: routes to other decks that cross this one are driven too, so they are part of "where a vehicle can be"
+		for (var run : layout.load(ds).routeRunsOn(deck)) lanes.add(new CoverageAnalyzer.Lane(run, 3.2));
 
 		var omit = in == null || in.omit() == null ? List.<String>of() : in.omit();
 		var lms = new ArrayList<CoverageAnalyzer.Landmark>();

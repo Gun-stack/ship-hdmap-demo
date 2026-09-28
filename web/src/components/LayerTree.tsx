@@ -1,3 +1,5 @@
+import { useMemo } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useEditorStore, visibleFeatures } from "../store/editor";
 import { useUiStore } from "../store/ui";
 import type { Layer } from "../api/types";
@@ -6,8 +8,10 @@ const ORDER: Layer[] = ["A2", "A1", "B2", "LP", "C", "LM", "MEP"];
 const LABEL: Record<Layer, string> = { A2: "A2 차로중심선", A1: "A1 차선", B2: "B2 노면표시·구획", LP: "LP 래싱 포인트", C: "C 시설물", LM: "LM 랜드마크", MEP: "MEP" };
 
 export function LayerTree() {
-  const s = useEditorStore();
-  const feats = visibleFeatures(s);
+  // Only the slices the tree shows (see PlanDock): a localization event must not rebuild a 24k-feature tree.
+  const s = useEditorStore(useShallow((e) => ({ features: e.features, deckFilter: e.deckFilter, drafts: e.drafts, selectedId: e.selectedId,
+    occluded: e.occluded, select: e.select, toggleOccluded: e.toggleOccluded })));
+  const feats = useMemo(() => visibleFeatures(s), [s.features, s.deckFilter]);   // eslint-disable-line react-hooks/exhaustive-deps
   const open = useUiStore((s) => s.treeOpen);
   const toggleTree = useUiStore((s) => s.toggleTree);
   return (

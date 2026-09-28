@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
 import { api } from "../api/client";
-import type { BeliefEvt, BeliefParamsIn, Candidate, CoverageIn, CoverageMode, CoverageOut, CoverageSensor, Dataset, Deck, Feature, FeatureCreatedEvt, FeatureIn, FeatureMovedEvt, GenerateSlotsIn, GenerateSlotsOut, Geometry, Layer, LocalizationEvt, Pose, RampState, ScenarioEvt, ScenarioLine, SlotFilledEvt, SlotStatus, Suggestion } from "../api/types";
+import type { BeliefEvt, BeliefParamsIn, Candidate, CoverageIn, CoverageMode, CoverageOut, CoverageSensor, Dataset, Deck, Feature, FeatureCreatedEvt, FeatureIn, FeatureMovedEvt, GenerateSlotsIn, GenerateSlotsOut, Geometry, Layer, LocalizationEvt, Pose, RampState, ScenarioEvt, ScenarioLine, SlotFilledEvt, SlotStatus, InnerRamp, Route, RampPosition, Suggestion } from "../api/types";
 import { SENSOR_DEFAULTS } from "../geo/coverage";
 
 export type Draft = { tempId: string; layer: Layer; deck_id: string; geometry: Geometry; props: Record<string, unknown> };
@@ -43,6 +43,12 @@ export type EditorState = {
   slotGen: Record<string, { count: number; utilization: number; lashing_coverage: number }>;
   /** Parking-slot status by slot id, so the plan view paints what the 3D fill paints. Missing = empty. */
   slotStatus: Record<string, SlotStatus>;
+  /** M8: the hoistable ramps and the routes over them, from the vehicle map; rampStates mirrors the scene's. */
+  innerRamps: InnerRamp[];
+  routes: Route[];
+  rampStates: Record<string, RampPosition>;
+  /** Scene -> store: a scenario event. Logs it, and keeps rampStates in step with "ramp" events. */
+  onScenario: (e: ScenarioEvt) => void;
   scenarioLog: ScenarioLine[];
   appendLog: (text: string) => void;
   clearLog: () => void;
@@ -106,7 +112,7 @@ export const useEditorStore = create<EditorState>()(persist((set, get) => ({
   // runs at import time and the vitest environment is "node", where there is no location at all.
   datasetId: new URLSearchParams(globalThis.location?.search ?? "").get("ds") ?? "roro-demo-01",
   dataset: null, decks: [], features: {}, drafts: {}, selectedId: null, deckFilter: "all", mode: "edit",
-  pose: null, ramp: null, localization: null, error: null, slotGen: {}, slotStatus: {}, scenarioLog: [],
+  pose: null, ramp: null, localization: null, error: null, slotGen: {}, slotStatus: {}, innerRamps: [], routes: [], rampStates: {}, scenarioLog: [],
   coverage: null, coverageMode: "load",
   // seeded with the API defaults: an empty object would leave the sliders at their minimum while the server
   // silently computed with something else
@@ -126,9 +132,11 @@ export const useEditorStore = create<EditorState>()(persist((set, get) => ({
 
   async load(datasetId) {
     try {
-      const [dataset, { decks, slotStatus }, list, pose] = await Promise.all([api.getDataset(datasetId), api.mapMeta(datasetId), api.listFeatures(datasetId), api.getPose(datasetId)]);
+      const [dataset, { decks, slotStatus, innerRamps, routes }, list, pose] = await Promise.all([api.getDataset(datasetId), api.mapMeta(datasetId), api.listFeatures(datasetId), api.getPose(datasetId)]);
       const ramp = await api.getRamp(datasetId, RAMP_ID).catch(() => null);
-      set({ datasetId, dataset, decks, slotStatus, features: Object.fromEntries(list.map((f) => [f.id, f])), pose, ramp, error: null });
+      // every ramp down until the scene says otherwise: it re-sends each ramp's real state right after its Load
+      const rampStates = Object.fromEntries(innerRamps.map((r) => [r.id, "deployed" as RampPosition]));
+      set({ datasetId, dataset, decks, slotStatus, innerRamps, routes, rampStates, features: Object.fromEntries(list.map((f) => [f.id, f])), pose, ramp, error: null });
     } catch (e) { set({ error: (e as Error).message }); }
   },
   select: (id) => set({ selectedId: id }),
@@ -169,6 +177,12 @@ export const useEditorStore = create<EditorState>()(persist((set, get) => ({
   },
   setLocalization: (localization) => set({ localization }),
   appendLog: (text) => set((s) => ({ scenarioLog: [{ t: clock(), text }, ...s.scenarioLog].slice(0, 100) })),
+  onScenario: (e) => {
+    const ramp = rampEvent(e);
+    // the scene re-announces every ramp after each Load; only a change during a drive is worth a log line
+    if (ramp) set((s) => ({ rampStates: { ...s.rampStates, [ramp.id]: ramp.state } }));
+    if (!ramp || get().mode === "drive") get().appendLog(scenarioLine(e));
+  },
   clearLog: () => set({ scenarioLog: [] }),
   /** Unity judged a slot; persist it (the server bumps version) and log it. No scene reload — Unity already recoloured the fill. */
   async onSlotFilled(e) {
@@ -182,8 +196,9 @@ export const useEditorStore = create<EditorState>()(persist((set, get) => ({
   async generateSlots(deck, body) {
     const out = await api.generateSlots(get().datasetId, deck, body);
     const list = await api.listFeatures(get().datasetId);
-    // regenerated slots start empty; drop every status of the old ones
-    set((s) => ({ features: Object.fromEntries(list.map((f) => [f.id, f])), slotStatus: {}, slotGen: { ...s.slotGen, [deck]: { count: out.count, utilization: out.utilization, lashing_coverage: out.lashing_coverage } },
+    // regenerated slots start empty; drop the statuses of this deck's old ones -- the other decks keep theirs
+    set((s) => ({ features: Object.fromEntries(list.map((f) => [f.id, f])),
+      slotStatus: Object.fromEntries(Object.entries(s.slotStatus).filter(([id]) => s.features[id]?.deck_id !== deck)), slotGen: { ...s.slotGen, [deck]: { count: out.count, utilization: out.utilization, lashing_coverage: out.lashing_coverage } },
       selectedId: s.selectedId && !list.some((f) => f.id === s.selectedId) ? null : s.selectedId }));
     get().bumpVersion(out.version);
     return out;
@@ -292,7 +307,7 @@ export function predictionMsg(s: Pick<EditorState, "coverageParams" | "occluded"
   return { ...s.coverageParams, mode, omit: s.occluded, grid_m: 1.0 };
 }
 
-export function visibleFeatures(s: EditorState): Feature[] {
+export function visibleFeatures(s: Pick<EditorState, "features" | "deckFilter">): Feature[] {
   const all = Object.values(s.features);
   return s.deckFilter === "all" ? all : all.filter((f) => f.deck_id === s.deckFilter);
 }
@@ -305,12 +320,22 @@ export function slotFilledLine(e: SlotFilledEvt): string {
   return `${e.slot_id} ${e.status}  lat ${signed(e.err_lat, 2)} lon ${signed(e.err_lon, 2)} hdg ${signed(e.err_heading, 1)}°`;
 }
 
+/** "RAMP-D3-D2 stowed" -> {id, state}; null for any other event or a malformed detail. */
+export function rampEvent(e: ScenarioEvt): { id: string; state: RampPosition } | null {
+  if (e.event !== "ramp" || !e.detail) return null;
+  const [id, state] = e.detail.split(" ");
+  return id && (state === "deployed" || state === "stowed") ? { id, state } : null;
+}
+
 export function scenarioLine(e: ScenarioEvt): string {
   switch (e.event) {
     case "start": return e.mode === "unload" ? "◀ 하역 시작" : "▶ 선적 시작";
     case "target": return `대상 ${e.slot_id}`;
     case "leave_lane": return `차로 이탈 · ${e.detail ?? ""}`;
     case "frame_switch": return `프레임 전환 · ${e.detail ?? ""}`;
+    case "route": return `경로 · ${e.detail ?? ""}`;
+    case "lane": return `차로 진입 · ${e.detail ?? ""}`;
+    case "ramp": { const r = rampEvent(e); return r ? `램프 ${r.id} ${r.state === "stowed" ? "수납" : "전개"}` : `램프 ${e.detail ?? ""}`; }
     case "finished": return `종료 (${e.detail ?? ""})`;
     default: return e.event;
   }

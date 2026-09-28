@@ -118,7 +118,8 @@ namespace ShipHdMap.Editor
             var tone = Override<Tonemapping>(p);
             tone.mode.Override(TonemappingMode.ACES);
             var bloom = Override<Bloom>(p);
-            bloom.threshold.Override(1.0f); bloom.intensity.Override(0.35f); bloom.scatter.Override(0.6f);
+            // white topsides in full sun sit right at 1.0: a lower threshold makes the whole hull glow
+            bloom.threshold.Override(1.25f); bloom.intensity.Override(0.25f); bloom.scatter.Override(0.55f);
             var color = Override<ColorAdjustments>(p);
             color.postExposure.Override(0f); color.contrast.Override(8f); color.saturation.Override(6f);
             var vignette = Override<Vignette>(p);

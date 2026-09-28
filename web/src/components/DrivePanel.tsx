@@ -4,7 +4,6 @@ import { beliefBadge, fmtRatioOf } from "../geo/belief";
 import { wrapDeg } from "../geo/shipFrame";
 import { noiseMsg, predictionMsg, useEditorStore } from "../store/editor";
 import type { BridgeName } from "../bridge/useShipUnity";
-import { pickDeck } from "../geo/deck";
 import { dot } from "../theme/theme";
 
 type Send = (name: BridgeName, payload?: string | object) => void;
@@ -22,29 +21,29 @@ const BELIEF_SLIDERS: { key: keyof BeliefParamsIn; label: string; min: number; m
 const SCALES = [1, 5, 20];
 
 export function DrivePanel({ send }: { send: Send }) {
-  const { localization: l, setMode, scenarioLog, clearLog, datasetId, decks, deckFilter, occluded, belief: b,
+  const { localization: l, setMode, scenarioLog, clearLog, datasetId, decks, occluded, belief: b,
     beliefParams: bp, setBeliefParams, setError, sigmaGps, setSigmaGps, coverageParams, timeScale: scale, setTimeScale } = useEditorStore();
   const commit = () => send("SetNoise", noiseMsg(useEditorStore.getState())); // on release only — Unity's SetNoise is cheap but the bridge is not a slider event bus
   const commitBelief = () => send("SetBeliefParams", bp);
   const start = async (mode: "load" | "unload") => {
     clearLog();
-    const deck = pickDeck(decks, deckFilter)?.id;
-    if (deck) {
+    // M8: a run can go to any deck, and each car is judged against its own deck's promise -- so every deck's, tagged.
+    const empty = { grid_m: 1, bbox: [0, 0, 0, 0], cells: [] };
+    await Promise.all(decks.map(async (d) => {
       try {
-        const cov = await api.coverage(datasetId, deck, predictionMsg(useEditorStore.getState(), mode));
+        const cov = await api.coverage(datasetId, d.id, predictionMsg(useEditorStore.getState(), mode));
         // trim to what the vehicle needs: 2880 cells of {x, y, s} instead of the full response
-        send("SetPrediction", { grid_m: cov.grid_m, bbox: cov.bbox, cells: cov.cells.map((c) => ({ x: c.x, y: c.y, s: c.sigma_xy ?? null })) });
+        send("SetPrediction", { deck_id: d.id, grid_m: cov.grid_m, bbox: cov.bbox, cells: cov.cells.map((c) => ({ x: c.x, y: c.y, s: c.sigma_xy ?? null })) });
       } catch (e) {
         // no prediction is still a valid drive: BeliefMonitor skips the Degraded check when predictedSigmaXy
         // is null and Lost/backtracking/stopped still work off observation count alone — start anyway. But
-        // Unity must actually drop whatever prediction it was holding, or a stale one (another deck's, another
+        // Unity must actually drop whatever prediction it was holding for that deck, or a stale one (another
         // occlusion set's) keeps judging Degraded against a promise this run never made.
-        send("SetPrediction", { grid_m: 1, bbox: [0, 0, 0, 0], cells: [] });
+        send("SetPrediction", { deck_id: d.id, ...empty });
         setError("coverage prediction unavailable: " + (e as Error).message);
       }
-    } else {
-      send("SetPrediction", { grid_m: 1, bbox: [0, 0, 0, 0], cells: [] });
-    }
+    }));
+    if (decks.length === 0) send("SetPrediction", empty);
     send("SetOccluded", { ids: occluded });
     send("SetBeliefParams", bp);
     send("SetNoise", noiseMsg(useEditorStore.getState())); // reload can restore a saved value while Unity still holds SetNoiseMsg's default -- resend it every start

@@ -70,6 +70,9 @@ namespace ShipHdMap
         };
 
         /// A slot the planner must not offer again: parked in it, parked badly in it, or could not get to it.
+        /// The same polyline driven the other way (unload: back along a route to the stern-ramp deck).
+        public static double[][] Reversed(double[][] path) => path.Reverse().Select(p => new[] { p[0], p[1], p[2] }).ToArray();
+
         public static bool IsFilled(string status) => status == "filled" || status == "needs_adjust" || status == "unreachable";
 
         public static ParkingSlot NextSlot(IEnumerable<ParkingSlot> slots, string mode)

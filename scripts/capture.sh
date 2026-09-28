@@ -40,8 +40,16 @@ curl -fsS -o /dev/null -X POST "$API/datasets" -H 'content-type: application/jso
   -d "{\"id\":\"$DS\",\"name\":\"capture\",\"ap_lat\":12.3456,\"ap_lon\":45.6789,\"heading_deg\":87.5}"
 SEED_JSON="$(curl -fsS -X POST "$API/datasets/$DS/seed" -H 'content-type: application/json' \
   --data-binary @"$ROOT/docs/fixtures/vehicle-map.sample.json")"
-# Slots are generated, not seeded: the fixture carries two by hand and the drive needs a full deck to aim at.
-SLOTS_JSON="$(curl -fsS -X POST "$API/datasets/$DS/decks/D3/slots/generate" -H 'content-type: application/json' -d '{}')"
+# Slots are generated, not seeded: the fixture carries two by hand and the drive needs full decks to aim at.
+# Every deck (M8): the run loads the far decks first, so its first car goes to D1, not D3. Each response is cut
+# down to what capture.mjs reports (the slot lists would only bloat the environment).
+SLOTS_JSON="["; SEP=""
+for DECK in $(curl -fsS "$API/datasets/$DS/vehicle-map" | python3 -c 'import json,sys; print(" ".join(d["id"] for d in json.load(sys.stdin)["decks"]))'); do
+  ONE="$(curl -fsS -X POST "$API/datasets/$DS/decks/$DECK/slots/generate" -H 'content-type: application/json' -d '{}' \
+    | python3 -c 'import json,sys; r=json.load(sys.stdin); print(json.dumps({k: r[k] for k in ("deck","count","utilization","lashing_coverage","rank","version")}))')"
+  SLOTS_JSON="$SLOTS_JSON$SEP$ONE"; SEP=","
+done
+SLOTS_JSON="$SLOTS_JSON]"
 
 mkdir -p "$ROOT/docs/img"
 BUILD_MTIME="$BUILD_MTIME" CAPTURE_DS="$DS" WEB_PORT="$PORT" SEED_JSON="$SEED_JSON" SLOTS_JSON="$SLOTS_JSON" \

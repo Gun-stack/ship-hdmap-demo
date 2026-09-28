@@ -12,7 +12,7 @@ namespace ShipHdMap.Tests
         {
             var seed = ShipSeedBuilder.Build(new ShipParams());
             var lms = FixtureExporter.SeedLandmarks(seed);
-            Assert.That(lms.Count, Is.EqualTo(23));
+            Assert.That(lms.Count(l => l.deck_id == "D3"), Is.EqualTo(23));
             var lm1 = lms.First(l => l.id == "LM-0001");
             Assert.That(lm1.position, Is.EqualTo(new[] { 12.0, -6.2, 11.8 }).Within(1e-9));   // inner face of the first -y pillar, tag 1.2 m above Deck 3
             Assert.That(lm1.normal, Is.EqualTo(new[] { 0.0, 1.0, 0.0 }));
@@ -30,7 +30,7 @@ namespace ShipHdMap.Tests
         {
             var seed = ShipSeedBuilder.Build(new ShipParams());
             var lms = FixtureExporter.SeedLandmarks(seed);
-            Assert.That(lms.Count, Is.EqualTo(23));
+            Assert.That(lms.Count(l => l.deck_id == "D3"), Is.EqualTo(23));
             var port = lms.First(l => l.id == "LM-0021");
             Assert.That(port.position, Is.EqualTo(new[] { 119.7, 3.0, 11.8 }).Within(1e-9));
             Assert.That(port.normal, Is.EqualTo(new[] { -1.0, 0.0, 0.0 }));
@@ -64,12 +64,29 @@ namespace ShipHdMap.Tests
         }
 
         [Test]
-        public void BuildMapExportsTheWholeDeckThreeLashingGrid()
+        public void BuildMapExportsEveryDecksWholeLashingGrid()
         {
             var seed = ShipSeedBuilder.Build(new ShipParams());
             var map = FixtureExporter.BuildMap(seed, new VehicleMap(), FixtureExporter.SeedLandmarks(seed));
-            Assert.That(map.lashing_points.Count, Is.EqualTo(seed.lashing_points.Count(l => l.deck_id == "D3")));
-            Assert.That(map.lashing_points.Count, Is.GreaterThan(1000));
+            Assert.That(map.lashing_points.Count, Is.EqualTo(seed.lashing_points.Count));
+            foreach (var d in seed.decks) Assert.That(map.lashing_points.Count(l => l.deck_id == d.id), Is.GreaterThan(1000), d.id);
+            Assert.That(map.routes, Is.SameAs(seed.routes));
+        }
+
+        [Test]
+        public void EveryDeckGetsItsOwnTagKitAndNewTagsHaveUniqueCodes()
+        {
+            var seed = ShipSeedBuilder.Build(new ShipParams());
+            var lms = FixtureExporter.SeedLandmarks(seed);
+            foreach (var d in seed.decks.Where(d => d.id != "D3"))
+            {
+                var mine = lms.Where(l => l.deck_id == d.id).ToList();
+                Assert.That(mine, Has.Count.EqualTo(21), d.id);   // 9 pillar pairs + port hull + bow pair
+                Assert.That(mine.All(l => System.Math.Abs(l.position[2] - (d.z_surface + 1.2)) < 1e-9), d.id);
+                Assert.That(mine.Select(l => l.marker.code).Distinct().Count(), Is.EqualTo(21), d.id + ": one code per tag");
+            }
+            Assert.That(lms.Select(l => l.id).Distinct().Count(), Is.EqualTo(lms.Count));
+            Assert.That(lms.First(l => l.deck_id != "D3").id, Is.EqualTo("LM-0024"));   // D3 keeps 0001..0023
         }
 
         [Test]
@@ -77,12 +94,13 @@ namespace ShipHdMap.Tests
         {
             var seed = ShipSeedBuilder.Build(new ShipParams());
             var lms = FixtureExporter.SeedLandmarks(seed);
-            var pair = lms.Where(l => l.mounted_on == seed.ramps[0].id).OrderBy(l => l.position[1]).ToList();
+            var stern = seed.ramps.Single(r => r.type == "stern_quarter");
+            var pair = lms.Where(l => l.mounted_on == stern.id).OrderBy(l => l.position[1]).ToList();
             Assert.That(pair, Has.Count.EqualTo(2));
-            Assert.That(pair[0].position[2], Is.EqualTo(seed.ramps[0].hinge[0][2] + 1.2).Within(1e-9));   // above the ramp plate, so the line of sight from the quay is clear
+            Assert.That(pair[0].position[2], Is.EqualTo(stern.hinge[0][2] + 1.2).Within(1e-9));   // above the ramp plate, so the line of sight from the quay is clear
             Assert.That(pair[0].normal, Is.EqualTo(new double[] { -1, 0, 0 }));                            // facing astern, toward a vehicle coming up the ramp
             Assert.That(pair[0].position[1], Is.LessThan(0)); Assert.That(pair[1].position[1], Is.GreaterThan(0));
-            Assert.That(seed.ramps[0].transition_landmarks, Is.EqualTo(new[] { pair[0].id, pair[1].id }).AsCollection);
+            Assert.That(stern.transition_landmarks, Is.EqualTo(new[] { pair[0].id, pair[1].id }).AsCollection);
         }
 
         [Test]

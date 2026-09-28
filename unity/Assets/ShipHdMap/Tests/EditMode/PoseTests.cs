@@ -82,7 +82,7 @@ namespace ShipHdMap.Tests
             // on top so the ship-local rotation still lands the ramp at that horizon angle.
             Assert.That(Mathf.DeltaAngle(ramp.localRotation.eulerAngles.z, (float)-(4 + trimDeg)), Is.EqualTo(0f).Within(1e-3f));
             var floor = ship.transform.Find("D3/Floor");
-            Assert.That(floor.position.y, Is.GreaterThan(10.5f + 60f * Mathf.Tan(0.955f * Mathf.Deg2Rad) - 0.6f - 10.1f)); // floor centre (x=60) rose with the root, then the root sank by draft_aft_m (M5b)
+            Assert.That(floor.GetComponent<Renderer>().bounds.center.y, Is.GreaterThan(10.5f + 60f * Mathf.Tan(0.955f * Mathf.Deg2Rad) - 0.6f - 10.1f)); // floor centre (x=60) rose with the root, then the root sank by draft_aft_m (M5b)
 
             var overlayLine = rt.transform.Find("Overlay/D3/A2-D3-0001").GetComponent<LineRenderer>();
             Assert.That(overlayLine.useWorldSpace, Is.False);

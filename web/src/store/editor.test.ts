@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { EDITOR_KEY, EDITOR_SCHEMA, EDITOR_WRITE_MS, useEditorStore, visibleFeatures } from "./editor";
+import { EDITOR_KEY, EDITOR_SCHEMA, EDITOR_WRITE_MS, rampEvent, useEditorStore, visibleFeatures } from "./editor";
 import { api } from "../api/client";
 
 vi.mock("../api/client", () => ({
   api: {
     getDataset: vi.fn(async () => ({ id: "ds1", name: "d", version: 3, ap_lat: 0, ap_lon: 0, heading_deg: 0, lpp_m: 120 })),
-    mapMeta: vi.fn(async () => ({ decks: [{ id: "D3", name: "Deck 3", z_surface: 10.6, z_clear: 2.2, movable: false, outline: [] }], slotStatus: { "PS-D3-001": "filled" } })),
+    mapMeta: vi.fn(async () => ({ decks: [{ id: "D3", name: "Deck 3", z_surface: 10.6, z_clear: 2.2, movable: false, outline: [] }], slotStatus: { "PS-D3-001": "filled" }, innerRamps: [], routes: [] })),
     listFeatures: vi.fn(async () => [
       { id: "LM-0001", deck_id: "D3", layer: "LM", kind: "apriltag", geometry: { type: "Point", coordinates: [12, -6.2, 11.8] }, props: { code: 1 } },
       { id: "A2-D1-0001", deck_id: "D1", layer: "A2", kind: "centerline", geometry: { type: "LineString", coordinates: [[2, 0, 5.4], [118, 0, 5.4]] }, props: {} },
@@ -110,6 +110,9 @@ describe("editor store", () => {
 
   it("generateSlots refreshes features, version and KPI", async () => {
     await useEditorStore.getState().load("ds1");
+    useEditorStore.setState({ slotStatus: { "PS-D3-001": "filled", "PS-D1-001": "filled" }, features: {
+      "PS-D3-001": { id: "PS-D3-001", deck_id: "D3", layer: "B2", kind: "parking_slot", geometry: { type: "Point", coordinates: [0, 0] }, props: {} },
+      "PS-D1-001": { id: "PS-D1-001", deck_id: "D1", layer: "B2", kind: "parking_slot", geometry: { type: "Point", coordinates: [0, 0] }, props: {} } } });
     vi.mocked(api.listFeatures).mockResolvedValueOnce([{ id: "PS-D3-001", deck_id: "D3", layer: "B2", kind: "parking_slot", geometry: { type: "Polygon", coordinates: [[[100, 2, 10.6], [104.8, 2, 10.6], [104.8, 3.85, 10.6], [100, 3.85, 10.6], [100, 2, 10.6]]] }, props: {} }]);
     const out = await useEditorStore.getState().generateSlots("D3", { gap_lat_m: 0.3 });
     expect(api.generateSlots).toHaveBeenCalledWith("ds1", "D3", { gap_lat_m: 0.3 });
@@ -117,6 +120,7 @@ describe("editor store", () => {
     expect(useEditorStore.getState().dataset?.version).toBe(9);
     expect(useEditorStore.getState().slotGen.D3.lashing_coverage).toBe(1);
     expect(Object.keys(useEditorStore.getState().features)).toEqual(["PS-D3-001"]);
+    expect(useEditorStore.getState().slotStatus).toEqual({ "PS-D1-001": "filled" });   // only D3 was regenerated
   });
 
   /// 완료 기준 1. 검증할 때마다 슬라이더를 다시 맞추던 것이 이 마일스톤에서 없어진다.
@@ -263,4 +267,23 @@ describe("persisted schema", () => {
   });
 
   it("is on version 2", () => { expect(EDITOR_SCHEMA).toBe(2); });
+});
+
+describe("internal ramp events", () => {
+  beforeEach(() => useEditorStore.setState(useEditorStore.getInitialState()));
+  it("parse, and only a well-formed one counts", () => {
+    expect(rampEvent({ event: "ramp", detail: "RAMP-D3-D2 stowed" })).toEqual({ id: "RAMP-D3-D2", state: "stowed" });
+    expect(rampEvent({ event: "ramp", detail: "RAMP-D3-D2 sideways" })).toBeNull();
+    expect(rampEvent({ event: "target", slot_id: "PS-D1-001" })).toBeNull();
+  });
+  it("mirror the scene's state, and log only during a drive (the scene re-announces every ramp after a Load)", () => {
+    const s = useEditorStore.getState();
+    s.onScenario({ event: "ramp", detail: "RAMP-D3-D2 stowed" });
+    expect(useEditorStore.getState().rampStates["RAMP-D3-D2"]).toBe("stowed");
+    expect(useEditorStore.getState().scenarioLog).toHaveLength(0);
+    useEditorStore.setState({ mode: "drive" });
+    useEditorStore.getState().onScenario({ event: "ramp", detail: "RAMP-D3-D2 deployed" });
+    expect(useEditorStore.getState().rampStates["RAMP-D3-D2"]).toBe("deployed");
+    expect(useEditorStore.getState().scenarioLog[0].text).toBe("램프 RAMP-D3-D2 전개");
+  });
 });

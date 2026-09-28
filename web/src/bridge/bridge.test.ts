@@ -4,7 +4,7 @@ import { useUiStore } from "../store/ui";
 import { useEditorStore } from "../store/editor";
 
 describe("editorStateMessages", () => {
-  const ui = { tool: "place" as const, cam: "fly" as const };
+  const ui = { tool: "place" as const, cam: "fly" as const, shell: "full" as const };
   const ed = {
     coverageParams: { fov_deg: 55, max_dist_m: 12, max_view_angle_deg: 40, sigma_r: 0.3, sigma_theta: 2, sigma_alpha: 3, grid_m: 1 },
     sigmaGps: 0.6, timeScale: 4, occluded: ["LM-0001"],
@@ -14,7 +14,7 @@ describe("editorStateMessages", () => {
     // If one of these ever drops off the list the symptom is silent: the scene simply behaves as if
     // the user had never set it, and only after a reload.
     expect(editorStateMessages(ui, ed).map(([name]) => name)).toEqual(
-      ["SetTool", "SetCamMode", "SetSensor", "SetNoise", "SetTimeScale", "SetOccluded"],
+      ["SetTool", "SetCamMode", "SetSensor", "SetNoise", "SetTimeScale", "SetOccluded", "SetShellMode"],
     );
   });
 
@@ -28,6 +28,7 @@ describe("editorStateMessages", () => {
       SetNoise: { sigma_r: 0.3, sigma_theta: 2, sigma_alpha: 3, sigma_gps: 0.6 },
       SetTimeScale: { scale: 4 },
       SetOccluded: { ids: ["LM-0001"] },
+      SetShellMode: { mode: "full" },
     });
   });
 

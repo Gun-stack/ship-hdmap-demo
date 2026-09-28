@@ -1,3 +1,4 @@
+using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -24,13 +25,8 @@ namespace ShipHdMap.Tests
             // first pillar: ship (12, -6.5) -> Unity (12, *, +6.5)
             Assert.That(pillar.position.x, Is.EqualTo(12f).Within(1e-3));
             Assert.That(pillar.position.z, Is.EqualTo(6.5f).Within(1e-3));
-            var mep = ship.transform.Find("D3/MEP");
-            Assert.That(mep.childCount, Is.EqualTo(3));
-            foreach (Transform pipe in mep)
-            {
-                Assert.That(pipe.GetComponent<BoxCollider>(), Is.Not.Null, $"{pipe.name} should have a BoxCollider");
-                Assert.That(pipe.GetComponent<CapsuleCollider>(), Is.Null, $"{pipe.name} should not have a CapsuleCollider");
-            }
+            Assert.That(ship.transform.Find("D3/MEP"), Is.Null, "M8: no MEP -- the pipes hid the lanes in the orbit view");
+            Assert.That(ship.transform.Find("D3/Lashing").GetComponent<MeshFilter>().sharedMesh.vertexCount, Is.GreaterThan(1000 * 7), "every socket, one mesh");
             var bow = ship.transform.Find("D3/Bow");
             Assert.That(bow, Is.Not.Null);
             Assert.That(bow.GetComponent<Collider>().bounds.center.x, Is.EqualTo(119.9f).Within(0.05f)); // 0.2 m thick wall centred at x = 119.9, inner face at x = 119.8
@@ -66,8 +62,7 @@ namespace ShipHdMap.Tests
             {
                 var a = fromSeed.transform.Find($"{d.id}/Floor"); var b = fromMap.transform.Find($"{d.id}/Floor");
                 Assert.That(b, Is.Not.Null, "deck " + d.id);
-                Assert.That(b.localPosition, Is.EqualTo(a.localPosition));
-                Assert.That(b.localScale, Is.EqualTo(a.localScale));
+                Assert.That(b.GetComponent<Renderer>().bounds, Is.EqualTo(a.GetComponent<Renderer>().bounds));
                 Assert.That(fromMap.transform.Find($"{d.id}/Pillars").childCount, Is.EqualTo(fromSeed.transform.Find($"{d.id}/Pillars").childCount));
             }
             Assert.That(fromMap.transform.Find("Ramp").localPosition, Is.EqualTo(fromSeed.transform.Find("Ramp").localPosition));
@@ -84,10 +79,10 @@ namespace ShipHdMap.Tests
                 outline = new[] { new[] { 20.0, -4.0, 5.4 }, new[] { 100.0, -4.0, 5.4 }, new[] { 100.0, 8.0, 5.4 }, new[] { 20.0, 8.0, 5.4 }, new[] { 20.0, -4.0, 5.4 } } } } };
             ship = ShipMeshBuilder.Build(map);
             var floor = ship.transform.Find("D1/Floor");
-            Assert.That(floor.localPosition.x, Is.EqualTo(60f).Within(1e-3f), "(20 + 100) / 2, not the extent's own half");
-            Assert.That(floor.localPosition.z, Is.EqualTo(-2f).Within(1e-3f), "Unity z = -(ship y centre)");
-            Assert.That(floor.localScale.x, Is.EqualTo(80f).Within(1e-3f));
-            Assert.That(floor.localScale.z, Is.EqualTo(12f).Within(1e-3f));
+            Assert.That(floor.GetComponent<Renderer>().bounds.center.x, Is.EqualTo(60f).Within(1e-3f), "(20 + 100) / 2, not the extent's own half");
+            Assert.That(floor.GetComponent<Renderer>().bounds.center.z, Is.EqualTo(-2f).Within(1e-3f), "Unity z = -(ship y centre)");
+            Assert.That(floor.GetComponent<Renderer>().bounds.size.x, Is.EqualTo(80f).Within(1e-3f));
+            Assert.That(floor.GetComponent<Renderer>().bounds.size.z, Is.EqualTo(12f).Within(1e-3f));
             Assert.That(ship.transform.Find("D1/Bow").localPosition.x, Is.EqualTo(100f - 0.1f).Within(1e-3f), "the bow bulkhead closes the deck at its own forward end");
             Assert.That(ship.transform.Find("D1/HullPort").localPosition.z, Is.EqualTo(-8f).Within(1e-3f), "port is ship +y, i.e. Unity -z");
         }
@@ -121,6 +116,101 @@ namespace ShipHdMap.Tests
             var firstMaterial = d1FloorRenderer.sharedMaterial;
             ShipMeshBuilder.SetDeckVisibility(ship, "D3");
             Assert.That(ReferenceEquals(d1FloorRenderer.sharedMaterial, firstMaterial), Is.True);
+        }
+
+        [Test]
+        public void TheSternRampIsFoundByNameWhateverOrderTheMapListsRampsIn()
+        {
+            var seed = ShipSeedBuilder.Build(new ShipParams());
+            seed.ramps.Reverse();                                   // the API lists them in id order: RAMP-D2-D1 first
+            ship = ShipMeshBuilder.Build(seed);
+            var stern = ship.transform.Find("Ramp");
+            Assert.That(stern, Is.Not.Null);
+            Assert.That(stern.localPosition.x, Is.EqualTo(0f).Within(1e-4f), "\"Ramp\" is the stern ramp at the AP");
+            Assert.That(ship.transform.Cast<Transform>().Count(t => t.name == "Ramp"), Is.EqualTo(1));
+            Assert.That(ship.transform.Find(ShipMeshBuilder.InnerRampName("RAMP-D3-D2")), Is.Not.Null);
+        }
+
+        [Test]
+        public void AnInternalRampSwingsItsToeOntoTheLowerDeckAndStowsFlush()
+        {
+            var seed = ShipSeedBuilder.Build(new ShipParams());
+            ship = ShipMeshBuilder.Build(seed);
+            foreach (var r in seed.ramps.Where(r => r.type == "internal_hoistable"))
+            {
+                var t = ship.transform.Find(ShipMeshBuilder.InnerRampName(r.id));
+                var plate = t.Find("Plate");
+                // deployed: the plate's far end sits on the toe height
+                float farEnd = plate.TransformPoint(new Vector3(0.5f * Mathf.Sign(plate.localPosition.x), 0.5f, 0)).y;
+                Assert.That(farEnd, Is.EqualTo((float)r.toe[0][2]).Within(0.05f), r.id + " deployed reaches the lower deck");
+                ShipMeshBuilder.SetInnerRamp(ship, r.id, deployed: false, animate: false);
+                farEnd = plate.TransformPoint(new Vector3(0.5f * Mathf.Sign(plate.localPosition.x), 0.5f, 0)).y;
+                Assert.That(farEnd, Is.EqualTo((float)r.hinge[0][2]).Within(0.01f), r.id + " stowed is flush with the upper deck");
+            }
+        }
+
+        [Test]
+        public void TheFloorHasAHoleWhereARampSwingsUpAndNowhereElse()
+        {
+            var seed = ShipSeedBuilder.Build(new ShipParams());
+            ship = ShipMeshBuilder.Build(seed);
+            Physics.SyncTransforms();
+            bool Solid(string deck, double x, double y, double z)
+            {
+                var from = ShipFrame.ToUnity(x, y, z + 1); var to = ShipFrame.ToUnity(x, y, z - 0.5);
+                return Physics.Linecast(from, to, out var hit) && hit.collider.transform.IsChildOf(ship.transform.Find(deck));
+            }
+            // RAMP-D3-D2 hangs from D3 at x 14.17..34, port strip y 7.8..11.8: open there on D3 (while deployed), floor on D2
+            ShipMeshBuilder.SetInnerRamp(ship, "RAMP-D3-D2", deployed: true, animate: false);
+            Physics.SyncTransforms();
+            Assert.That(Solid("D3", 24, 9.8, 10.6), Is.False, "D3 is open over the ramp");
+            Assert.That(Solid("D3", 24, 0, 10.6), Is.True);
+            Assert.That(Solid("D3", 24, -9.8, 10.6), Is.True, "RAMP-D3-D4 opens D4, not D3");
+            Assert.That(Solid("D4", 24, -9.8, 13.2), Is.False);
+        }
+
+        [Test]
+        public void SlabPiecesCoverTheDeckButTheHoles()
+        {
+            var pieces = ShipMeshBuilder.SlabPieces(0, -12, 120, 12, new[] { new[] { 14.0, 7.8, 34.0, 11.8 } });
+            double area = pieces.Sum(p => (p.x1 - p.x0) * (p.y1 - p.y0));
+            Assert.That(area, Is.EqualTo(120 * 24 - 20 * 4).Within(1e-6));
+            Assert.That(pieces.Any(p => p.x0 < 24 && p.x1 > 24 && p.y0 < 9.8 && p.y1 > 9.8), Is.False);
+        }
+
+        [Test]
+        public void CutawayTakesThePortSideAndRoofOffAndSingleDeckViewHidesTheShell()
+        {
+            ship = ShipMeshBuilder.Build(ShipSeedBuilder.Build(new ShipParams { lashingPitchM = 4 }));
+            var port = ship.transform.Find("Shell/ShellPort").GetComponentInChildren<Renderer>();
+            var stbd = ship.transform.Find("Shell/Topside").GetComponent<Renderer>();
+            Assert.That(port.enabled, Is.False, "cutaway is the default");
+            Assert.That(stbd.enabled, Is.True);
+            HullBuilder.SetCutaway(ship, false);
+            Assert.That(port.enabled, Is.True);
+            ShipMeshBuilder.SetDeckVisibility(ship, "D3");
+            Assert.That(stbd.enabled, Is.False);
+            Assert.That(ship.transform.Find("D4/Floor").GetComponent<Renderer>().enabled, Is.False, "a deck above the one in view is hidden, not faded");
+            Assert.That(ship.transform.Find("D2/Floor").GetComponent<Renderer>().enabled, Is.True);
+            ShipMeshBuilder.SetDeckVisibility(ship, "all");
+            Assert.That(port.enabled, Is.True, "back to full shell, as it was left");
+            Assert.That(ship.transform.Find("D4/Floor").GetComponent<Renderer>().enabled, Is.True);
+        }
+
+        /// A zero normal lights as NaN: black on screen, and bloom then spreads it over the whole frame. Every procedural
+        /// mesh the ship builds (floors, sockets, shell) must carry unit normals.
+        [Test]
+        public void EveryGeneratedMeshHasRealNormals()
+        {
+            ship = ShipMeshBuilder.Build(ShipSeedBuilder.Build(new ShipParams { lashingPitchM = 4 }));
+            int meshes = 0;
+            foreach (var f in ship.GetComponentsInChildren<MeshFilter>(true))
+            {
+                var m = f.sharedMesh; if (!m || !m.name.EndsWith("~gen")) continue;
+                meshes++;
+                foreach (var n in m.normals) Assert.That(n.magnitude, Is.GreaterThan(0.5f), $"{f.name}: a zero normal");
+            }
+            Assert.That(meshes, Is.GreaterThan(10), "the shell, floors and sockets are all procedural");
         }
     }
 }

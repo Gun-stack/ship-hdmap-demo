@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useEditorStore } from "../store/editor";
-import { useUiStore, type CamMode, type Tool } from "../store/ui";
+import { useUiStore, type CamMode, type ShellMode, type Tool } from "../store/ui";
 import type { BridgeName } from "../bridge/useShipUnity";
 
 type Send = (name: BridgeName, payload?: string | object) => void;
@@ -14,9 +14,14 @@ const CAMS: { k: CamMode; label: string; key: string }[] = [
   { k: "orbit", label: "궤도", key: "C" }, { k: "fly", label: "비행", key: "C" }, { k: "driver", label: "차량 시선", key: "C" },
 ];
 
+const SHELLS: { k: ShellMode; label: string; hint: string }[] = [
+  { k: "cutaway", label: "단면", hint: "좌현 외판과 지붕을 걷어 갑판을 본다" },
+  { k: "full", label: "외관", hint: "선체 전체" },
+];
+
 export function Toolbar({ send }: { send: Send }) {
   const mode = useEditorStore((s) => s.mode);
-  const { tool, setTool, cam, setCam } = useUiStore();
+  const { tool, setTool, cam, setCam, shell, setShell } = useUiStore();
   const pickTool = (t: Tool) => { setTool(t); send("SetTool", { tool: t }); };
   const pickCam = (c: CamMode) => { setCam(c); send("SetCamMode", { mode: c }); };
 
@@ -43,6 +48,12 @@ export function Toolbar({ send }: { send: Send }) {
         // 차량 시선은 차가 있어야 한다 (스펙 §5.1)
         <button key={c.k} type="button" className={`btn${cam === c.k ? " primary" : ""}`} title={`${c.label} (${c.key} 로 순환)`}
           disabled={c.k === "driver" && mode !== "drive"} onClick={() => pickCam(c.k)}>{c.label}</button>
+      ))}
+      <span className="sep" />
+      {/* M8: the hull around the decks -- cut away on the port side and roof to see in, or whole */}
+      {SHELLS.map((m) => (
+        <button key={m.k} type="button" className={`btn${shell === m.k ? " primary" : ""}`} title={m.hint}
+          onClick={() => { setShell(m.k); send("SetShellMode", { mode: m.k }); }}>{m.label}</button>
       ))}
     </div>
   );
