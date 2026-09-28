@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { EDITOR_KEY, EDITOR_SCHEMA, EDITOR_WRITE_MS, useEditorStore, visibleFeatures } from "./editor";
+import { EDITOR_KEY, EDITOR_SCHEMA, EDITOR_WRITE_MS, rampEvent, useEditorStore, visibleFeatures } from "./editor";
 import { api } from "../api/client";
 
 vi.mock("../api/client", () => ({
   api: {
     getDataset: vi.fn(async () => ({ id: "ds1", name: "d", version: 3, ap_lat: 0, ap_lon: 0, heading_deg: 0, lpp_m: 120 })),
-    mapMeta: vi.fn(async () => ({ decks: [{ id: "D3", name: "Deck 3", z_surface: 10.6, z_clear: 2.2, movable: false, outline: [] }], slotStatus: { "PS-D3-001": "filled" } })),
+    mapMeta: vi.fn(async () => ({ decks: [{ id: "D3", name: "Deck 3", z_surface: 10.6, z_clear: 2.2, movable: false, outline: [] }], slotStatus: { "PS-D3-001": "filled" }, innerRamps: [], routes: [] })),
     listFeatures: vi.fn(async () => [
       { id: "LM-0001", deck_id: "D3", layer: "LM", kind: "apriltag", geometry: { type: "Point", coordinates: [12, -6.2, 11.8] }, props: { code: 1 } },
       { id: "A2-D1-0001", deck_id: "D1", layer: "A2", kind: "centerline", geometry: { type: "LineString", coordinates: [[2, 0, 5.4], [118, 0, 5.4]] }, props: {} },
@@ -263,4 +263,23 @@ describe("persisted schema", () => {
   });
 
   it("is on version 2", () => { expect(EDITOR_SCHEMA).toBe(2); });
+});
+
+describe("internal ramp events", () => {
+  beforeEach(() => useEditorStore.setState(useEditorStore.getInitialState()));
+  it("parse, and only a well-formed one counts", () => {
+    expect(rampEvent({ event: "ramp", detail: "RAMP-D3-D2 stowed" })).toEqual({ id: "RAMP-D3-D2", state: "stowed" });
+    expect(rampEvent({ event: "ramp", detail: "RAMP-D3-D2 sideways" })).toBeNull();
+    expect(rampEvent({ event: "target", slot_id: "PS-D1-001" })).toBeNull();
+  });
+  it("mirror the scene's state, and log only during a drive (the scene re-announces every ramp after a Load)", () => {
+    const s = useEditorStore.getState();
+    s.onScenario({ event: "ramp", detail: "RAMP-D3-D2 stowed" });
+    expect(useEditorStore.getState().rampStates["RAMP-D3-D2"]).toBe("stowed");
+    expect(useEditorStore.getState().scenarioLog).toHaveLength(0);
+    useEditorStore.setState({ mode: "drive" });
+    useEditorStore.getState().onScenario({ event: "ramp", detail: "RAMP-D3-D2 deployed" });
+    expect(useEditorStore.getState().rampStates["RAMP-D3-D2"]).toBe("deployed");
+    expect(useEditorStore.getState().scenarioLog[0].text).toBe("램프 RAMP-D3-D2 전개");
+  });
 });

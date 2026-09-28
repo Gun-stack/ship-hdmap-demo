@@ -1,8 +1,9 @@
 import { useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useEditorStore, visibleFeatures } from "../store/editor";
 import { useUiStore, type PlanView } from "../store/ui";
 import { bbox, linePath, pickDeck, ringPath } from "../geo/deck";
-import { LEGEND, clampView, fitTo, niceLength, screenToPlan, viewBoxOf, zoomAt } from "../geo/plan";
+import { LEGEND, clampView, fitTo, niceLength, rampRing, routeRunsAt, screenToPlan, viewBoxOf, zoomAt } from "../geo/plan";
 import { cellColor, cellOpacity } from "../geo/coverage";
 import { PALETTE, PLAN_ONLY, slotColor } from "../theme/palette";
 
@@ -18,7 +19,13 @@ const DRAG_PX = 4;
 const WHEEL_COMMIT_MS = 250;
 
 export function PlanDock() {
-  const s = useEditorStore();
+  // Only what the plan draws. The whole store would re-render (and re-filter every feature) on each localization and
+  // belief event -- ~100 a second at x20, which with five decks of features was most of the frame (M8 profile).
+  const s = useEditorStore(useShallow((e) => ({
+    decks: e.decks, deckFilter: e.deckFilter, features: e.features, drafts: e.drafts, selectedId: e.selectedId, occluded: e.occluded,
+    coverage: e.coverage, candidates: e.candidates, slotStatus: e.slotStatus, innerRamps: e.innerRamps, routes: e.routes, rampStates: e.rampStates,
+    select: e.select,
+  })));
   const ui = useUiStore();
   const svgRef = useRef<SVGSVGElement>(null);
   // Anchor plus the screen point pointerdown happened at, so pointermove can tell a click from a drag
@@ -45,7 +52,7 @@ export function PlanDock() {
   );
 
   const box = bbox(deck.outline, 3);
-  const feats = visibleFeatures(s);
+  const feats = visibleFeatures(s);   // cheap enough per render now that only plan-relevant changes render
   // A class, not stroke props: the selection colour follows the theme, and CSS var() does not work in SVG presentation attributes.
   const mark = (f: (typeof feats)[number]) => (s.selectedId === f.id ? { className: "sel" } : {});
   const zoomed = view.scale >= 4;   // `view` is what's on screen right now; the store only catches up 250ms after a wheel gesture ends
@@ -64,6 +71,8 @@ export function PlanDock() {
         <button className="btn" onClick={ui.toggleDock}>접기</button>
         <span className="legend">
           {SLOT_LEGEND.map((l) => <span key={l.status}><i className="ring" style={{ borderColor: slotColor(l.status) }} />{l.label}</span>)}
+          {s.innerRamps.length > 0 && <span><i className="ring" style={{ borderColor: PLAN_ONLY.RampDeployed }} />램프</span>}
+          {s.routes.length > 0 && <span><i style={{ background: PALETTE.Route }} />경로</span>}
           {LEGEND.map((l) => <span key={l.label}><i className={l.faint ? "faint" : undefined} style={{ background: l.color }} />{l.label}</span>)}
         </span>
       </div>
@@ -134,13 +143,29 @@ export function PlanDock() {
           dragging.current = false;
           setLive(null);
         }}>
+        <defs>
+          <pattern id="ramp-hatch" width="1.2" height="1.2" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <rect width="1.2" height="1.2" fill={PLAN_ONLY.RampDeployed} fillOpacity={0.12} />
+            <line x1="0" y1="0" x2="0" y2="1.2" stroke={PLAN_ONLY.RampDeployed} strokeWidth={0.35} strokeOpacity={0.7} />
+          </pattern>
+        </defs>
         {s.coverage?.cells.map((c, i) => (
           <rect key={i} x={c.x - s.coverage!.grid_m / 2} y={-c.y - s.coverage!.grid_m / 2}
             width={s.coverage!.grid_m} height={s.coverage!.grid_m}
             fill={cellColor(c)} fillOpacity={cellOpacity(c)} stroke="none" pointerEvents="none" />
         ))}
         <path d={ringPath(deck.outline)} className="outline" />
-        {feats.filter((f) => f.layer === "A2").map((f) => <path key={f.id} d={linePath(f.geometry.coordinates as number[][])} fill="none" stroke={PALETTE.Lane} strokeWidth={0.4} strokeDasharray="2 1" onClick={() => s.select(f.id)} {...mark(f)} />)}
+        {/* M8: internal ramps touching this deck, by state -- a deployed one is a hole or a slope here, a stowed one floor */}
+        {s.innerRamps.filter((r) => r.lower_deck === deck.id || r.upper_deck === deck.id).map((r) => {
+          const down = (s.rampStates[r.id] ?? "deployed") === "deployed";
+          return <path key={r.id} d={ringPath(rampRing(r))} pointerEvents="none" strokeWidth={0.3}
+            fill={down ? "url(#ramp-hatch)" : "none"} stroke={down ? PLAN_ONLY.RampDeployed : PLAN_ONLY.RampStowed} strokeDasharray={down ? undefined : "1 0.6"} />;
+        })}
+        {feats.filter((f) => f.layer === "A2" && f.kind !== "route").map((f) => <path key={f.id} d={linePath(f.geometry.coordinates as number[][])} fill="none" stroke={PALETTE.Lane} strokeWidth={0.4} strokeDasharray="2 1" onClick={() => s.select(f.id)} {...mark(f)} />)}
+        {/* routes to other decks, where they cross this one */}
+        {s.routes.flatMap((r) => routeRunsAt(r.path, deck.z_surface).map((run, k) => (
+          <path key={`${r.id}-${k}`} d={linePath(run)} fill="none" stroke={PALETTE.Route} strokeWidth={0.3} strokeDasharray="0.8 0.8" pointerEvents="none" />
+        )))}
         {/* by parking status, in the same colour names Unity's slot fills use (Palette.cs) */}
         {feats.filter((f) => f.layer === "B2").map((f) => { const c = slotColor(s.slotStatus[f.id]); return <path key={f.id} d={ringPath((f.geometry.coordinates as number[][][])[0])} fill={c} fillOpacity={0.22} stroke={c} strokeWidth={0.25} onClick={() => s.select(f.id)} {...mark(f)} />; })}
         {feats.filter((f) => f.layer === "C" && f.geometry.type === "Polygon").map((f) => <path key={f.id} d={ringPath((f.geometry.coordinates as number[][][])[0])} className={s.selectedId === f.id ? "structure sel" : "structure"} onClick={() => s.select(f.id)} />)}

@@ -1,4 +1,4 @@
-import type { CoverageIn, CoverageOut, Dataset, Deck, Feature, FeatureIn, GenerateSlotsIn, GenerateSlotsOut, Pose, RampState, SlotStatus, SuggestOut } from "./types";
+import type { CoverageIn, CoverageOut, Dataset, Deck, Feature, FeatureIn, GenerateSlotsIn, GenerateSlotsOut, Pose, RampState, Route, InnerRamp, SlotStatus, SuggestOut } from "./types";
 
 const BASE = "/api";
 
@@ -30,8 +30,13 @@ export const api = {
   getDataset: (ds: string) => req<Dataset>("GET", `/datasets/${ds}`),
   /** M2 has no deck endpoint; decks come from the vehicle map. So do slot statuses, which live in parking_slot, not on the B2 feature. */
   mapMeta: async (ds: string) => {
-    const m = await req<{ decks: Deck[]; parking_slots?: { id: string; status?: SlotStatus }[] }>("GET", `/datasets/${ds}/vehicle-map`);
-    return { decks: m.decks, slotStatus: Object.fromEntries((m.parking_slots ?? []).map((p) => [p.id, p.status ?? "empty"])) as Record<string, SlotStatus> };
+    const m = await req<{ decks: Deck[]; parking_slots?: { id: string; status?: SlotStatus }[]; ramps?: (InnerRamp & { type?: string })[]; routes?: Route[] }>("GET", `/datasets/${ds}/vehicle-map`);
+    return {
+      decks: m.decks,
+      slotStatus: Object.fromEntries((m.parking_slots ?? []).map((p) => [p.id, p.status ?? "empty"])) as Record<string, SlotStatus>,
+      innerRamps: (m.ramps ?? []).filter((r) => r.type === "internal_hoistable").map(({ id, lower_deck, upper_deck, hinge, toe }) => ({ id, lower_deck, upper_deck, hinge, toe })),
+      routes: m.routes ?? [],
+    };
   },
   listFeatures: (ds: string, f: { deck?: string; layer?: string } = {}) => req<Feature[]>("GET", `/datasets/${ds}/features${q(f)}`),
   createFeature: (ds: string, f: FeatureIn) => req<Feature>("POST", `/datasets/${ds}/features`, f),

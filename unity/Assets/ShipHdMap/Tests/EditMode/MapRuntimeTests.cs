@@ -181,14 +181,15 @@ namespace ShipHdMap.Tests
         {
             go = new GameObject("Map"); var rt = go.AddComponent<MapRuntime>(); rt.InitForTest(); rt.Load(Fixture());
             var overlay = rt.transform.Find("Overlay"); Assert.That(overlay, Is.Not.Null);
-            var lines = overlay.GetComponentsInChildren<LineRenderer>(true);
-            Assert.That(lines.Length, Is.EqualTo(7)); // 5 lanes + 2 slots
+            var lines = overlay.GetComponentsInChildren<LineRenderer>(true).Where(l => !l.name.Contains(MapOverlay.RouteSuffix)).ToArray();
+            Assert.That(lines.Length, Is.EqualTo(7)); // 5 lanes + 2 slots (routes counted apart)
+            Assert.That(overlay.GetComponentsInChildren<LineRenderer>(true).Any(l => l.name.StartsWith("ROUTE-D1" + MapOverlay.RouteSuffix)), Is.True);
             rt.SetDeck("D3");
             Assert.That(overlay.Find("D1/A2-D1-0001").GetComponent<LineRenderer>().enabled, Is.False);
             Assert.That(overlay.Find("D3/A2-D3-0001").GetComponent<LineRenderer>().enabled, Is.True);
             int fillMeshesBefore = CountFillMeshes();
             rt.Load(Fixture()); // rebuild keeps the filter and does not duplicate
-            Assert.That(rt.transform.Find("Overlay").GetComponentsInChildren<LineRenderer>(true).Length, Is.EqualTo(7));
+            Assert.That(rt.transform.Find("Overlay").GetComponentsInChildren<LineRenderer>(true).Count(l => !l.name.Contains(MapOverlay.RouteSuffix)), Is.EqualTo(7));
             Assert.That(rt.transform.Find("Overlay/D1/A2-D1-0001").GetComponent<LineRenderer>().enabled, Is.False);
             Assert.That(CountFillMeshes(), Is.EqualTo(fillMeshesBefore)); // the old overlay's fill meshes were destroyed, not leaked
         }

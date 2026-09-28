@@ -15,7 +15,13 @@ export type GenerateSlotsOut = { deck: string; count: number; utilization: numbe
 export type SlotStatus = "empty" | "filled" | "needs_adjust" | "unreachable";
 /** Unity -> React: parking judgement (load) or an emptied slot (unload: status "empty", no errors). */
 export type SlotFilledEvt = { slot_id: string; status: SlotStatus; err_lat?: number; err_lon?: number; err_heading?: number };
-export type ScenarioEvt = { event: "start" | "target" | "leave_lane" | "frame_switch" | "finished"; mode?: "load" | "unload"; slot_id?: string; detail?: string };
+/** `ramp` (M8): an internal ramp changed state; detail is "<ramp id> deployed|stowed". */
+export type ScenarioEvt = { event: "start" | "target" | "leave_lane" | "frame_switch" | "ramp" | "finished"; mode?: "load" | "unload"; slot_id?: string; detail?: string };
+/** M8: a hoistable ramp between two decks. hinge = its upper end, toe = its lower end (each two points across its width). */
+export type InnerRamp = { id: string; lower_deck: string; upper_deck: string; hinge: number[][]; toe: number[][] };
+/** M8: from the stern-ramp deck's entrance to deck_id's lane start, over the listed internal ramps. */
+export type Route = { id: string; deck_id: string; ramps: string[]; path: number[][] };
+export type RampPosition = "deployed" | "stowed";
 export type ScenarioLine = { t: string; text: string };
 /** in_scope is absent for in-scope cells: the API only writes it when false. */
 export type CoverageCell = { x: number; y: number; n: number; sigma_xy?: number; sigma_psi?: number; stability?: number; in_scope?: boolean };

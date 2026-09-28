@@ -7,6 +7,7 @@ import { CoveragePanel } from "./CoveragePanel";
 import { PropertyForm } from "./PropertyForm";
 import { PosePanel } from "./PosePanel";
 import { DrivePanel } from "./DrivePanel";
+import { RampPanel } from "./RampPanel";
 
 type Send = (name: BridgeName, payload?: string | object) => void;
 
@@ -30,7 +31,7 @@ export function RightTabs({ send, reloadScene }: { send: Send; reloadScene: () =
   // restoreTab is a no-op unless 속성 is open, so the mount-time run with no selection changes nothing.
   useEffect(() => { if (selectedId) openPropsFor(); else restoreTab(); }, [selectedId, openPropsFor, restoreTab]);
 
-  if (mode === "drive") return <div className="tabbody"><DrivePanel send={send} /><PosePanel /></div>;
+  if (mode === "drive") return <div className="tabbody"><DrivePanel send={send} /><RampPanel send={send} /><PosePanel /></div>;
 
   return (
     <>
@@ -44,7 +45,7 @@ export function RightTabs({ send, reloadScene }: { send: Send; reloadScene: () =
         {tab === "load" && <LoadPanel reloadScene={reloadScene} />}
         {tab === "coverage" && <CoveragePanel />}
         {tab === "props" && <PropertyForm send={send} />}
-        {tab === "pose" && <PosePanel />}
+        {tab === "pose" && <><PosePanel /><RampPanel send={send} /></>}
       </div>
     </>
   );

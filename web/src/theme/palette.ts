@@ -22,6 +22,7 @@ export const PALETTE = {
   Selection: "#ffb300",
   Seen: "#e040a0",
   SensorCone: "#4cc9f0",
+  Route: "#a3e635",
 } as const;
 
 export type PaletteName = keyof typeof PALETTE;
@@ -31,6 +32,8 @@ export const PLAN_ONLY = {
   Landmark: "#e5484d",
   Draft: "#ff9800",
   Candidate: "#b07cf0",
+  RampDeployed: "#38bdf8",
+  RampStowed: "#6b6f78",
 } as const;
 
 export const SLOT_COLOR: Record<string, string> = {

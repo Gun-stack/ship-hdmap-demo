@@ -49,6 +49,7 @@ namespace ShipHdMap
         /// Internal ramp id -> RampPlanner.Deployed | Stowed. Owned by the scene: the scenario raises and lowers ramps as it
         /// goes (RampPlanner.Plan), the web only mirrors it (onScenario "ramp") or asks for a change while idle (SetRampState).
         readonly Dictionary<string, string> _rampState = new();
+        readonly Dictionary<string, double[]> _lashingPos = new();   // socket id -> Ship Frame position, for the parked cars' straps
         public IReadOnlyDictionary<string, string> RampStates => _rampState;
         const double R2D = 180 / Math.PI;
         double _trimDeg;   // set by ApplyPose; RampEndsInQuay needs it to match SetRampAngle's ship-local rotation
@@ -150,6 +151,11 @@ namespace ShipHdMap
             var mats = new HashSet<Material>();
             foreach (var r in ship.GetComponentsInChildren<Renderer>(true)) if (r.sharedMaterial) mats.Add(r.sharedMaterial);
             foreach (var m in mats) { if (Application.isPlaying) Destroy(m); else DestroyImmediate(m); }
+            // M8: floors with openings, the socket meshes and the shell are procedural ("~gen") -- as unreachable as the
+            // materials once the ship goes. Built-in primitive meshes are shared and must not be touched.
+            var meshes = new HashSet<Mesh>();
+            foreach (var f in ship.GetComponentsInChildren<MeshFilter>(true)) if (f.sharedMesh && f.sharedMesh.name.EndsWith("~gen")) meshes.Add(f.sharedMesh);
+            foreach (var m in meshes) { if (Application.isPlaying) Destroy(m); else DestroyImmediate(m); }
         }
 
         // ---- incoming (React -> Unity) ----
@@ -171,6 +177,9 @@ namespace ShipHdMap
             Placer.nextCode = _markers.Count + 1;
             Placer.nextId = _markers.Count + 1;
 
+            _lashingPos.Clear();
+            foreach (var lp in CurrentMap.lashing_points ?? new List<LashingPoint>()) if (lp.position != null) _lashingPos[lp.id] = lp.position;
+
             // free fill meshes before the overlay itself: SlotFill.OnDestroy does not run in EditMode (no [ExecuteAlways])
             if (_overlay) { foreach (var fill in _overlay.GetComponentsInChildren<SlotFill>(true)) { var m = fill.GetComponent<MeshFilter>()?.sharedMesh; if (m) DestroyImmediate(m); } DestroyImmediate(_overlay); }
             _overlay = MapOverlay.Build(CurrentMap, transform); MapOverlay.SetDeck(_overlay, _deck);
@@ -178,7 +187,7 @@ namespace ShipHdMap
             {
                 if (!ScenarioPlanner.IsFilled(slot.status) || slot.target_pose == null) continue;
                 var deck = CurrentMap.decks?.Find(d => d.id == slot.deck_id); if (deck == null) continue;
-                MapOverlay.SpawnParked(_overlay, slot, new Pose2D { x = slot.target_pose.x, y = slot.target_pose.y, psiRad = slot.target_pose.heading_deg / R2D }, deck.z_surface);
+                MapOverlay.SpawnParked(_overlay, slot, new Pose2D { x = slot.target_pose.x, y = slot.target_pose.y, psiRad = slot.target_pose.heading_deg / R2D }, deck.z_surface, _lashingPos);
             }
             foreach (var m in _markers.Values) if (m) m.gameObject.SetActive(_deck == "all" || m.deckId == _deck);
 
@@ -231,6 +240,13 @@ namespace ShipHdMap
                 want = RampPlanner.StateOf(_rampState, r.id);
             }
             SetRamp(r.id, want, emit: true);
+        }
+
+        /// cutaway (port side and roof off, the default) | full. The deck filter still hides the shell in single-deck view.
+        public void SetShellMode(string json)
+        {
+            var m = MapJson.Parse<SetShellModeMsg>(json);
+            if (Ship) HullBuilder.SetCutaway(Ship, m?.mode != "full");
         }
 
         public void SetMode(string mode)
@@ -704,7 +720,7 @@ namespace ShipHdMap
                 {
                     var (status, lat, lon, hdg) = ScenarioPlanner.Judge(Vehicle.Truth, _target.target_pose, _target.tolerance);
                     _target.status = status; MapOverlay.SetStatus(_overlay, _target.id, status);
-                    MapOverlay.SpawnParked(_overlay, _target, Vehicle.Truth, _targetDeck.z_surface);
+                    MapOverlay.SpawnParked(_overlay, _target, Vehicle.Truth, _targetDeck.z_surface, _lashingPos);
                     Send(BridgeMessages.OnSlotFilled, MapJson.Serialize(new SlotFilledEvt { slot_id = _target.id, status = status, err_lat = lat, err_lon = lon, err_heading = hdg }));
                     NextVehicle();
                     break;

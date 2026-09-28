@@ -303,6 +303,19 @@ MonoBehaviour:
     rampDeckIndex: 2
     laneWidthM: 3.2
     laneSpeedKmh: 10
+    innerRampLengthM: 20
+    innerRampWidthM: 4
+    innerRampSideY: 9.8
+    innerRampX:
+    - 34
+    - 56
+    - 78
+    innerTurnX:
+    - 40
+    - 62
+    - 84
+    laneStartX: 2
+    routedLaneStartX: 8
   cam: {fileID: 217376590}
 --- !u!4 &435272711
 Transform:

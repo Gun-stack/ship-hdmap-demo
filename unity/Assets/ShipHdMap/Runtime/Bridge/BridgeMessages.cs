@@ -5,7 +5,7 @@ namespace ShipHdMap
         public const string Load = "Load", SetMode = "SetMode", SetDeck = "SetDeck", Select = "Select", Confirm = "Confirm",
             SetPose = "SetPose", SetNoise = "SetNoise", StartScenario = "StartScenario", SetTimeScale = "SetTimeScale", SetPrediction = "SetPrediction", SetOccluded = "SetOccluded",
             SetBeliefParams = "SetBeliefParams", SetTool = "SetTool", SetCamMode = "SetCamMode", SetNormal = "SetNormal", SetSensor = "SetSensor",
-            SetRampState = "SetRampState",
+            SetRampState = "SetRampState", SetShellMode = "SetShellMode",
             Delete = "Delete";   // MapRuntime.Delete(string); listed here so the collision guard in MapRuntimeTests sees it too
         public const string OnSeedReady = "onSeedReady", OnFeatureCreated = "onFeatureCreated", OnFeatureMoved = "onFeatureMoved",
             OnSelected = "onSelected", OnSlotFilled = "onSlotFilled", OnLocalization = "onLocalization", OnScenario = "onScenario",
@@ -45,6 +45,7 @@ namespace ShipHdMap
     public class SetPredictionMsg { public double grid_m = 1; public double[] bbox; public PredCellMsg[] cells; public string deck_id; }
     /// Raise or lower one internal ramp (edit mode, no run on). state: deployed | stowed.
     public class SetRampStateMsg { public string id; public string state; }
+    public class SetShellModeMsg { public string mode; }   // cutaway | full
     public class SetBeliefParamsMsg
     {
         public double k = 2.0, drift_rate = 0.05, budget_m = 1.0, max_lost_m = 5.0, trail_m = 20.0;

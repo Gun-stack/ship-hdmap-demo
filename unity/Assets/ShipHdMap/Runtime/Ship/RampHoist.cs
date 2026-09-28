@@ -8,6 +8,7 @@ namespace ShipHdMap
     public class RampHoist : MonoBehaviour
     {
         public float deployedDeg;
+        public float lowerZ;              // the lower deck's height: SetDeckVisibility hides a ramp that is wholly above the deck in view
         public float degPerSecond = 3f;   // ~2.5 s for a 7.5 deg swing: slow enough to see, quick at a x20 time scale
         public bool Deployed { get; private set; }
         float _target, _angle;
