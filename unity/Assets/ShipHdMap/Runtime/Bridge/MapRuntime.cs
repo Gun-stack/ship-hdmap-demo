@@ -209,13 +209,13 @@ namespace ShipHdMap
         }
 
         /// After a Load: every internal ramp down, except one with a car parked on its near-deck ground -- that ramp can
-        /// only be up (the car is standing on it).
+        /// only be up (the car is standing on it). Each state is announced: the web's panel and plan view mirror them.
         void ResetRampStates()
         {
             _rampState.Clear();
             var slots = CurrentMap?.parking_slots ?? new List<ParkingSlot>();
             foreach (var r in RampPlanner.Internal(CurrentMap))
-                SetRamp(r.id, RampPlanner.CanDeploy(CurrentMap, r, slots) ? RampPlanner.Deployed : RampPlanner.Stowed, emit: false);
+                SetRamp(r.id, RampPlanner.CanDeploy(CurrentMap, r, slots) ? RampPlanner.Deployed : RampPlanner.Stowed, emit: true);
         }
 
         void SetRamp(string id, string state, bool emit)
@@ -698,6 +698,7 @@ namespace ShipHdMap
                     Vehicle.StartLane(_targetLane);
                     Belief.Reset(); _lastS = Vehicle.s;
                     ScenarioPhase = Phase.OnLane;
+                    Send(BridgeMessages.OnScenario, MapJson.Serialize(new ScenarioEvt { evt = "lane", slot_id = _target.id, detail = _targetDeck.id }));
                     break;
                 case Phase.OnLane when Vehicle.s >= _exitS || Vehicle.AtEnd:
                 {
@@ -776,6 +777,7 @@ namespace ShipHdMap
             Vehicle.StartPath(path, _targetLane != null && _targetLane.speed_limit_kmh > 0 ? _targetLane.speed_limit_kmh / 3.6 : ScenarioPlanner.ParkSpeedMps);
             Belief.Reset(); _lastS = Vehicle.s;
             ScenarioPhase = phase;
+            Send(BridgeMessages.OnScenario, MapJson.Serialize(new ScenarioEvt { evt = "route", slot_id = _target?.id, detail = _targetRoute?.id + (phase == Phase.ReturnRoute ? " back" : "") }));
         }
 
         static LandmarkRef RefOf(Landmark lm) => new LandmarkRef { id = lm.id, mx = lm.position[0], my = lm.position[1], phiRad = Math.Atan2(lm.normal[1], lm.normal[0]) };

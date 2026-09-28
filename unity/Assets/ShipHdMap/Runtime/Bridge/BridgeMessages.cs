@@ -32,8 +32,10 @@ namespace ShipHdMap
     public class SetTimeScaleMsg { public double scale = 1; }
     /// Parking result (load) or an emptied slot (unload: status "empty", no errors — nulls are dropped from the JSON).
     public class SlotFilledEvt { public string slot_id; public string status; public double? err_lat, err_lon, err_heading; }
-    /// Scenario log line. `event`: start | target | frame_switch | leave_lane | ramp | finished.
+    /// Scenario log line. `event`: start | target | frame_switch | route | lane | leave_lane | ramp | finished.
     /// `ramp` (M8) fires whenever an internal ramp changes state; its `detail` is "<ramp id> deployed|stowed".
+    /// `route` (M8): a car starts along the route to another deck (detail: route id, "+ back" when unloading);
+    /// `lane` (M8): it joins its target deck's lane (detail: deck id) -- the handover a figure can be pinned to.
     /// `frame_switch` fires when the entrance landmark pair is seen and the vehicle leaves the Quay Frame for the
     /// Ship Frame; its `detail` carries the estimate at that instant. `finished`'s `detail` is one of
     /// no_empty_slot | no_filled_slot | ramp_blocked | no_frame_switch.

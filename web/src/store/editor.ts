@@ -196,8 +196,9 @@ export const useEditorStore = create<EditorState>()(persist((set, get) => ({
   async generateSlots(deck, body) {
     const out = await api.generateSlots(get().datasetId, deck, body);
     const list = await api.listFeatures(get().datasetId);
-    // regenerated slots start empty; drop every status of the old ones
-    set((s) => ({ features: Object.fromEntries(list.map((f) => [f.id, f])), slotStatus: {}, slotGen: { ...s.slotGen, [deck]: { count: out.count, utilization: out.utilization, lashing_coverage: out.lashing_coverage } },
+    // regenerated slots start empty; drop the statuses of this deck's old ones -- the other decks keep theirs
+    set((s) => ({ features: Object.fromEntries(list.map((f) => [f.id, f])),
+      slotStatus: Object.fromEntries(Object.entries(s.slotStatus).filter(([id]) => s.features[id]?.deck_id !== deck)), slotGen: { ...s.slotGen, [deck]: { count: out.count, utilization: out.utilization, lashing_coverage: out.lashing_coverage } },
       selectedId: s.selectedId && !list.some((f) => f.id === s.selectedId) ? null : s.selectedId }));
     get().bumpVersion(out.version);
     return out;
@@ -332,6 +333,8 @@ export function scenarioLine(e: ScenarioEvt): string {
     case "target": return `대상 ${e.slot_id}`;
     case "leave_lane": return `차로 이탈 · ${e.detail ?? ""}`;
     case "frame_switch": return `프레임 전환 · ${e.detail ?? ""}`;
+    case "route": return `경로 · ${e.detail ?? ""}`;
+    case "lane": return `차로 진입 · ${e.detail ?? ""}`;
     case "ramp": { const r = rampEvent(e); return r ? `램프 ${r.id} ${r.state === "stowed" ? "수납" : "전개"}` : `램프 ${e.detail ?? ""}`; }
     case "finished": return `종료 (${e.detail ?? ""})`;
     default: return e.event;

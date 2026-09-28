@@ -95,6 +95,9 @@ namespace ShipHdMap.Tests
             Assert.That(phases, Is.SupersetOf(new[] { MapRuntime.Phase.OnQuay, MapRuntime.Phase.OnRamp, MapRuntime.Phase.OnRoute, MapRuntime.Phase.OnLane, MapRuntime.Phase.Parking }));
             Assert.That(phases.IndexOf(MapRuntime.Phase.OnRoute), Is.LessThan(phases.IndexOf(MapRuntime.Phase.OnLane)));
             Assert.That(worst, Is.LessThan(0.6f), "no teleport between the route, the lane and the approach");
+            var events = emitted.Where(e => e.name == "onScenario").Select(e => MapJson.Parse<ScenarioEvt>(e.json)).ToList();
+            int route = events.FindIndex(e => e.evt == "route" && e.detail == "ROUTE-D1"), lane = events.FindIndex(e => e.evt == "lane" && e.detail == "D1");
+            Assert.That(route, Is.GreaterThanOrEqualTo(0)); Assert.That(lane, Is.GreaterThan(route), "on the route, then on D1's lane");
             Assert.That(rt.transform.Find("Overlay/D1/PARKED-PS-D1-001"), Is.Not.Null);
         }
 
@@ -125,6 +128,8 @@ namespace ShipHdMap.Tests
             var rt = Run(m);
             // a car stands on RAMP-D3-D2's ground, so after the Load that ramp can only be up
             Assert.That(rt.RampStates["RAMP-D3-D2"], Is.EqualTo(RampPlanner.Stowed));
+            Assert.That(RampEvents(), Is.EquivalentTo(new[] { "RAMP-D3-D2 stowed", "RAMP-D2-D1 deployed", "RAMP-D3-D4 deployed", "RAMP-D4-D5 deployed" }),
+                "the Load announces every ramp, or the web keeps showing this one down under the parked car");
             rt.StartScenario("{\"mode\":\"unload\"}");
             Assert.That(rt.TargetSlotId, Is.EqualTo("PS-D3-090"), "last in, first out");
             RunUntil(rt, emitted, "onScenario", j => j.Contains("\"target\"") && j.Contains("PS-D5-001"));

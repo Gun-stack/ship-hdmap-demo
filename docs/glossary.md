@@ -90,6 +90,8 @@ Unity 엔진 좌표는 다릅니다(x 전방, y 위, z 우현). 변환은 `ToUni
 | `A2-0007` | 레이어 코드 | 7 번 차로중심선 |
 | `D3` | **D**eck 3 | 3 번 갑판 |
 | `RAMP-STERN` | — | 선미 램프 |
+| `RAMP-D3-D2` | — | D3 와 D2 를 잇는 내부 램프 (선미 램프 갑판에 가까운 쪽 먼저, 먼 쪽 나중) |
+| `ROUTE-D1` | — | D3 입구에서 D1 주 차로 시작점까지 가는 경로 |
 | `PARKED-*` | — | 이미 주차된 차를 나타내는 박스 |
 
 ## 6. 센서·위치 추정
@@ -154,7 +156,15 @@ Unity 엔진 좌표는 다릅니다(x 전방, y 위, z 우현). 변환은 `ToUni
 
 `utilization`(이용률)은 구획 넓이 합 ÷ 갑판 넓이입니다. `lashing_coverage`(래싱 커버리지)는 네 모서리에 모두 래싱점을 가진 구획의 비율입니다.
 
-주행 상태 기계 `Phase`는 `Idle → OnLane → Parking → Departing` 순서입니다.
+주행 상태 기계 `Phase`는 `Idle → OnLane → Parking → Departing` 순서입니다. M8 부터 다른 갑판으로 가는 차는 `OnLane` 앞에 `OnRoute`(경로 추종)를, 하역 때는 `Departing` 뒤에 `ReturnRoute`(경로 역순)를 거칩니다.
+
+**내부 램프(internal ramp)**는 갑판과 갑판을 잇는 호이스트형 램프입니다(`type` `internal_hoistable`). 힌지는 항상 위층 끝에 있습니다. **전개(deployed)**하면 아래층으로 경사지고, **수납(stowed)**하면 위층 바닥과 같은 높이의 덮개가 됩니다. 선미 램프(`stern_quarter`)는 D3 에 닿고, 내부 램프는 좌현으로 D3→D2→D1, 우현으로 D3→D4→D5 를 잇습니다.
+
+**가까운 쪽 / 먼 쪽**은 선미 램프 갑판(D3)을 기준으로 정합니다. 램프의 먼 쪽 발자국(내려가는 램프의 착지 자리, 올라가는 램프가 들어가는 개구)은 항상 주차할 수 없습니다. 가까운 쪽 발자국은 램프를 수납하면 덮개 위에 추가 구획이 생깁니다.
+
+**경로(route)**는 D3 입구에서 목표 갑판 주 차로 시작점(x 8)까지 이어지는 3D 폴리라인입니다. 차로처럼 정확히 추종하므로, 믿음 판정은 경로 위가 아니라 `OnLane`·`Parking`·`Departing` 에서만 합니다.
+
+**갑판 순위(`rank`)**는 선미 램프 갑판에서 먼 순서이고, 같은 거리면 아래층이 먼저입니다. 결과는 D1 → D5 → D2 → D4 → D3 이며, 먼 갑판부터 싣고 하역은 역순입니다.
 
 `FinalRunM = 5.0`은 Unity `ScenarioPlanner`와 API `SlotGenerator.FINAL_RUN_M`에서 **반드시 같아야 합니다.** 45° 선회가 이웃 열을 침범하지 않는 최소값이 4.75 m라 여유가 거의 없습니다.
 
@@ -170,11 +180,12 @@ Unity 엔진 좌표는 다릅니다(x 전방, y 위, z 우현). 변환은 `ToUni
 | `Landmark` | `marker{family, code}`, `position[x,y,z]`, `normal[nx,ny,nz]`, `size_m`, `mounted_on` |
 | `Lane` | `centerline`, `width_m`, `direction`, `speed_limit_kmh`, `next[]` |
 | `ParkingSlot` | `polygon`, `target_pose{x,y,heading_deg}`, `tolerance{lat_m,lon_m,heading_deg}`, `access_lane_id`, `lashing_points[]`, `sequence_no`, `status` |
-| `Ramp` | `hinge`, `length_m`, `angle_range_deg`, `connects_lane`, `transition_landmarks` |
+| `Ramp` | `type`(`stern_quarter` \| `internal_hoistable`), `hinge`, `length_m`, `angle_range_deg`, `connects_lane`, `transition_landmarks`, 내부 램프만 `lower_deck`·`upper_deck`·`toe`(아랫끝 두 점) |
+| `Route` | `id`, `deck_id`(목표 갑판), `ramps[]`(지나는 램프 순서), `path[][]`(3D 폴리라인) |
 
-`status`는 `empty | filled | needs_adjust` 세 값을 사용합니다.
+`status`는 `empty | filled | needs_adjust | unreachable` 네 값을 사용합니다. `unreachable`은 믿음이 멈춰 주차하지 못하고 돌아 나온 구획입니다.
 
-`sequence_no`는 선적 순서이자 생성 순서(선수→선미, 좌현→우현)입니다. 단순 번호가 아니라 "주차 접근로에 이미 세워진 차가 없음"을 보장하는 기능적 제약입니다.
+`sequence_no`는 선적 순서이자 생성 순서(선수→선미, 좌현→우현)입니다. 단순 번호가 아니라 "주차 접근로에 이미 세워진 차가 없음"을 보장하는 기능적 제약입니다. M8 부터는 전역 번호 `rank × 1000 + 갑판 안 순번`이라, 번호 순서가 곧 먼 갑판부터의 적재 순서입니다.
 
 ## 9. 시스템·브리지
 
@@ -195,6 +206,7 @@ Unity 엔진 좌표는 다릅니다(x 전방, y 위, z 우현). 변환은 `ToUni
 | `kmh` | km/h | 시속 |
 | `deg` / `rad` | degree / radian | 도 / 라디안 |
 | `frame_switch` | frame switch | 프레임 전환. 부두(GPS) 좌표계에서 Ship Frame 으로 갈아타는 시나리오 이벤트 |
+| `route` / `lane` / `ramp` | — | M8 시나리오 이벤트. 경로 출발 / 목표 갑판 차로 진입 / 내부 램프 전개·수납 |
 
 접미사 규칙은 **`_m` = 미터, `_deg` = 도, `Rad` = 라디안, `Mps` = m/s**입니다. 이름에 단위가 없으면 SI 기본 단위(m, 초)를 사용합니다.
 
@@ -202,7 +214,8 @@ Unity 엔진 좌표는 다릅니다(x 전방, y 위, z 우현). 변환은 `ToUni
 
 - `features` vs `drafts` — 저장된 피처 vs Unity 가 방금 찍었지만 아직 DB 에 없는 초안
 - `mode` — `"edit" | "drive"`. edit로 전환하면 시나리오가 중단되고 배율이 1로 초기화됩니다.
-- `deckFilter` — `"D3"` 또는 `"all"`
+- `deckFilter` — 갑판 id(`"D1"`~`"D5"`) 또는 `"all"`. 선택 갑판보다 위층은 3D 에서 숨깁니다.
+- `rampStates` — 내부 램프별 `deployed | stowed`. 주행 중에는 `ramp` 이벤트로 갱신됩니다.
 - `dataset.version` — 쓰기마다 서버가 올리는 낙관적 버전. 상태바에 표시됩니다.
 - `localization` — 마지막 `onLocalization` 이벤트 (`est_*`, `true_*`, `residual_rms`, `n_obs`)
 

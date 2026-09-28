@@ -27,7 +27,9 @@ const PORT = process.env.WEB_PORT ?? "5399";
 const DS = process.env.CAPTURE_DS ?? "roro-demo-cap";
 const BUILD = process.env.BUILD_MTIME ?? "unknown";
 const SEED = JSON.parse(process.env.SEED_JSON ?? "{}");
-const SLOTS = JSON.parse(process.env.SLOTS_JSON ?? "{}");
+// one {deck, count, utilization, lashing_coverage, rank, version} per deck, in the order capture.sh generated them
+const SLOTS = JSON.parse(process.env.SLOTS_JSON ?? "[]");
+const SLOTS_VERSION = SLOTS.length ? Math.max(...SLOTS.map((x) => x.version)) : undefined;
 const OUT = path.resolve(import.meta.dirname, "..", "docs", "img");
 
 const vol = [];                                      // stderr: what this one run happened to measure
@@ -74,8 +76,8 @@ export async function main() {
   await sleep(4000);                                 // Unity's Load/SetDeck/SetPose round trip
 
   const shown = await d.ev(`document.querySelector("header.topbar")?.textContent ?? ""`);
-  if (!shown.includes(DS) || !shown.includes(`v${SLOTS.version ?? SEED.version}`))
-    throw new Error(`the page is not on ${DS} at v${SLOTS.version ?? SEED.version}: top bar reads "${shown}"`);
+  if (!shown.includes(DS) || !shown.includes(`v${SLOTS_VERSION ?? SEED.version}`))
+    throw new Error(`the page is not on ${DS} at v${SLOTS_VERSION ?? SEED.version}: top bar reads "${shown}"`);
 
   // --- watch the bridge instead of the log panel ---
   // The DOM log stamps every line with the wall clock, and it renders scenarioLine()'s prose rather than the
@@ -196,10 +198,22 @@ export async function main() {
   };
 
   note("build", `unity.wasm ${BUILD}`);
-  note("dataset", `${DS} · v${SLOTS.version ?? SEED.version} · ${SEED.decks} decks · ${SEED.features} features`);
-  note("slots", `D3 ${SLOTS.count} 구획 · 면적 활용률 ${(SLOTS.utilization * 100).toFixed(1)} % · 래싱 ${(SLOTS.lashing_coverage * 100).toFixed(0)} %`);
+  note("dataset", `${DS} · v${SLOTS_VERSION ?? SEED.version} · ${SEED.decks} decks · ${SEED.features} features`);
+  for (const x of [...SLOTS].sort((a, b) => a.deck.localeCompare(b.deck)))
+    note(`slots ${x.deck}`, `${x.count} 구획 · 면적 활용률 ${(x.utilization * 100).toFixed(1)} % · 래싱 ${(x.lashing_coverage * 100).toFixed(0)} % · 적재 순위 ${x.rank}`);
+  note("slots 합계", `${SLOTS.reduce((a, x) => a + x.count, 0)} 구획`);
 
   await press("편집"); await press("궤도"); await press("전체");
+
+  // 00: the ship from outside (M8). Taken first, from the scene's own starting camera, so it is the same view every
+  // run: the whole shell, then the camera pulled back by a fixed number of wheel notches (each notch is a fixed
+  // factor on the orbit distance, OrbitCamera), then put back by the same number before anything else is shot.
+  const canvasBox = await rect("canvas");
+  const wheel = async (n) => { for (let k = 0; k < Math.abs(n); k++) { await d.send("Input.dispatchMouseEvent", { type: "mouseWheel", x: canvasBox.x + canvasBox.w / 2, y: canvasBox.y + canvasBox.h / 2, deltaX: 0, deltaY: Math.sign(n) * 100 }); await sleep(120); } };
+  await press("외관"); await wheel(9); await sleep(800);
+  await shot("00-exterior.png", FRAME, 0.5);
+  note("00-exterior", `외관 · ${SEED.decks} 갑판 PCTC · 전체 선체`);
+  await wheel(-9); await press("단면"); await sleep(600);
   await chapter("01", "frames", `갑판 전체 · 궤도 카메라 · ${SEED.decks} 갑판`);
 
   await press("D3");
@@ -222,6 +236,9 @@ export async function main() {
   if ((await d.ev(`document.documentElement.dataset.theme`)) !== "dark") throw new Error("theme toggle did not switch back to dark");
   note("02-coverage-light", "02 와 같은 화면 · 라이트 테마");
 
+  // The run goes to the farthest deck first (M8), over the others: drive with every deck shown. With D3 still in view
+  // the decks below it would be ghosts and the ones above hidden, exactly the ones the first car drives through.
+  await press("전체");
   await press("주행");
   // Only now: the time-scale select lives in the drive panel, and edit mode's right pane has a deck select
   // in the same place that would answer this question with "D3".
@@ -248,8 +265,19 @@ export async function main() {
   await station(-12);
   await chapter("05", "ramp", "램프 주행 · 경사 중간 (true x ≥ -12 m)");
 
+  // 05b (M8): the first car goes to the farthest deck, over the internal ramps. Pinned to a place on the first of
+  // them: after the route starts, the first estimate astern of x 24 on the port side is halfway down RAMP-D3-D2
+  // (the route only reaches the port strip after its U-turn at x 40, and the ramp runs x 34 -> 14).
+  const route = await scen("route");
+  vol.push(["route", route.v.detail]);
+  await waitFor((e) => e.n === "onLocalization" && e.v.true_x <= 24 && e.v.true_y > 5, "halfway down the first internal ramp");
+  await chapter("05b", "inner-ramp", `내부 램프 하강 · ${route.v.detail} · 경사 중간 (true x ≤ 24 m, 좌현)`);
+
+  // 06: mid-lane on the TARGET deck. A bare station(50) would fire on the way there (the route runs x 8 -> 62 on
+  // D2), so it waits for the lane handover first.
+  const lane = await scen("lane");
   await station(50);
-  await chapter("06", "lane", "차로 주행 · 차로 중간 (true x ≥ 50 m)");
+  await chapter("06", "lane", `차로 주행 · ${lane.v.detail} 차로 중간 (true x ≥ 50 m)`);
 
   const filled = await waitFor((e) => e.n === "onSlotFilled", "the first slot verdict");
   vol.push(["parked", JSON.stringify(filled.v)]);
@@ -285,8 +313,16 @@ export async function main() {
   // the web-originated Select reaches MapRuntime.Select, whose Orbit.Focus centres the parked result. Do this
   // only after the remounted coverage panel has completed its fresh request; selecting opens the property tab
   // and would otherwise unmount the panel while that request is still in flight.
-  const parkedSlotId = "PS-D3-001";
-  if (filled.v.slot_id !== parkedSlotId) throw new Error(`first verdict was for ${filled.v.slot_id}, not ${parkedSlotId}`);
+  // The first verdict is on the farthest deck (D1 with the stern ramp on D3). Show that deck: the tree lists the
+  // deck in view, and the coverage in the figure should be the promise for the deck the car parked on. Switching
+  // decks recomputes coverage, so this gets its own freshness gate.
+  const parkedSlotId = filled.v.slot_id;
+  const parkedDeck = parkedSlotId.split("-")[1];
+  // With every deck shown the panel is already on the first deck (pickDeck), which IS the far deck: then the click
+  // changes nothing and no recomputation will come -- only wait for one when the deck in view actually changes.
+  const inView = await d.ev(`(document.querySelector(".dockbar span")?.textContent.match(/Deck (\\d+)/) ?? [])[1] ?? ""`);
+  await clickOnly(parkedDeck);
+  if (`D${inView}` !== parkedDeck) finalCoverage = await waitFreshCoverage(`chapter 08 coverage on ${parkedDeck}`);
   const parked = await d.ev(`(()=>{const e=[...document.querySelectorAll("aside.left .tree li")].find(x=>x.textContent.trim().startsWith(${JSON.stringify(parkedSlotId + " ")}));if(!e)return null;const r=e.getBoundingClientRect();return{cx:r.x+r.width/2,cy:r.y+r.height/2};})()`);
   if (!parked) throw new Error(`no tree item "${parkedSlotId}"`);
   await click(parked.cx, parked.cy); await sleep(900);

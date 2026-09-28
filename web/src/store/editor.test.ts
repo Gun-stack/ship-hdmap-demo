@@ -110,6 +110,9 @@ describe("editor store", () => {
 
   it("generateSlots refreshes features, version and KPI", async () => {
     await useEditorStore.getState().load("ds1");
+    useEditorStore.setState({ slotStatus: { "PS-D3-001": "filled", "PS-D1-001": "filled" }, features: {
+      "PS-D3-001": { id: "PS-D3-001", deck_id: "D3", layer: "B2", kind: "parking_slot", geometry: { type: "Point", coordinates: [0, 0] }, props: {} },
+      "PS-D1-001": { id: "PS-D1-001", deck_id: "D1", layer: "B2", kind: "parking_slot", geometry: { type: "Point", coordinates: [0, 0] }, props: {} } } });
     vi.mocked(api.listFeatures).mockResolvedValueOnce([{ id: "PS-D3-001", deck_id: "D3", layer: "B2", kind: "parking_slot", geometry: { type: "Polygon", coordinates: [[[100, 2, 10.6], [104.8, 2, 10.6], [104.8, 3.85, 10.6], [100, 3.85, 10.6], [100, 2, 10.6]]] }, props: {} }]);
     const out = await useEditorStore.getState().generateSlots("D3", { gap_lat_m: 0.3 });
     expect(api.generateSlots).toHaveBeenCalledWith("ds1", "D3", { gap_lat_m: 0.3 });
@@ -117,6 +120,7 @@ describe("editor store", () => {
     expect(useEditorStore.getState().dataset?.version).toBe(9);
     expect(useEditorStore.getState().slotGen.D3.lashing_coverage).toBe(1);
     expect(Object.keys(useEditorStore.getState().features)).toEqual(["PS-D3-001"]);
+    expect(useEditorStore.getState().slotStatus).toEqual({ "PS-D1-001": "filled" });   // only D3 was regenerated
   });
 
   /// 완료 기준 1. 검증할 때마다 슬라이더를 다시 맞추던 것이 이 마일스톤에서 없어진다.
